@@ -22,6 +22,7 @@ use Pina\Support\Database;
  *     sortOrder: int,
  *     category: string|null,
  *     autoRule: string,
+ *     autoEventType: string,
  *     archivedAt: string|null
  * }
  */
@@ -30,8 +31,20 @@ final class OffenceTypeService
     /** Musí odpovídat ENUM sloupci offence_type.category. */
     public const CATEGORIES = ['discipline', 'performance', 'fun', 'attendance'];
 
-    /** Musí odpovídat ENUM sloupci offence_type.auto_rule. */
-    public const AUTO_RULES = ['none', 'unexcused_absence', 'late_arrival'];
+    /**
+     * Co aplikace navrhne sama z docházky. Omluvenou a neomluvenou absenci
+     * rozlišuje odpověď hráče předem — kdo řekl „nepřijdu", je omluvený.
+     * `late_arrival` zůstává jen pro úplnost: čas příchodu nikdo nezapisuje,
+     * takže se pozdní příchod navrhnout nedá.
+     */
+    public const AUTO_RULES = ['none', 'excused_absence', 'unexcused_absence', 'late_arrival'];
+
+    /**
+     * U kterého druhu akce pravidlo platí. Každé družstvo má jinou sazbu za
+     * trénink a za zápas, takže bez tohohle rozlišení by návrh strhl částku
+     * o stovky vedle.
+     */
+    public const AUTO_EVENT_TYPES = ['any', 'training', 'match', 'other'];
 
     public function __construct(
         private readonly Database $db,
@@ -49,7 +62,7 @@ final class OffenceTypeService
         $this->scope->season($identity, $seasonId, Role::Player);
 
         $rows = $this->db->all(
-            'SELECT id, season_id, name, amount_czk, sort_order, category, auto_rule, archived_at
+            'SELECT id, season_id, name, amount_czk, sort_order, category, auto_rule, auto_event_type, archived_at
                FROM offence_type
               WHERE season_id = ?' . ($includeArchived ? '' : ' AND archived_at IS NULL') . '
               ORDER BY sort_order, name',
@@ -60,7 +73,10 @@ final class OffenceTypeService
     }
 
     /**
-     * @param  array{name:string,amountCzk:int,sortOrder:int,category:string|null,autoRule:string} $input
+     * @param  array{
+     *     name:string,amountCzk:int,sortOrder:int,category:string|null,
+     *     autoRule:string,autoEventType:string
+     * } $input
      * @return OffenceType
      */
     public function create(Identity $identity, int $seasonId, array $input): array
@@ -68,8 +84,9 @@ final class OffenceTypeService
         $this->scope->writableSeason($identity, $seasonId, Role::Treasurer);
 
         $this->db->run(
-            'INSERT INTO offence_type (season_id, name, amount_czk, sort_order, category, auto_rule)
-             VALUES (?, ?, ?, ?, ?, ?)',
+            'INSERT INTO offence_type
+                 (season_id, name, amount_czk, sort_order, category, auto_rule, auto_event_type)
+             VALUES (?, ?, ?, ?, ?, ?, ?)',
             [
                 $seasonId,
                 $input['name'],
@@ -77,6 +94,7 @@ final class OffenceTypeService
                 $input['sortOrder'],
                 $input['category'],
                 $input['autoRule'],
+                $input['autoEventType'],
             ],
         );
 
@@ -86,7 +104,10 @@ final class OffenceTypeService
     /**
      * Zapsané prohřešky mají snapshot ceny — změní se jen nové zápisy.
      *
-     * @param  array{name?:string,amountCzk?:int,sortOrder?:int,category?:string|null,autoRule?:string,archived?:bool} $changes
+     * @param  array{
+     *     name?:string,amountCzk?:int,sortOrder?:int,category?:string|null,
+     *     autoRule?:string,autoEventType?:string,archived?:bool
+     * } $changes
      * @return OffenceType
      */
     public function update(Identity $identity, int $typeId, array $changes): array
@@ -100,6 +121,7 @@ final class OffenceTypeService
             'sortOrder'  => 'sort_order',
             'category'   => 'category',
             'autoRule'   => 'auto_rule',
+            'autoEventType' => 'auto_event_type',
         ];
 
         $sets   = [];
@@ -216,7 +238,7 @@ final class OffenceTypeService
         }
 
         $source = $this->db->all(
-            'SELECT id, name, amount_czk, sort_order, category, auto_rule
+            'SELECT id, name, amount_czk, sort_order, category, auto_rule, auto_event_type
                FROM offence_type
               WHERE season_id = ? AND archived_at IS NULL
               ORDER BY sort_order, name',
@@ -262,8 +284,9 @@ final class OffenceTypeService
                 $sourceId = (int) $row['id'];
 
                 $this->db->run(
-                    'INSERT INTO offence_type (season_id, name, amount_czk, sort_order, category, auto_rule)
-                     VALUES (?, ?, ?, ?, ?, ?)',
+                    'INSERT INTO offence_type
+                         (season_id, name, amount_czk, sort_order, category, auto_rule, auto_event_type)
+                     VALUES (?, ?, ?, ?, ?, ?, ?)',
                     [
                         $targetSeasonId,
                         $name,
@@ -271,6 +294,7 @@ final class OffenceTypeService
                         (int) $row['sort_order'],
                         $row['category'],
                         $row['auto_rule'],
+                        $row['auto_event_type'],
                     ],
                 );
 
@@ -304,7 +328,7 @@ final class OffenceTypeService
     private function find(int $typeId): array
     {
         $row = $this->db->first(
-            'SELECT id, season_id, name, amount_czk, sort_order, category, auto_rule, archived_at
+            'SELECT id, season_id, name, amount_czk, sort_order, category, auto_rule, auto_event_type, archived_at
                FROM offence_type WHERE id = ?',
             [$typeId],
         );
@@ -330,6 +354,7 @@ final class OffenceTypeService
             'sortOrder'  => (int) $row['sort_order'],
             'category'   => $row['category'] === null ? null : (string) $row['category'],
             'autoRule'   => (string) $row['auto_rule'],
+            'autoEventType' => (string) $row['auto_event_type'],
             'archivedAt' => $row['archived_at'] === null ? null : (string) $row['archived_at'],
         ];
     }

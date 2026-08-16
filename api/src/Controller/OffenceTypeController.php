@@ -39,6 +39,11 @@ final class OffenceTypeController
             'sortOrder' => $request->optionalSignedInt('sortOrder') ?? 0,
             'category'  => self::enum($request->optionalString('category'), OffenceTypeService::CATEGORIES, 'category'),
             'autoRule'  => self::enum($request->optionalString('autoRule'), OffenceTypeService::AUTO_RULES, 'autoRule') ?? 'none',
+            'autoEventType' => self::enum(
+                $request->optionalString('autoEventType'),
+                OffenceTypeService::AUTO_EVENT_TYPES,
+                'autoEventType',
+            ) ?? 'any',
         ]);
 
         return Response::created($type);
@@ -46,7 +51,12 @@ final class OffenceTypeController
 
     public function update(Request $request): Response
     {
-        /** @var array{name?:string,amountCzk?:int,sortOrder?:int,category?:string|null,autoRule?:string,archived?:bool} $changes */
+        /**
+         * @var array{
+         *     name?:string,amountCzk?:int,sortOrder?:int,category?:string|null,
+         *     autoRule?:string,autoEventType?:string,archived?:bool
+         * } $changes
+         */
         $changes = [];
 
         if (array_key_exists('name', $request->body)) {
@@ -75,6 +85,14 @@ final class OffenceTypeController
                 OffenceTypeService::AUTO_RULES,
                 'autoRule',
             ) ?? 'none';
+        }
+
+        if (array_key_exists('autoEventType', $request->body)) {
+            $changes['autoEventType'] = self::enum(
+                $request->optionalString('autoEventType'),
+                OffenceTypeService::AUTO_EVENT_TYPES,
+                'autoEventType',
+            ) ?? 'any';
         }
 
         if (array_key_exists('archived', $request->body)) {

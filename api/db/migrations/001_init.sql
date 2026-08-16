@@ -210,7 +210,16 @@ CREATE TABLE offence_type (
   amount_czk  INT NOT NULL,
   sort_order  INT NOT NULL DEFAULT 0,
   category    ENUM('discipline','performance','fun','attendance') NULL,
-  auto_rule   ENUM('none','unexcused_absence','late_arrival') NOT NULL DEFAULT 'none',
+  -- Ktery prohresek aplikace navrhne sama z dochazky. Omluvenou a neomluvenou
+  -- absenci rozlisuje odpoved hrace predem: kdo rekl "neprijdu", je omluveny,
+  -- kdo se neozval, neni. Pozdni prichod se odvodit neda -- cas prichodu nikdo
+  -- nezaznamenava -- a zustava rucni.
+  auto_rule   ENUM('none','excused_absence','unexcused_absence','late_arrival') NOT NULL DEFAULT 'none',
+
+  -- U ktereho druhu akce pravidlo plati. Vsechna druzstva maji jinou sazbu za
+  -- trenink a za zapas (junioři 25/100, muzi 35/100, Benatky 50/1000), takze
+  -- samotne auto_rule nestaci -- podle nej by se strhla castka o stovky vedle.
+  auto_event_type ENUM('any','training','match','other') NOT NULL DEFAULT 'any',
   archived_at DATETIME NULL,
   legacy_id   INT NULL,
   PRIMARY KEY (id),

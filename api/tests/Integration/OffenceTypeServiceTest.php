@@ -54,10 +54,16 @@ final class OffenceTypeServiceTest extends DatabaseTestCase
             'sortOrder' => 0,
             'category'  => 'discipline',
             'autoRule'  => 'none',
+            'autoEventType' => 'any',
             ...$overrides,
         ];
 
-        /** @var array{name:string,amountCzk:int,sortOrder:int,category:string|null,autoRule:string} $input */
+        /**
+         * @var array{
+         *     name:string,amountCzk:int,sortOrder:int,category:string|null,
+         *     autoRule:string,autoEventType:string
+         * } $input
+         */
         return $this->service->create($this->admin, $seasonId ?? $this->season, $input)['id'];
     }
 
@@ -98,6 +104,7 @@ final class OffenceTypeServiceTest extends DatabaseTestCase
             'sortOrder' => 0,
             'category'  => null,
             'autoRule'  => 'none',
+            'autoEventType' => 'any',
         ]);
 
         self::assertSame(50, $this->service->update($this->treasurer, $created['id'], ['amountCzk' => 50])['amountCzk']);
@@ -105,6 +112,26 @@ final class OffenceTypeServiceTest extends DatabaseTestCase
     }
 
     /** Pořadí sazebníku určuje, v jakém pořadí se položky nabízejí při zápisu. */
+    public function testAutoRuleKnowsWhichKindOfEventItBelongsTo(): void
+    {
+        // Každé družstvo má jinou sazbu za trénink a za zápas, takže bez druhu
+        // akce by návrh z docházky strhl částku o stovky vedle.
+        $type = $this->service->create($this->treasurer, $this->season, [
+            'name'          => 'Omluvený zápas',
+            'amountCzk'     => 100,
+            'sortOrder'     => 0,
+            'category'      => 'attendance',
+            'autoRule'      => 'excused_absence',
+            'autoEventType' => 'match',
+        ]);
+
+        self::assertSame('excused_absence', $type['autoRule']);
+        self::assertSame('match', $type['autoEventType']);
+
+        $changed = $this->service->update($this->treasurer, $type['id'], ['autoEventType' => 'training']);
+        self::assertSame('training', $changed['autoEventType']);
+    }
+
     public function testReorderSetsDisplayOrder(): void
     {
         $late = $this->create(['name' => 'Pozdní příchod', 'sortOrder' => 10]);
@@ -151,6 +178,7 @@ final class OffenceTypeServiceTest extends DatabaseTestCase
                 'sortOrder' => 0,
                 'category'  => null,
                 'autoRule'  => 'none',
+            'autoEventType' => 'any',
             ]);
             self::fail('hráč nesmí měnit sazebník');
         } catch (ApiException $e) {
