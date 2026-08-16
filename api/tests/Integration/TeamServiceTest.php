@@ -185,6 +185,237 @@ final class TeamServiceTest extends DatabaseTestCase
         self::assertSame(0, (int) $this->db->value('SELECT COUNT(*) FROM invitation'));
     }
 
+    public function testFounderOfTeamBecomesItsAdmin(): void
+    {
+        // Odpověď na otázku „kdo vytvoří admina družstva": jeho zakladatel.
+        // Admin mužů takhle založí juniory, aniž by kdokoli sahal do databáze.
+        $team = $this->service->createTeam($this->admin, $this->prosekClub, 'Prosek - junioři', '#062372');
+
+        self::assertSame('Prosek - junioři', $team['name']);
+        self::assertSame($this->prosekClub, $team['clubId']);
+        self::assertSame(1, $team['memberCount']);
+
+        $membership = $this->db->first(
+            'SELECT role, status, payment_reference FROM membership WHERE team_id = ? AND user_id = ?',
+            [$team['id'], $this->admin->userId],
+        );
+
+        self::assertNotNull($membership);
+        self::assertSame('admin', (string) $membership['role']);
+        self::assertSame('active', (string) $membership['status']);
+        self::assertNotSame('', (string) $membership['payment_reference']);
+    }
+
+    public function testFoundersTokensAreInvalidatedSoNewTeamIsVisible(): void
+    {
+        $this->db->run(
+            "UPDATE `user` SET tokens_valid_from = '2020-01-01 00:00:00' WHERE id = ?",
+            [$this->admin->userId],
+        );
+
+        $this->service->createTeam($this->admin, $this->prosekClub, 'Prosek - kadeti', null);
+
+        // Starý JWT o novém členství neví; bez posunutí razítka by na něj
+        // zakladatel dalších 15 minut neměl práva.
+        self::assertNotSame(
+            '2020-01-01 00:00:00',
+            (string) $this->db->value('SELECT tokens_valid_from FROM `user` WHERE id = ?', [$this->admin->userId]),
+        );
+    }
+
+    public function testPlayerCannotFoundTeamInHisClub(): void
+    {
+        try {
+            $this->service->createTeam($this->player, $this->prosekClub, 'Prosek - béčko', null);
+            self::fail('hráč nesmí zakládat družstva');
+        } catch (ApiException $e) {
+            self::assertSame(404, $e->status);
+        }
+    }
+
+    public function testAdminCannotFoundTeamInForeignClub(): void
+    {
+        try {
+            $this->service->createTeam($this->admin, $this->benatkyClub, 'Benátky - béčko', null);
+            self::fail('admin Prosku nesmí zakládat družstva v Benátkách');
+        } catch (ApiException $e) {
+            self::assertSame(404, $e->status);
+        }
+
+        self::assertSame(
+            1,
+            (int) $this->db->value('SELECT COUNT(*) FROM team WHERE club_id = ?', [$this->benatkyClub]),
+        );
+    }
+
+    public function testDuplicateTeamNameInClubIsRejected(): void
+    {
+        try {
+            $this->service->createTeam($this->admin, $this->prosekClub, 'Prosek - muži', null);
+            self::fail('dvě družstva téhož jména by v klubu nešla rozlišit');
+        } catch (ApiException $e) {
+            self::assertSame(409, $e->status);
+            self::assertSame('TEAM_EXISTS', $e->errorCode);
+        }
+    }
+
+    public function testOnlyPlatformAdminFoundsClub(): void
+    {
+        try {
+            $this->service->createClub($this->admin, 'VK Kbely');
+            self::fail('admin družstva nesmí zakládat nové kluby');
+        } catch (ApiException $e) {
+            self::assertSame(403, $e->status);
+        }
+
+        $club = $this->service->createClub($this->platformAdmin(), 'VK Kbely');
+
+        self::assertSame('VK Kbely', $club['name']);
+        self::assertSame('vk-kbely', $club['slug']);
+    }
+
+    public function testClubSlugsDoNotCollide(): void
+    {
+        $platform = $this->platformAdmin();
+
+        $first  = $this->service->createClub($platform, 'Sokol Žižkov');
+        $second = $this->service->createClub($platform, 'Sokol Žižkov');
+
+        // Slug má unikátní index; bez číslování by druhé založení skončilo chybou databáze.
+        self::assertSame('sokol-zizkov', $first['slug']);
+        self::assertSame('sokol-zizkov-2', $second['slug']);
+    }
+
+    public function testLastAdminCannotBeDemoted(): void
+    {
+        $adminMembership = (int) $this->db->value(
+            'SELECT id FROM membership WHERE team_id = ? AND user_id = ?',
+            [$this->prosekTeam, $this->admin->userId],
+        );
+
+        try {
+            $this->service->updateMembership($this->admin, $adminMembership, ['role' => Role::Treasurer]);
+            self::fail('družstvo by zůstalo bez admina');
+        } catch (ApiException $e) {
+            self::assertSame(409, $e->status);
+            self::assertSame('LAST_ADMIN', $e->errorCode);
+        }
+
+        self::assertSame(
+            'admin',
+            (string) $this->db->value('SELECT role FROM membership WHERE id = ?', [$adminMembership]),
+        );
+    }
+
+    public function testLastAdminCannotLeaveTeam(): void
+    {
+        $adminMembership = (int) $this->db->value(
+            'SELECT id FROM membership WHERE team_id = ? AND user_id = ?',
+            [$this->prosekTeam, $this->admin->userId],
+        );
+
+        try {
+            $this->service->updateMembership($this->admin, $adminMembership, ['status' => 'left']);
+            self::fail('poslední admin nesmí z družstva odejít');
+        } catch (ApiException $e) {
+            self::assertSame('LAST_ADMIN', $e->errorCode);
+        }
+    }
+
+    public function testAdminCanStepDownAfterNamingSuccessor(): void
+    {
+        $adminMembership = (int) $this->db->value(
+            'SELECT id FROM membership WHERE team_id = ? AND user_id = ?',
+            [$this->prosekTeam, $this->admin->userId],
+        );
+
+        // Předání role se dělá v tomhle pořadí: nejdřív nástupce, pak sebe.
+        $this->service->updateMembership($this->admin, $this->playerMembership, ['role' => Role::Admin]);
+        $former = $this->service->updateMembership($this->admin, $adminMembership, ['role' => Role::Player]);
+
+        self::assertSame('player', $former['role']);
+    }
+
+    public function testActivationLinkLetsMigratedMemberSetPassword(): void
+    {
+        // Hesla ze staré aplikace se nemigrovala, takže drtivá většina účtů se
+        // nemá čím přihlásit. Pozvánka na ně nesedne — jsou to stávající členové.
+        $activation = $this->service->activationLink($this->admin, $this->playerMembership);
+
+        self::assertSame('hrac@prosek.cz', $activation['email']);
+        self::assertSame('player', $activation['role']);
+        self::assertSame(64, strlen($activation['token']));
+
+        // V databázi zůstává jen otisk, stejně jako u pozvánky.
+        $stored = $this->db->first(
+            'SELECT token_hash, team_id, role FROM invitation WHERE email = ?',
+            ['hrac@prosek.cz'],
+        );
+
+        self::assertNotNull($stored);
+        self::assertSame(hash('sha256', $activation['token']), (string) $stored['token_hash']);
+        self::assertSame($this->prosekTeam, (int) $stored['team_id']);
+        self::assertSame('player', (string) $stored['role']);
+    }
+
+    public function testActivationLinkRefusedWhenMemberAlreadyHasPassword(): void
+    {
+        $this->db->run(
+            "UPDATE `user` SET password_hash = 'x' WHERE id = (SELECT user_id FROM membership WHERE id = ?)",
+            [$this->playerMembership],
+        );
+
+        try {
+            $this->service->activationLink($this->admin, $this->playerMembership);
+            self::fail('aktivační odkaz nesmí sloužit k převzetí cizího účtu');
+        } catch (ApiException $e) {
+            self::assertSame(409, $e->status);
+            self::assertSame('PASSWORD_ALREADY_SET', $e->errorCode);
+        }
+
+        self::assertSame(0, (int) $this->db->value('SELECT COUNT(*) FROM invitation'));
+    }
+
+    public function testPlayerCannotCreateActivationLink(): void
+    {
+        try {
+            $this->service->activationLink($this->player, $this->playerMembership);
+            self::fail('hráč si nesmí vyrobit odkaz ani sám na sebe');
+        } catch (ApiException $e) {
+            self::assertSame(403, $e->status);
+        }
+    }
+
+    public function testInvitationListNeverExposesToken(): void
+    {
+        $created = $this->service->invite($this->admin, $this->prosekTeam, 'novy@prosek.cz', Role::Player);
+
+        $pending = $this->service->invitations($this->admin, $this->prosekTeam);
+
+        self::assertCount(1, $pending);
+        self::assertSame('novy@prosek.cz', $pending[0]['email']);
+        self::assertFalse($pending[0]['expired']);
+        self::assertArrayNotHasKey('token', $pending[0]);
+
+        $this->service->revokeInvitation($this->admin, $created['id']);
+
+        self::assertSame([], $this->service->invitations($this->admin, $this->prosekTeam));
+    }
+
+    public function testAcceptedInvitationCannotBeRevoked(): void
+    {
+        $created = $this->service->invite($this->admin, $this->prosekTeam, 'novy@prosek.cz', Role::Player);
+        $this->db->run('UPDATE invitation SET accepted_at = NOW() WHERE id = ?', [$created['id']]);
+
+        try {
+            $this->service->revokeInvitation($this->admin, $created['id']);
+            self::fail('přijatou pozvánku nelze vzít zpět, členství už existuje');
+        } catch (ApiException $e) {
+            self::assertSame(409, $e->status);
+            self::assertSame('INVITATION_ACCEPTED', $e->errorCode);
+        }
+    }
+
     public function testRoleChangeInvalidatesIssuedTokens(): void
     {
         $userId = $this->db->value('SELECT user_id FROM membership WHERE id = ?', [$this->playerMembership]);
@@ -350,5 +581,15 @@ final class TeamServiceTest extends DatabaseTestCase
     private function identity(int $userId, string $email, int $teamId, Role $role): Identity
     {
         return new Identity($userId, $email, $email, false, [$teamId => $role]);
+    }
+
+    /** Správce platformy — nikde není členem, práva má z příznaku u účtu. */
+    private function platformAdmin(): Identity
+    {
+        $email  = 'spravce@pinaprosek.eu';
+        $userId = $this->makeUser($email);
+        $this->db->run('UPDATE `user` SET is_platform_admin = 1 WHERE id = ?', [$userId]);
+
+        return new Identity($userId, $email, $email, true, []);
     }
 }

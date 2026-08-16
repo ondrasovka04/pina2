@@ -10,6 +10,7 @@ use Pina\Auth\TeamScope;
 use Pina\Auth\TokenService;
 use Pina\Http\ApiException;
 use Pina\Support\Database;
+use Pina\Support\PaymentReference;
 
 /**
  * Družstva, jejich členové a nastavení.
@@ -45,7 +46,8 @@ use Pina\Support\Database;
  *     status:string,
  *     jerseyNumber:int|null,
  *     paymentReference:string,
- *     joinedAt:string
+ *     joinedAt:string,
+ *     hasPassword:bool
  * }
  */
 final class TeamService
@@ -115,6 +117,89 @@ final class TeamService
     }
 
     /**
+     * Založí klub. Smí to jen platformní admin — klub je nejvyšší jednotka
+     * a nikdo „nad ním" neexistuje, kdo by zakládání mohl povolit.
+     *
+     * Zakladatel klubu ještě není ničím členem; členství vzniká až s prvním
+     * družstvem, protože role je vázaná na družstvo, ne na klub.
+     *
+     * @return array{id:int,name:string,slug:string}
+     */
+    public function createClub(Identity $identity, string $name): array
+    {
+        if (!$identity->isPlatformAdmin) {
+            throw ApiException::forbidden('Nový klub může založit jen správce platformy.');
+        }
+
+        $name = trim($name);
+
+        if ($name === '') {
+            throw ApiException::validation('Název klubu nesmí být prázdný.', ['field' => 'name']);
+        }
+
+        $slug = $this->uniqueClubSlug($name);
+
+        $this->db->run('INSERT INTO club (name, slug) VALUES (?, ?)', [$name, $slug]);
+
+        return ['id' => $this->db->lastInsertId(), 'name' => $name, 'slug' => $slug];
+    }
+
+    /**
+     * Založí družstvo v existujícím klubu a zakladatele rovnou udělá jeho adminem.
+     *
+     * Tím se řetěz oprávnění uzavírá sám: admin mužů může založit juniory a je
+     * jejich adminem, dokud roli nepředá dál. Žádné pevně zadané ID se na to
+     * nepoužívá — rozhoduje jen role v klubu (viz TeamScope::club).
+     *
+     * @return TeamDetail
+     */
+    public function createTeam(Identity $identity, int $clubId, string $name, ?string $color): array
+    {
+        $this->scope->club($identity, $clubId, Role::Admin);
+
+        $name = trim($name);
+
+        if ($name === '') {
+            throw ApiException::validation('Název družstva nesmí být prázdný.', ['field' => 'name']);
+        }
+
+        $duplicate = $this->db->value(
+            'SELECT id FROM team WHERE club_id = ? AND name = ?',
+            [$clubId, $name],
+        );
+
+        if ($duplicate !== null) {
+            throw ApiException::conflict(
+                'TEAM_EXISTS',
+                'Družstvo s tímto názvem už v klubu je.',
+                ['name' => $name],
+            );
+        }
+
+        $teamId = $this->db->transaction(function () use ($clubId, $name, $color, $identity): int {
+            $this->db->run(
+                'INSERT INTO team (club_id, name, color) VALUES (?, ?, ?)',
+                [$clubId, $name, $color],
+            );
+            $teamId = $this->db->lastInsertId();
+
+            $this->db->run(
+                "INSERT INTO membership (user_id, team_id, role, payment_reference, status)
+                 VALUES (?, ?, 'admin', ?, 'active')",
+                [$identity->userId, $teamId, PaymentReference::for($teamId, $identity->userId)],
+            );
+
+            return $teamId;
+        });
+
+        // Zakladatelův token o novém družstvu neví; bez zneplatnění by na něj
+        // dalších 15 minut neměl práva.
+        $this->tokens->onRoleChanged($identity->userId);
+
+        return $this->teamPayload($teamId);
+    }
+
+    /**
      * @return TeamDetail
      */
     public function detail(Identity $identity, int $teamId): array
@@ -165,7 +250,7 @@ final class TeamService
 
         $rows = $this->db->all(
             'SELECT m.id, m.user_id, m.role, m.status, m.jersey_number, m.payment_reference, m.joined_at,
-                    u.display_name, u.email
+                    u.display_name, u.email, u.password_hash IS NOT NULL AS has_password
                FROM membership m
                JOIN `user` u ON u.id = m.user_id
               WHERE m.team_id = ?
@@ -183,6 +268,8 @@ final class TeamService
             'jerseyNumber'     => $row['jersey_number'] === null ? null : (int) $row['jersey_number'],
             'paymentReference' => (string) $row['payment_reference'],
             'joinedAt'         => (string) $row['joined_at'],
+            // Kdo heslo nemá, ještě se nikdy nepřihlásil — admin mu vyrobí aktivační odkaz.
+            'hasPassword'      => (bool) $row['has_password'],
         ], $rows);
     }
 
@@ -247,6 +334,132 @@ final class TeamService
     }
 
     /**
+     * Nevyzvednuté pozvánky. Token se nevrací — v databázi je jen jeho otisk
+     * a zpětně ho spočítat nelze. Ztracený odkaz se řeší novou pozvánkou.
+     *
+     * @return list<array{id:int,email:string,role:string,expiresAt:string,expired:bool,createdAt:string}>
+     */
+    public function invitations(Identity $identity, int $teamId): array
+    {
+        $this->scope->team($identity, $teamId, Role::Admin);
+
+        $rows = $this->db->all(
+            'SELECT id, email, role, expires_at, created_at, expires_at < NOW() AS expired
+               FROM invitation
+              WHERE team_id = ? AND accepted_at IS NULL
+              ORDER BY created_at DESC',
+            [$teamId],
+        );
+
+        return array_map(static fn (array $row): array => [
+            'id'        => (int) $row['id'],
+            'email'     => (string) $row['email'],
+            'role'      => (string) $row['role'],
+            'expiresAt' => (string) $row['expires_at'],
+            'expired'   => (bool) $row['expired'],
+            'createdAt' => (string) $row['created_at'],
+        ], $rows);
+    }
+
+    /** Zruší nevyzvednutou pozvánku — odkaz tím okamžitě přestane platit. */
+    public function revokeInvitation(Identity $identity, int $invitationId): void
+    {
+        $this->scope->invitation($identity, $invitationId, Role::Admin);
+
+        $deleted = $this->db
+            ->run('DELETE FROM invitation WHERE id = ? AND accepted_at IS NULL', [$invitationId])
+            ->rowCount();
+
+        // Přijatou pozvánku už zrušit nelze; členství z ní vzniklo a ruší se
+        // změnou stavu člena, ne mazáním pozvánky.
+        if ($deleted === 0) {
+            throw ApiException::conflict(
+                'INVITATION_ACCEPTED',
+                'Pozvánka už byla přijata, zrušit ji nelze.',
+                ['invitationId' => $invitationId],
+            );
+        }
+    }
+
+    /**
+     * Aktivační odkaz pro člena, který ještě nemá heslo.
+     *
+     * Migrace ze staré aplikace hesla nepřenesla (byly to SHA-256 otisky bez soli),
+     * takže drtivá většina účtů se nemá čím přihlásit. Běžná pozvánka na ně
+     * nesedne — ta existující členství odmítá. Odkaz se tvoří jako pozvánka
+     * se stávající rolí člena, takže ho `acceptInvitation` zpracuje beze změn.
+     *
+     * Bezpečnostní pojistka je v `acceptInvitation`: heslo se zapisuje přes
+     * COALESCE, takže existující heslo nepřepíše. Odkaz proto nejde zneužít
+     * k převzetí cizího účtu — a pro jistotu ho tahle metoda pro účet s heslem
+     * ani nevydá.
+     *
+     * @return array{email:string,role:string,expiresAt:string,token:string}
+     */
+    public function activationLink(Identity $identity, int $membershipId): array
+    {
+        $teamId = $this->scope->membership($identity, $membershipId, Role::Admin);
+
+        $member = $this->db->first(
+            'SELECT m.role, u.email, u.password_hash
+               FROM membership m
+               JOIN `user` u ON u.id = m.user_id
+              WHERE m.id = ?',
+            [$membershipId],
+        );
+
+        if ($member === null) {
+            throw ApiException::notFound();
+        }
+
+        if ($member['password_hash'] !== null) {
+            throw ApiException::conflict(
+                'PASSWORD_ALREADY_SET',
+                'Tento člen už heslo má. Zapomenuté heslo se řeší obnovou, ne aktivací.',
+                ['membershipId' => $membershipId],
+            );
+        }
+
+        $email = (string) $member['email'];
+
+        // Migrace založila zástupné adresy lidem, kteří v staré databázi e-mail
+        // neměli. Na takovou adresu se nelze přihlásit, musí se nejdřív opravit.
+        if (str_ends_with($email, '@pinaprosek.invalid')) {
+            throw ApiException::validation(
+                'Člen nemá skutečnou e-mailovou adresu, nejdřív ji doplňte.',
+                ['field' => 'email'],
+            );
+        }
+
+        $token = bin2hex(random_bytes(32));
+
+        $this->db->run(
+            'INSERT INTO invitation (team_id, email, role, token_hash, expires_at, invited_by)
+             VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? HOUR), ?)',
+            [
+                $teamId,
+                $email,
+                (string) $member['role'],
+                hash('sha256', $token),
+                self::INVITATION_TTL_HOURS,
+                $identity->userId,
+            ],
+        );
+
+        $expiresAt = (string) $this->db->value(
+            'SELECT expires_at FROM invitation WHERE id = ?',
+            [$this->db->lastInsertId()],
+        );
+
+        return [
+            'email'     => $email,
+            'role'      => (string) $member['role'],
+            'expiresAt' => $expiresAt,
+            'token'     => $token,
+        ];
+    }
+
+    /**
      * @param  array{role?:Role,jerseyNumber?:int|null,status?:string} $changes
      * @return TeamMember
      */
@@ -255,13 +468,15 @@ final class TeamService
         $this->scope->membership($identity, $membershipId, Role::Admin);
 
         $current = $this->db->first(
-            'SELECT user_id, role, status FROM membership WHERE id = ?',
+            'SELECT id, user_id, team_id, role, status FROM membership WHERE id = ?',
             [$membershipId],
         );
 
         if ($current === null) {
             throw ApiException::notFound();
         }
+
+        $this->assertNotLastAdmin($current, $changes);
 
         $sets   = [];
         $params = [];
@@ -367,6 +582,65 @@ final class TeamService
     }
 
     /**
+     * Družstvo nesmí přijít o posledního admina.
+     *
+     * Bez téhle pojistky by šlo omylem odebrat roli sám sobě a družstvo by
+     * zůstalo bez správce — zvenčí by to spravil jen zásah do databáze, protože
+     * roli uděluje admin téhož družstva. Předání role se dělá obráceně: nejdřív
+     * povýšit nástupce, pak sebe degradovat.
+     *
+     * @param array<string,mixed>                                     $current
+     * @param array{role?:Role,jerseyNumber?:int|null,status?:string} $changes
+     */
+    private function assertNotLastAdmin(array $current, array $changes): void
+    {
+        if ((string) $current['role'] !== Role::Admin->value) {
+            return;
+        }
+
+        $losesRole   = isset($changes['role']) && $changes['role'] !== Role::Admin;
+        $leavesTeam  = ($changes['status'] ?? null) === 'left';
+
+        if (!$losesRole && !$leavesTeam) {
+            return;
+        }
+
+        $others = (int) $this->db->value(
+            "SELECT COUNT(*) FROM membership
+              WHERE team_id = ? AND id <> ? AND role = 'admin' AND status <> 'left'",
+            [$current['team_id'], $current['id']],
+        );
+
+        if ($others === 0) {
+            throw ApiException::conflict(
+                'LAST_ADMIN',
+                'Družstvo by zůstalo bez admina. Nejdřív jmenujte jiného.',
+            );
+        }
+    }
+
+    /** Adresa v URL klubu: bez diakritiky, malá písmena, a unikátní. */
+    private function uniqueClubSlug(string $name): string
+    {
+        $ascii = iconv('UTF-8', 'ASCII//TRANSLIT', $name);
+        $base  = trim(preg_replace('/[^a-z0-9]+/', '-', mb_strtolower($ascii === false ? $name : $ascii)) ?? '', '-');
+
+        if ($base === '') {
+            $base = 'klub';
+        }
+
+        $base = mb_substr($base, 0, 50);
+        $slug = $base;
+
+        // Slug musí být unikátní (má unikátní index), takže se při shodě čísluje.
+        for ($suffix = 2; $this->db->value('SELECT id FROM club WHERE slug = ?', [$slug]) !== null; $suffix++) {
+            $slug = $base . '-' . $suffix;
+        }
+
+        return $slug;
+    }
+
+    /**
      * @return TeamDetail
      */
     private function teamPayload(int $teamId): array
@@ -439,7 +713,7 @@ final class TeamService
     {
         $row = $this->db->first(
             'SELECT m.id, m.user_id, m.role, m.status, m.jersey_number, m.payment_reference, m.joined_at,
-                    u.display_name, u.email
+                    u.display_name, u.email, u.password_hash IS NOT NULL AS has_password
                FROM membership m
                JOIN `user` u ON u.id = m.user_id
               WHERE m.id = ?',
@@ -460,6 +734,7 @@ final class TeamService
             'jerseyNumber'     => $row['jersey_number'] === null ? null : (int) $row['jersey_number'],
             'paymentReference' => (string) $row['payment_reference'],
             'joinedAt'         => (string) $row['joined_at'],
+            'hasPassword'      => (bool) $row['has_password'],
         ];
     }
 }

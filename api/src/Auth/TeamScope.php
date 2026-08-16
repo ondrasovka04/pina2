@@ -87,6 +87,20 @@ final class TeamScope
         return (int) $row['team_id'];
     }
 
+    /** Pozvánka → tým. */
+    public function invitation(Identity $identity, int $invitationId, Role $required): int
+    {
+        $row = $this->resolve(
+            $identity,
+            'invitation',
+            'SELECT i.team_id FROM invitation i WHERE i.id = ?',
+            $invitationId,
+            $required,
+        );
+
+        return (int) $row['team_id'];
+    }
+
     /** Akce → sezóna → tým. */
     public function event(Identity $identity, int $eventId, Role $required): int
     {

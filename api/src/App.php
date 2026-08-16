@@ -81,13 +81,19 @@ final class App
         $teamCtrl   = new TeamController(new TeamService($this->db, $this->scope, $this->tokens));
         $seasonCtrl = new SeasonController(new SeasonService($this->db, $this->scope));
 
+        $router->post('/api/v1/clubs', $teamCtrl->createClub(...));
+        $router->post('/api/v1/clubs/{club}/teams', $teamCtrl->createTeam(...));
+
         $router->get('/api/v1/me/teams', $teamCtrl->myTeams(...));
         $router->get('/api/v1/teams/{team}', $teamCtrl->show(...));
         $router->patch('/api/v1/teams/{team}', $teamCtrl->update(...));
         $router->get('/api/v1/teams/{team}/members', $teamCtrl->members(...));
         $router->post('/api/v1/teams/{team}/members', $teamCtrl->invite(...));
+        $router->get('/api/v1/teams/{team}/invitations', $teamCtrl->invitations(...));
+        $router->delete('/api/v1/invitations/{id}', $teamCtrl->revokeInvitation(...));
         $router->put('/api/v1/teams/{team}/settings', $teamCtrl->saveSettings(...));
         $router->patch('/api/v1/memberships/{id}', $teamCtrl->updateMembership(...));
+        $router->post('/api/v1/memberships/{id}/activation', $teamCtrl->activationLink(...));
 
         $router->get('/api/v1/teams/{team}/seasons', $seasonCtrl->index(...));
         $router->post('/api/v1/teams/{team}/seasons', $seasonCtrl->create(...));

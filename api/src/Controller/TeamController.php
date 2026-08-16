@@ -25,6 +25,23 @@ final class TeamController
         return Response::ok(['teams' => $this->teams->myTeams($request->identity())]);
     }
 
+    public function createClub(Request $request): Response
+    {
+        return Response::created([
+            'club' => $this->teams->createClub($request->identity(), $request->string('name')),
+        ]);
+    }
+
+    public function createTeam(Request $request): Response
+    {
+        return Response::created($this->teams->createTeam(
+            $request->identity(),
+            $request->routeId('club'),
+            $request->string('name'),
+            array_key_exists('color', $request->body) ? $this->hexColor($request) : null,
+        ));
+    }
+
     public function show(Request $request): Response
     {
         return Response::ok($this->teams->detail($request->identity(), $request->routeId('team')));
@@ -69,6 +86,27 @@ final class TeamController
         );
 
         return Response::created(['invitation' => $invitation]);
+    }
+
+    public function invitations(Request $request): Response
+    {
+        return Response::ok([
+            'invitations' => $this->teams->invitations($request->identity(), $request->routeId('team')),
+        ]);
+    }
+
+    public function revokeInvitation(Request $request): Response
+    {
+        $this->teams->revokeInvitation($request->identity(), $request->routeId('id'));
+
+        return Response::ok(['revoked' => true]);
+    }
+
+    public function activationLink(Request $request): Response
+    {
+        return Response::created([
+            'activation' => $this->teams->activationLink($request->identity(), $request->routeId('id')),
+        ]);
     }
 
     public function updateMembership(Request $request): Response

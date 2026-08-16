@@ -90,6 +90,17 @@ v `tests/Integration/DatabaseTestCase.php` a neobchází se.
   soupisce není, ale má v sezóně zápis, se ukáže taky — odchod dluh nemaže.
 - **Záporné částky jsou platné** (bonusy). Nikde nepředpokládejte, že částka
   nebo součet je kladný.
+- **Družstvo nesmí zůstat bez admina.** `TeamService::assertNotLastAdmin` shodí
+  odebrání role i odchod poslednímu adminovi (409 `LAST_ADMIN`) — jinak by tým
+  neměl kudy se opravit, protože roli uděluje admin téhož družstva.
+- **Kdo zakládá, ten je admin.** Družstvo zakládá admin jiného družstva téhož
+  klubu a rovnou dostane členství s rolí admin; klub zakládá jen platformní
+  admin (`user.is_platform_admin`). Nikde k tomu není pevně zadané ID —
+  `LEGACY_PLATFORM_ADMIN_ID` v `tools/migrate_legacy.php` je jen převod historie
+  ze staré aplikace a za běhu nic neřídí.
+- **Tokeny na jedno použití** (pozvánka, aktivační odkaz) se vrací **jen
+  v odpovědi na jejich vytvoření**; v databázi je pouze SHA-256 otisk. Nikam se
+  nelogují a zpětně je nelze zobrazit.
 - **`tokens_valid_from`** u uživatele zneplatní vydané JWT; používá se při změně
   hesla, odhlášení všude a změně role.
 

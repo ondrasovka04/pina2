@@ -7,6 +7,7 @@ namespace Pina\Auth;
 use Pina\Http\ApiException;
 use Pina\Http\RateLimiter;
 use Pina\Support\Database;
+use Pina\Support\PaymentReference;
 
 /**
  * Přihlášení, pozvánky a reset hesla.
@@ -117,7 +118,7 @@ final class AuthService
                     $userId,
                     $invitation['team_id'],
                     $invitation['role'],
-                    $this->generatePaymentReference((int) $invitation['team_id'], (int) $userId),
+                    PaymentReference::for((int) $invitation['team_id'], (int) $userId),
                 ],
             );
 
@@ -183,17 +184,5 @@ final class AuthService
                 'paymentReference' => $m['payment_reference'],
             ], $memberships),
         ];
-    }
-
-    /** Stabilní variabilní symbol pro platby: 8 číslic + kontrolní číslice. */
-    private function generatePaymentReference(int $teamId, int $userId): string
-    {
-        $base = sprintf('%03d%04d', $teamId % 1000, $userId % 10000);
-        $sum  = 0;
-        foreach (str_split($base) as $i => $digit) {
-            $sum += (int) $digit * (($i % 6) + 2);
-        }
-
-        return $base . ($sum % 11 % 10);
     }
 }
