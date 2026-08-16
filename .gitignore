@@ -2,21 +2,22 @@
 .env
 .env.*
 !.env.example
+api/.env
 export/
 *.sql
 *.sql.gz
 *.csv
-storage/logs/
-storage/backups/
+api/storage/logs/
+api/storage/backups/
 
 # Závislosti
 node_modules/
-vendor/
+api/vendor/
 
 # Build
-dist/
-build/
+web/dist/
 .vite/
+*.tsbuildinfo
 
 # Nástroje
 .phpunit.cache/

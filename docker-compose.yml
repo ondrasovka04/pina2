@@ -26,7 +26,7 @@ services:
     build: ./docker/php
     working_dir: /app
     volumes:
-      - .:/app
+      - ./api:/app
       # dump a CSV leží mimo repo (obsahují osobní údaje), připojují se jen pro migraci
       - ../export:/legacy:ro
     environment:
@@ -41,6 +41,5 @@ services:
     ports:
       - "8080:8080"
     command: php -S 0.0.0.0:8080 -t public
-
 volumes:
   db-data:

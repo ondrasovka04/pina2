@@ -1,0 +1,45 @@
+{
+	"name": "pina2-web",
+	"private": true,
+	"type": "module",
+	"engines": {
+		"node": ">=26"
+	},
+	"scripts": {
+		"dev": "vite",
+		"build": "tsc -b && vite build",
+		"preview": "vite preview",
+		"typecheck": "tsc --noEmit",
+		"format": "oxfmt .",
+		"format:check": "oxfmt --check .",
+		"lint": "oxlint",
+		"test": "vitest run",
+		"test:watch": "vitest"
+	},
+	"dependencies": {
+		"@tanstack/react-query": "^5.101.4",
+		"react": "^19.2.8",
+		"react-dom": "^19.2.8",
+		"react-hook-form": "^7.85.0",
+		"react-router": "^8.3.0",
+		"zod": "^4.4.3"
+	},
+	"devDependencies": {
+		"@tailwindcss/vite": "^4.3.3",
+		"@testing-library/jest-dom": "^6.9.1",
+		"@testing-library/react": "^16.3.2",
+		"@testing-library/user-event": "^14.6.1",
+		"@types/react": "^19.2.7",
+		"@types/react-dom": "^19.2.4",
+		"@vitejs/plugin-react": "^6.0.5",
+		"jsdom": "^30.0.1",
+		"msw": "^2.15.0",
+		"oxfmt": "^0.63.0",
+		"oxlint": "^1.78.0",
+		"tailwindcss": "^4.3.3",
+		"typescript": "^7.0.2",
+		"vite": "^8.2.1",
+		"vite-plugin-pwa": "^1.3.0",
+		"vitest": "^4.1.10"
+	}
+}

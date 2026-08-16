@@ -116,6 +116,33 @@ final class Request
         return (int) $value;
     }
 
+    /**
+     * Celé číslo, které smí být záporné. Částky v sazebníku jsou se znaménkem —
+     * záporná hodnota je bonus („MVP extraligy" −20 Kč), takže na ně `int()`
+     * s kontrolou `ctype_digit` nestačí.
+     */
+    public function signedInt(string $key, ?int $default = null): int
+    {
+        $value = $this->body[$key] ?? $default;
+
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if (is_string($value) && preg_match('/^-?\d+$/', trim($value)) === 1) {
+            return (int) trim($value);
+        }
+
+        throw ApiException::validation("Pole $key musí být celé číslo.", ['field' => $key]);
+    }
+
+    public function optionalSignedInt(string $key): ?int
+    {
+        $value = $this->body[$key] ?? null;
+
+        return $value === null || $value === '' ? null : $this->signedInt($key);
+    }
+
     public function bool(string $key, bool $default = false): bool
     {
         $value = $this->body[$key] ?? $default;

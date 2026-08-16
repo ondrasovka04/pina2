@@ -4,46 +4,86 @@ Webová aplikace pro správu týmové píny (kasa za prohřešky), docházky a n
 ve volejbalových týmech. Kompletní přepis původního ročníkového projektu z roku 2023
 (Expo / React Native + PHP API).
 
-**Produkce:** https://pinaprosek.eu · **Klub:** SK Prosek Praha (+ další týmy)
+**Produkce:** https://pinaprosek.eu · **Klub:** SK Prosek Praha (+ VK Benátky)
 
-## Stav
+## Struktura
 
-Ve fázi návrhu. Analýzy v [`docs/`](docs/):
-
-- [Technická analýza](docs/ANALYZA-TECHNICKA.md) — architektura, datový model, API, migrace, provoz
-- [Netechnická analýza](docs/ANALYZA-NETECHNICKA.md) — funkce a role z pohledu uživatele
+```
+api/          PHP 8.5 backend
+  src/          Auth, Http, Controller, Service, Support
+  tests/        PHPUnit (unit + integrační proti MySQL)
+  tools/        migrace ze staré DB a její ověření
+  db/           SQL migrace schématu
+  public/       index.php — jediný veřejný PHP soubor
+web/          React 19 + TypeScript frontend
+  src/          app, features, components, lib
+  public/       statické soubory kopírované do buildu (.htaccess)
+docs/         analýzy
+```
 
 ## Stack
 
-| Vrstva | Technologie |
+| Vrstva   | Technologie |
 |---|---|
-| Frontend | React 19 + TypeScript, Vite, TanStack Query, Tailwind + shadcn/ui, PWA |
-| Backend | PHP 8.5, vlastní mikro-framework (Router → Service → Repository), PDO, JWT |
+| Frontend | React 19, TypeScript 7, Vite 8, TanStack Query, Tailwind 4, PWA |
+| Nástroje | oxfmt (formátování), oxlint |
+| Backend  | PHP 8.5, vlastní mikro-framework (Router → Controller → Service), PDO, JWT |
 | Databáze | MySQL 8 |
-| Hosting | Czechia / Zoner — Apache + PHP-FPM, deploy přes FTP |
+| Hosting  | Czechia / Zoner — Apache + PHP-FPM, deploy přes FTP |
 
-Podrobné zdůvodnění voleb je v technické analýze, kapitola 3.
+Zdůvodnění voleb je v [technické analýze](docs/ANALYZA-TECHNICKA.md), kapitola 3.
 
 ## Vývoj
 
 ```bash
-docker compose up -d          # MySQL 8 + PHP 8.5 (shoda s produkcí)
-npm install && npm run dev    # frontend na :5173, API proxy na :8080
-composer install              # backend závislosti
+docker compose up -d                    # MySQL 8 + PHP 8.5 (shoda s produkcí), API na :8080
+cd web && npm install && npm run dev    # frontend na :5173, /api proxy na :8080
+```
+
+Backend:
+
+```bash
+docker compose run --rm php ./vendor/bin/phpunit
+docker compose run --rm php ./vendor/bin/phpstan analyse --memory-limit=512M
+```
+
+Frontend:
+
+```bash
+cd web
+npm run typecheck    # TypeScript 7
+npm run lint         # oxlint
+npm run format       # oxfmt
+npm run build        # → web/dist/
 ```
 
 Lokální databáze se plní kopií produkčního dumpu, takže migrace i dotazy se testují
-proti reálným datům. Dump se do repa **necommituje** (osobní údaje).
+proti reálným datům (6 116 zápisů). Dump se do repa **necommituje** — obsahuje osobní údaje.
+
+**Testy běží proti `pina_test`**, nikdy proti vývojové databázi. Hlídá to pojistka
+v `DatabaseTestCase`, protože testy si tabulky před během promazávají.
+
+## Nasazení
+
+Hosting nemá SSH, deploy jde přes FTP a rozděluje se na dvě místa:
+
+| Odkud | Kam |
+|---|---|
+| `api/src`, `api/vendor`, `api/.env` | `/www/sites/8/site92718/app/` — mimo web |
+| `api/public/*` | `public_html/api/` |
+| `web/dist/*` | `public_html/` |
+
+`open_basedir` sahá nad web root, takže `.env` ani `vendor/` nejsou z internetu dostupné.
 
 ## Fáze
 
-| | Obsah | Stav |
+|     | Obsah | Stav |
 |---|---|---|
-| F0 | ověření hostingu, dump dat, repo, CI | probíhá |
-| F1 | schéma, migrace, auth, role, design systém | |
-| F2 | prohřešky — sazebník, dávkový zápis, přehledy | |
+| F0 | ověření hostingu, dump dat, repo | hotovo |
+| F1 | schéma, migrace, auth, role, týmy, sezóny | backend hotový |
+| F2 | prohřešky — sazebník, dávkový zápis, přehledy | backend hotový, chybí UI |
 | F3 | docházka, nominace, opakované akce | |
-| F4 | dluhy, platby, QR (SPAYD) | |
+| F4 | dluhy, platby, QR (SPAYD), cesťáky, zúčtování | |
 | F5 | PWA, Web Push | |
 | F6 | párování plateb z bankovního API (follow-up) | |
 
