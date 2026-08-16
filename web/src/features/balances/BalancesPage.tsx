@@ -68,7 +68,13 @@ export function BalancesPage() {
 			</Card>
 
 			<div className="flex items-center justify-between">
-				<h1 className="text-lg font-semibold">Kdo kolik dluží</h1>
+				<div className="flex items-baseline gap-3">
+					<h1 className="text-lg font-semibold">Kdo kolik dluží</h1>
+					{/* Odsud se stornuje omylem odeslaný trénink celý, ne po lidech. */}
+					<Link to="/zapisy" className="text-ink-muted text-sm">
+						Zápisy
+					</Link>
+				</div>
 				<div className="bg-surface-2 flex rounded-lg p-0.5 text-sm">
 					<SortTab active={sort === 'debt'} onClick={() => setSort('debt')}>
 						Podle dluhu
