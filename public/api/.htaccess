@@ -1,0 +1,5 @@
+RewriteEngine On
+
+# Vše, co není existující soubor, obsluhuje front controller.
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^ index.php [QSA,L]

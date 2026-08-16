@@ -20,13 +20,17 @@
             <directory>src</directory>
         </include>
     </source>
+    <!--
+        force="true" je nutné: bez něj by se hodnota neprosadila přes proměnné,
+        které už nastavil Docker, a testy by promazaly vývojovou databázi.
+    -->
     <php>
-        <env name="APP_ENV" value="testing"/>
-        <env name="DB_HOST" value="db"/>
-        <env name="DB_NAME" value="pina_test"/>
-        <env name="DB_USER" value="root"/>
-        <env name="DB_PASSWORD" value="root"/>
-        <env name="JWT_SECRET" value="test-secret-only-for-phpunit-do-not-use-in-production"/>
-        <env name="MAIL_ENABLED" value="false"/>
+        <env name="APP_ENV" value="testing" force="true"/>
+        <env name="DB_HOST" value="db" force="true"/>
+        <env name="DB_NAME" value="pina_test" force="true"/>
+        <env name="DB_USER" value="root" force="true"/>
+        <env name="DB_PASSWORD" value="root" force="true"/>
+        <env name="JWT_SECRET" value="test-secret-only-for-phpunit-do-not-use-in-production" force="true"/>
+        <env name="MAIL_ENABLED" value="false" force="true"/>
     </php>
 </phpunit>

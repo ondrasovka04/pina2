@@ -15,6 +15,10 @@ use Pina\Support\Database;
  * se k cizím datům. Stará verze proti tomu neměla vůbec nic: role existovaly jen
  * v UI a API vůbec neřešilo, kdo volá.
  *
+ * Role se čte z databáze, ne z tokenu. Nestojí to nic navíc: aby se zjistilo,
+ * komu daný záznam patří, se do databáze sáhnout musí tak jako tak, takže se
+ * členství připojí do téhož dotazu.
+ *
  * Zásada: když záznam neexistuje NEBO nepatří volajícímu, vrací se shodně 404.
  * Rozdíl mezi 403 a 404 by prozrazoval, která cizí ID existují.
  */
@@ -27,27 +31,21 @@ final class TeamScope
     /** Tým samotný. */
     public function team(Identity $identity, int $teamId, Role $required): void
     {
-        $exists = $this->db->value('SELECT 1 FROM team WHERE id = ?', [$teamId]);
-
-        if ($exists === null) {
-            throw ApiException::notFound();
-        }
-
-        $this->assert($identity, $teamId, $required);
+        $this->resolve($identity, 'team', 'SELECT t.id AS team_id FROM team t WHERE t.id = ?', $teamId, $required);
     }
 
     /** Sezóna → tým. Vrací team_id, aby ho volající nemusel dohledávat. */
     public function season(Identity $identity, int $seasonId, Role $required): int
     {
-        $teamId = $this->db->value('SELECT team_id FROM season WHERE id = ?', [$seasonId]);
+        $row = $this->resolve(
+            $identity,
+            'season',
+            'SELECT s.team_id, s.closed_at FROM season s WHERE s.id = ?',
+            $seasonId,
+            $required,
+        );
 
-        if ($teamId === null) {
-            throw ApiException::notFound();
-        }
-
-        $this->assert($identity, (int) $teamId, $required);
-
-        return (int) $teamId;
+        return (int) $row['team_id'];
     }
 
     /**
@@ -56,13 +54,13 @@ final class TeamScope
      */
     public function writableSeason(Identity $identity, int $seasonId, Role $required): int
     {
-        $row = $this->db->first('SELECT team_id, closed_at FROM season WHERE id = ?', [$seasonId]);
-
-        if ($row === null) {
-            throw ApiException::notFound();
-        }
-
-        $this->assert($identity, (int) $row['team_id'], $required);
+        $row = $this->resolve(
+            $identity,
+            'season',
+            'SELECT s.team_id, s.closed_at FROM season s WHERE s.id = ?',
+            $seasonId,
+            $required,
+        );
 
         if ($row['closed_at'] !== null) {
             throw ApiException::conflict(
@@ -78,59 +76,29 @@ final class TeamScope
     /** Členství → tým. */
     public function membership(Identity $identity, int $membershipId, Role $required): int
     {
-        $teamId = $this->db->value('SELECT team_id FROM membership WHERE id = ?', [$membershipId]);
+        $row = $this->resolve(
+            $identity,
+            'membership',
+            'SELECT m.team_id, m.user_id AS owner_id FROM membership m WHERE m.id = ?',
+            $membershipId,
+            $required,
+        );
 
-        if ($teamId === null) {
-            throw ApiException::notFound();
-        }
-
-        $this->assert($identity, (int) $teamId, $required);
-
-        return (int) $teamId;
+        return (int) $row['team_id'];
     }
 
     /** Akce → sezóna → tým. */
     public function event(Identity $identity, int $eventId, Role $required): int
     {
-        $teamId = $this->db->value(
+        $row = $this->resolve(
+            $identity,
+            'event',
             'SELECT s.team_id FROM event e JOIN season s ON s.id = e.season_id WHERE e.id = ?',
-            [$eventId],
+            $eventId,
+            $required,
         );
 
-        if ($teamId === null) {
-            throw ApiException::notFound();
-        }
-
-        $this->assert($identity, (int) $teamId, $required);
-
-        return (int) $teamId;
-    }
-
-    /** Klub. Používá se u nastavení a míst, která jsou sdílená mezi družstvy. */
-    public function club(Identity $identity, int $clubId, Role $required): void
-    {
-        if ($identity->isPlatformAdmin) {
-            return;
-        }
-
-        $teamIds = $identity->teamIds();
-        if ($teamIds === []) {
-            throw ApiException::notFound();
-        }
-
-        $placeholders = implode(',', array_fill(0, count($teamIds), '?'));
-        $rows = $this->db->all(
-            "SELECT id FROM team WHERE club_id = ? AND id IN ($placeholders)",
-            [$clubId, ...$teamIds],
-        );
-
-        foreach ($rows as $row) {
-            if ($identity->hasRoleInTeam((int) $row['id'], $required)) {
-                return;
-            }
-        }
-
-        throw ApiException::notFound();
+        return (int) $row['team_id'];
     }
 
     /**
@@ -140,8 +108,14 @@ final class TeamScope
     public function ownMembershipOr(Identity $identity, int $membershipId, Role $required): int
     {
         $row = $this->db->first(
-            'SELECT team_id, user_id FROM membership WHERE id = ?',
-            [$membershipId],
+            'SELECT m.team_id, m.user_id AS owner_id, mine.role AS my_role
+               FROM membership m
+               LEFT JOIN membership mine
+                      ON mine.team_id = m.team_id
+                     AND mine.user_id = ?
+                     AND mine.status <> \'left\'
+              WHERE m.id = ?',
+            [$identity->userId, $membershipId],
         );
 
         if ($row === null) {
@@ -150,35 +124,96 @@ final class TeamScope
 
         $teamId = (int) $row['team_id'];
 
-        if ((int) $row['user_id'] === $identity->userId && $identity->isMemberOf($teamId)) {
+        if ($identity->isPlatformAdmin) {
             return $teamId;
         }
 
-        $this->assert($identity, $teamId, $required);
+        if ($row['my_role'] === null) {
+            throw ApiException::notFound();
+        }
+
+        // Vlastní záznam si hráč upraví bez ohledu na roli.
+        if ((int) $row['owner_id'] === $identity->userId) {
+            return $teamId;
+        }
+
+        $this->requireRole($row['my_role'], $required);
 
         return $teamId;
     }
 
-    private function assert(Identity $identity, int $teamId, Role $required): void
+    /** Klub. Používá se u nastavení a míst, která jsou sdílená mezi družstvy. */
+    public function club(Identity $identity, int $clubId, Role $required): void
     {
         if ($identity->isPlatformAdmin) {
             return;
         }
 
-        // Členství se ověřuje proti databázi, ne proti tokenu: role mohla být
-        // odebrána po vydání tokenu a ten platí ještě 15 minut.
-        $role = $this->db->value(
-            "SELECT role FROM membership WHERE user_id = ? AND team_id = ? AND status <> 'left'",
-            [$identity->userId, $teamId],
+        $roles = $this->db->all(
+            'SELECT m.role
+               FROM membership m
+               JOIN team t ON t.id = m.team_id
+              WHERE t.club_id = ? AND m.user_id = ? AND m.status <> \'left\'',
+            [$clubId, $identity->userId],
         );
 
-        if ($role === null) {
+        foreach ($roles as $row) {
+            $role = Role::tryFrom((string) $row['role']);
+            if ($role instanceof Role && $role->allows($required)) {
+                return;
+            }
+        }
+
+        throw ApiException::notFound();
+    }
+
+    /**
+     * Jedním dotazem zjistí vlastníka záznamu i roli volajícího v jeho týmu.
+     *
+     * POZOR: $sql se vkládá do výsledného dotazu textově, protože parametrizovat
+     * lze jen hodnoty, nikoli části příkazu. Smí sem proto přijít **výhradně
+     * literál napsaný v této třídě** — nikdy nic, co pochází z požadavku.
+     * Hodnoty ($id, userId) jdou standardně jako parametry.
+     *
+     * @param  string              $alias  popis entity pro čitelnost volání
+     * @param  string              $sql    literál; musí vracet sloupec team_id a mít jeden parametr (id)
+     * @return array<string,mixed>
+     */
+    private function resolve(Identity $identity, string $alias, string $sql, int $id, Role $required): array
+    {
+        $row = $this->db->first(
+            "SELECT base.*, m.role AS my_role
+               FROM ($sql) AS base
+               LEFT JOIN membership m
+                      ON m.team_id = base.team_id
+                     AND m.user_id = ?
+                     AND m.status <> 'left'",
+            [$id, $identity->userId],
+        );
+
+        if ($row === null) {
             throw ApiException::notFound();
         }
 
-        $actual = Role::tryFrom((string) $role);
+        if ($identity->isPlatformAdmin) {
+            return $row;
+        }
 
-        if (!$actual instanceof Role || !$actual->allows($required)) {
+        // Volající v týmu vůbec není — záznam se tváří jako neexistující.
+        if ($row['my_role'] === null) {
+            throw ApiException::notFound();
+        }
+
+        $this->requireRole($row['my_role'], $required);
+
+        return $row;
+    }
+
+    private function requireRole(mixed $actualRole, Role $required): void
+    {
+        $role = Role::tryFrom((string) $actualRole);
+
+        if (!$role instanceof Role || !$role->allows($required)) {
             throw ApiException::forbidden(
                 sprintf('K této akci je potřeba role %s.', $required->label()),
             );

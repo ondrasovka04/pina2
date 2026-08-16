@@ -20,6 +20,8 @@ abstract class DatabaseTestCase extends TestCase
 
     protected function setUp(): void
     {
+        $this->guardAgainstWrongDatabase();
+
         $this->db = new Database();
 
         if (!self::$schemaReady) {
@@ -28,6 +30,23 @@ abstract class DatabaseTestCase extends TestCase
         }
 
         $this->truncateAll();
+    }
+
+    /**
+     * Pojistka proti smazání dat. Testy mažou obsah všech tabulek, takže musí
+     * běžet výhradně proti databázi určené k testování — nikdy proti vývojové
+     * ani produkční.
+     */
+    private function guardAgainstWrongDatabase(): void
+    {
+        $name = (string) (getenv('DB_NAME') ?: '');
+
+        if (!str_contains($name, 'test')) {
+            self::fail(
+                "Testy by smazaly obsah databáze '$name'. Název testovací databáze "
+                . 'musí obsahovat "test" (viz phpunit.xml).',
+            );
+        }
     }
 
     private function createSchema(): void
