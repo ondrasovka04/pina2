@@ -21,6 +21,9 @@ web/          React 19 + TypeScript frontend
 docs/         analýzy
 ```
 
+Konvence a pravidla projektu jsou v [AGENTS.md](AGENTS.md), podrobnosti k oběma
+částem pak v [api/AGENTS.md](api/AGENTS.md) a [web/AGENTS.md](web/AGENTS.md).
+
 ## Stack
 
 | Vrstva   | Technologie |
@@ -81,7 +84,7 @@ Hosting nemá SSH, deploy jde přes FTP a rozděluje se na dvě místa:
 |---|---|---|
 | F0 | ověření hostingu, dump dat, repo | hotovo |
 | F1 | schéma, migrace, auth, role, týmy, sezóny | backend hotový |
-| F2 | prohřešky — sazebník, dávkový zápis, přehledy | backend hotový, chybí UI |
+| F2 | prohřešky — sazebník, dávkový zápis, přehledy | hotovo |
 | F3 | docházka, nominace, opakované akce | |
 | F4 | dluhy, platby, QR (SPAYD), cesťáky, zúčtování | |
 | F5 | PWA, Web Push | |
