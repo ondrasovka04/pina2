@@ -10,6 +10,8 @@ use Pina\Auth\PasswordService;
 use Pina\Auth\TeamScope;
 use Pina\Auth\TokenService;
 use Pina\Controller\AuthController;
+use Pina\Controller\EventController;
+use Pina\Controller\LocationController;
 use Pina\Controller\OffenceController;
 use Pina\Controller\OffenceTypeController;
 use Pina\Controller\SeasonController;
@@ -20,6 +22,8 @@ use Pina\Mail\PasswordResetMail;
 use Pina\Mail\SmtpMailer;
 use Pina\Http\RateLimiter;
 use Pina\Http\Router;
+use Pina\Service\EventService;
+use Pina\Service\LocationService;
 use Pina\Service\OffenceService;
 use Pina\Service\OffenceTypeService;
 use Pina\Service\SeasonService;
@@ -80,6 +84,7 @@ final class App
 
         $this->teamRoutes($router);
         $this->offenceRoutes($router);
+        $this->eventRoutes($router);
 
         return $router;
     }
@@ -130,10 +135,40 @@ final class App
         $router->delete('/api/v1/offence-types/{id}', $typeCtrl->archive(...));
 
         $router->get('/api/v1/seasons/{season}/offences', $offenceCtrl->index(...));
+        $router->get('/api/v1/seasons/{season}/offence-batches', $offenceCtrl->batches(...));
         $router->post('/api/v1/seasons/{season}/offence-batches', $offenceCtrl->createBatch(...));
         $router->get('/api/v1/seasons/{season}/balances', $offenceCtrl->balances(...));
         $router->get('/api/v1/offence-batches/{id}', $offenceCtrl->showBatch(...));
         $router->post('/api/v1/offence-batches/{id}/void', $offenceCtrl->voidBatch(...));
         $router->post('/api/v1/offences/{id}/void', $offenceCtrl->voidRecord(...));
+    }
+
+    /** Kalendář, docházka a místa konání. */
+    private function eventRoutes(Router $router): void
+    {
+        $eventCtrl    = new EventController(new EventService($this->db, $this->scope));
+        $locationCtrl = new LocationController(new LocationService($this->db, $this->scope));
+
+        $router->get('/api/v1/seasons/{season}/events', $eventCtrl->index(...));
+        $router->post('/api/v1/seasons/{season}/events', $eventCtrl->store(...));
+        $router->get('/api/v1/seasons/{season}/event-series', $eventCtrl->series(...));
+        $router->post('/api/v1/seasons/{season}/event-series', $eventCtrl->storeSeries(...));
+        $router->get('/api/v1/seasons/{season}/attendance', $eventCtrl->summary(...));
+
+        $router->get('/api/v1/events/{id}', $eventCtrl->show(...));
+        $router->patch('/api/v1/events/{id}', $eventCtrl->update(...));
+        $router->post('/api/v1/events/{id}/cancel', $eventCtrl->cancel(...));
+        $router->post('/api/v1/events/{id}/restore', $eventCtrl->restore(...));
+        $router->delete('/api/v1/events/{id}', $eventCtrl->delete(...));
+        $router->put('/api/v1/events/{id}/rsvp', $eventCtrl->saveRsvp(...));
+        $router->put('/api/v1/events/{id}/attendance', $eventCtrl->saveAttendance(...));
+        $router->put('/api/v1/events/{id}/nominations', $eventCtrl->saveNominations(...));
+        $router->patch('/api/v1/event-series/{id}', $eventCtrl->updateSeries(...));
+        $router->delete('/api/v1/event-series/{id}', $eventCtrl->deleteSeries(...));
+
+        $router->get('/api/v1/clubs/{club}/locations', $locationCtrl->index(...));
+        $router->post('/api/v1/clubs/{club}/locations', $locationCtrl->store(...));
+        $router->patch('/api/v1/locations/{id}', $locationCtrl->update(...));
+        $router->delete('/api/v1/locations/{id}', $locationCtrl->delete(...));
     }
 }
