@@ -12,12 +12,14 @@ import { MemberRow } from '@/features/team/MemberRow'
 import { describeBatch, needsActivation, sortMembers } from '@/features/team/members'
 import { NewTeamSection } from '@/features/team/NewTeamSection'
 import { OneTimeLinkDialog } from '@/features/team/OneTimeLinkDialog'
+import { TeamSettingsSection } from '@/features/team/TeamSettingsSection'
 import { ApiError } from '@/lib/api'
 import { plural } from '@/lib/plural'
 import {
 	useActivationLink,
 	useRenameTeam,
 	useSendActivationEmails,
+	useTeamDetail,
 	useTeamMembers,
 	useUpdateMembership,
 } from '@/lib/queries'
@@ -35,6 +37,7 @@ export function TeamPage() {
 
 	const teamId = team?.id ?? null
 	const members = useTeamMembers(teamId)
+	const detail = useTeamDetail(teamId)
 	const updateMembership = useUpdateMembership(teamId ?? 0)
 	const activation = useActivationLink(teamId ?? 0)
 
@@ -122,6 +125,8 @@ export function TeamPage() {
 			</Card>
 
 			<InvitationsSection teamId={team.id} onIssued={(link) => setIssued({ kind: 'invitation', link })} />
+
+			{detail.data === undefined ? null : <TeamSettingsSection team={detail.data} />}
 
 			<NewTeamSection clubId={team.clubId} clubName={team.clubName} />
 
