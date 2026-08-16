@@ -138,6 +138,20 @@ export function TeamSwitcher() {
 							>
 								Spravovat sezóny
 							</Link>
+							<Link
+								to="/serie"
+								onClick={() => setOpen(false)}
+								className="hover:bg-surface-2 text-ink-muted flex min-h-11 items-center justify-center rounded-lg px-2 text-sm"
+							>
+								Opakované akce
+							</Link>
+							<Link
+								to="/mista"
+								onClick={() => setOpen(false)}
+								className="hover:bg-surface-2 text-ink-muted flex min-h-11 items-center justify-center rounded-lg px-2 text-sm"
+							>
+								Spravovat místa
+							</Link>
 							{platformAdmin ? (
 								<Link
 									to="/sprava"

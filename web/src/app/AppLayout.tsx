@@ -4,7 +4,7 @@ import { Link, NavLink, Outlet } from 'react-router'
 import { useTeam } from '@/app/team'
 import { TeamSwitcher } from '@/app/TeamSwitcher'
 import { ClubMark } from '@/components/ClubMark'
-import { ListIcon, PlusIcon, UserIcon, WalletIcon } from '@/components/ui/icons'
+import { CalendarIcon, ListIcon, PlusIcon, UserIcon, WalletIcon } from '@/components/ui/icons'
 import { ErrorState, LoadingState } from '@/components/ui/States'
 import { cn } from '@/lib/cn'
 import type { Role } from '@/lib/types'
@@ -17,6 +17,7 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
+	{ to: '/kalendar', label: 'Kalendář', icon: CalendarIcon },
 	{ to: '/dluhy', label: 'Dluhy', icon: WalletIcon },
 	{ to: '/zapsat', label: 'Zapsat', icon: PlusIcon, requires: 'treasurer' },
 	{ to: '/sazebnik', label: 'Sazebník', icon: ListIcon },
@@ -49,7 +50,7 @@ export function AppLayout() {
 				style={{ paddingTop: 'env(safe-area-inset-top)' }}
 			>
 				<div className="mx-auto flex w-full max-w-3xl items-center gap-3 px-4 py-2.5">
-					<Link to="/dluhy" aria-label="Přehled dluhů" className="shrink-0">
+					<Link to="/kalendar" aria-label="Kalendář" className="shrink-0">
 						<ClubMark className="h-8" />
 					</Link>
 

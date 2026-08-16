@@ -56,7 +56,7 @@ export function AcceptInvitationPage() {
 		try {
 			await acceptInvitation(token, password, name.trim())
 			// Bez přesměrování by formulář visel s točícím se kolečkem
-			await navigate('/dluhy', { replace: true })
+			await navigate('/kalendar', { replace: true })
 		} catch (cause) {
 			setError(cause instanceof ApiError ? cause.message : 'Pozvánku se nepodařilo přijmout.')
 			setField(cause instanceof ApiError ? cause.field : undefined)

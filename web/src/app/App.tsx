@@ -7,6 +7,7 @@ import {
 	Outlet,
 	Route,
 	RouterProvider,
+	ScrollRestoration,
 } from 'react-router'
 
 import { AppLayout } from '@/app/AppLayout'
@@ -20,6 +21,14 @@ import { LoginPage } from '@/features/auth/LoginPage'
 import { NewPasswordPage } from '@/features/auth/NewPasswordPage'
 import { BalancesPage } from '@/features/balances/BalancesPage'
 import { MemberPage } from '@/features/balances/MemberPage'
+import { AttendancePage } from '@/features/events/AttendancePage'
+import { CalendarPage } from '@/features/events/CalendarPage'
+import { EditEventPage } from '@/features/events/EditEventPage'
+import { EventPage } from '@/features/events/EventPage'
+import { LocationsPage } from '@/features/events/LocationsPage'
+import { NewEventPage } from '@/features/events/NewEventPage'
+import { SeriesPage } from '@/features/events/SeriesPage'
+import { BatchesPage } from '@/features/offences/BatchesPage'
 import { NewBatchPage } from '@/features/offences/NewBatchPage'
 import { OffenceTypesPage } from '@/features/offences/OffenceTypesPage'
 import { ProfilePage } from '@/features/profile/ProfilePage'
@@ -55,10 +64,18 @@ const router = createBrowserRouter(
 
 			<Route element={<Protected />}>
 				<Route element={<AppLayout />}>
-					<Route index element={<Navigate to="/dluhy" replace />} />
+					<Route index element={<Navigate to="/kalendar" replace />} />
 					<Route path="dluhy" element={<BalancesPage />} />
 					<Route path="hraci/:membershipId" element={<MemberPage />} />
+					<Route path="kalendar" element={<CalendarPage />} />
+					<Route path="akce/nova" element={<NewEventPage />} />
+					<Route path="akce/:eventId" element={<EventPage />} />
+					<Route path="akce/:eventId/upravit" element={<EditEventPage />} />
+					<Route path="serie" element={<SeriesPage />} />
+					<Route path="dochazka" element={<AttendancePage />} />
+					<Route path="mista" element={<LocationsPage />} />
 					<Route path="zapsat" element={<NewBatchPage />} />
+					<Route path="zapisy" element={<BatchesPage />} />
 					<Route path="sazebnik" element={<OffenceTypesPage />} />
 					<Route path="druzstvo" element={<TeamPage />} />
 					<Route path="sprava" element={<PlatformPage />} />
@@ -85,6 +102,13 @@ export function App() {
 function SessionRoot() {
 	return (
 		<SessionProvider>
+			{/*
+			 * Bez tohohle si prohlížeč drží pozici posuvníku i po přechodu na jinou
+			 * obrazovku — kdo klikl na akci dole v kalendáři, otevřel si její detail
+			 * někde v půlce. Nová navigace tedy vyjede nahoru, zatímco tlačítko zpět
+			 * vrátí člověka tam, kde v seznamu skončil.
+			 */}
+			<ScrollRestoration />
 			<Outlet />
 		</SessionProvider>
 	)
@@ -116,7 +140,7 @@ function AnonymousOnly() {
 	const { status } = useSession()
 
 	if (status === 'loading') return <Splash />
-	if (status === 'authenticated') return <Navigate to="/dluhy" replace />
+	if (status === 'authenticated') return <Navigate to="/kalendar" replace />
 
 	return <LoginPage />
 }
@@ -127,11 +151,11 @@ function NotFoundPage() {
 			<div className="flex flex-col items-center gap-4">
 				<h1 className="text-xl font-semibold">Tahle stránka neexistuje</h1>
 				<Link
-					to="/dluhy"
+					to="/kalendar"
 					role="button"
 					className="bg-brand-600 inline-flex min-h-11 items-center rounded-xl px-4 text-sm text-white"
 				>
-					Zpátky na přehled
+					Zpátky do kalendáře
 				</Link>
 			</div>
 		</main>

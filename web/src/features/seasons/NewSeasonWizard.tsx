@@ -20,6 +20,7 @@ import {
 	useSaveRoster,
 	useTeamMembers,
 } from '@/lib/queries'
+import { useScrollTopOnChange } from '@/lib/scroll'
 import type { Season } from '@/lib/types'
 import { roleLabels, today } from '@/lib/types'
 
@@ -41,6 +42,9 @@ export function NewSeasonWizard() {
 
 	const previous = seasons[0] ?? null
 	const [step, setStep] = useState<Step>('basics')
+
+	// Každý krok je jiná obrazovka, jen beze změny adresy.
+	useScrollTopOnChange(step)
 
 	const suggestion = useState(() => suggestSeason(previous, today()))[0]
 	const [name, setName] = useState(suggestion.name)
