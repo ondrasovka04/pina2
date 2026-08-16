@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Značka aplikace: štít se zlatým lemem a míč, odvozené z klubového znaku
+  SK Prosek. Stejný tvar jako komponenta ClubMark, ale ve čtvercovém výřezu
+  a se zesílenými tahy — na šestnácti pixelech by původní vlásečnice zmizely.
+
+  Barvy jsou zapsané napevno, protože do samostatného souboru nedosáhnou
+  tokeny z styles.css. Odpovídají brand-800, gold-500 a gold-300.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+	<path
+		d="M24 4 42 10v16c0 10-8 16.5-18 19C14 42.5 6 36 6 26V10Z"
+		fill="#062372"
+		stroke="#e3a000"
+		stroke-width="3"
+		stroke-linejoin="round"
+	/>
+	<g fill="none" stroke="#fbd26b" stroke-linecap="round">
+		<circle cx="24" cy="24" r="8.5" stroke-width="2.2" />
+		<path d="M16.2 21.4c4.3 2.3 11 2.8 15.6-1.1" stroke-width="2" />
+		<path d="M19.8 31.2c2.5-4.8 3-11.8 0.3-14.8" stroke-width="2" />
+	</g>
+</svg>

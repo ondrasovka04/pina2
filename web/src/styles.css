@@ -2,12 +2,22 @@
 
 /*
  * Barvy vycházejí z klubového znaku SK Prosek Praha: tmavě modrý štít
- * se zlatým lemem. Modrá nese identitu, zlatá slouží jako akcent —
- * bílá se záměrně nepoužívá jako plocha, protože aplikace míří primárně
- * na tmavý režim (používá se večer v hale, na telefonu).
+ * se zlatým lemem. Modrá nese identitu, zlatá slouží jako akcent.
+ *
+ * Dvě vrstvy, a je důležité je nemíchat:
+ *
+ * 1. **Paleta** (brand/gold/debt/bonus) — pevné odstíny, stejné v obou režimech.
+ *    Používá se tam, kde barva patří ke značce, ne k ploše: znak, výplně tlačítek.
+ * 2. **Sémantické tokeny** (surface/ink/line/accent/debt/bonus) — mění se podle
+ *    světlého a tmavého režimu. Komponenty sahají na ně, aby přepnutí motivu
+ *    znamenalo změnu jednoho souboru, ne stovky tříd.
+ *
+ * Hodnoty v `@theme` jsou světlý režim, tmavý je níž v `[data-theme='dark']`.
+ * Motiv nastavuje skript v index.html ještě před vykreslením, takže se `<html>`
+ * vždy dostane konkrétní `data-theme` a CSS nemusí řešit systémové preference.
  */
 @theme {
-	/* Klubová modř — základ identity */
+	/* --- paleta: klubová modř --- */
 	--color-brand-50: oklch(0.97 0.02 260);
 	--color-brand-100: oklch(0.93 0.04 260);
 	--color-brand-200: oklch(0.86 0.08 260);
@@ -20,33 +30,120 @@
 	--color-brand-900: oklch(0.24 0.11 265);
 	--color-brand-950: oklch(0.17 0.08 266);
 
-	/* Zlatá ze znaku — akcent, zvýraznění, aktivní stav */
+	/* --- paleta: zlatá ze znaku --- */
 	--color-gold-300: oklch(0.88 0.13 88);
 	--color-gold-400: oklch(0.82 0.16 85);
 	--color-gold-500: oklch(0.75 0.17 82);
 	--color-gold-600: oklch(0.66 0.15 80);
 
-	/*
-	 * Peníze mají vlastní sémantiku: dluh není chyba a bonus není úspěch,
-	 * ale v přehledech se musí odlišit na první pohled.
-	 */
-	--color-debt-400: oklch(0.7 0.15 25);
+	/* --- paleta: peníze --- */
 	--color-debt-500: oklch(0.6 0.18 25);
-	--color-bonus-400: oklch(0.75 0.15 155);
 	--color-bonus-500: oklch(0.65 0.16 155);
+
+	/*
+	 * --- sémantické tokeny, světlý režim ---
+	 * Plochy jdou odspodu nahoru: 0 = stránka, 1 = karta, 2 = pole, 3 = zvýraznění.
+	 * Ve světlém režimu je stránka lehce šedá a karta bílá, v tmavém naopak —
+	 * pořadí „výš = blíž k uživateli" ale platí v obou.
+	 */
+	--color-surface-0: oklch(0.97 0.006 265);
+	--color-surface-1: oklch(1 0 0);
+	--color-surface-2: oklch(0.95 0.008 265);
+	--color-surface-3: oklch(0.9 0.014 265);
+
+	--color-ink: oklch(0.24 0.02 265);
+	--color-ink-muted: oklch(0.46 0.02 265);
+	--color-ink-faint: oklch(0.58 0.018 265);
+
+	--color-line: oklch(0.88 0.012 265);
+
+	/*
+	 * Zlatá jako text je na bílé nečitelná, proto má akcent vlastní token
+	 * a v každém režimu jinou světlost. `on-accent` je text na akcentní ploše.
+	 */
+	--color-accent: oklch(0.53 0.13 72);
+	--color-on-accent: oklch(0.99 0 0);
+
+	/* Peníze v textu — sytější než výplňové varianty, aby prošly kontrastem. */
+	--color-debt: oklch(0.52 0.19 25);
+	--color-bonus: oklch(0.47 0.12 155);
+
+	--font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+	/* Vlastní zlom pro „vejde se to do jedné ruky" — pod ním je spodní lišta. */
+	--breakpoint-xs: 26rem;
 }
 
-/* Bezpečné okraje na telefonech s výřezem — aplikace se používá v hale na mobilu. */
-body {
-	padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
-		env(safe-area-inset-left);
-}
-
-/* Ovládá se jednou rukou vestoje: nic klikacího nesmí být menší než palec. */
 @layer base {
+	:root {
+		color-scheme: light;
+	}
+
+	/* Tmavý režim — hlavní cíl aplikace: večer, v hale, na telefonu. */
+	[data-theme='dark'] {
+		color-scheme: dark;
+
+		--color-surface-0: oklch(0.16 0.02 265);
+		--color-surface-1: oklch(0.21 0.024 265);
+		--color-surface-2: oklch(0.26 0.028 265);
+		--color-surface-3: oklch(0.32 0.032 265);
+
+		--color-ink: oklch(0.97 0.005 265);
+		--color-ink-muted: oklch(0.74 0.018 265);
+		--color-ink-faint: oklch(0.58 0.02 265);
+
+		--color-line: oklch(0.34 0.03 265);
+
+		--color-accent: oklch(0.82 0.16 85);
+		--color-on-accent: oklch(0.17 0.08 266);
+
+		--color-debt: oklch(0.7 0.15 25);
+		--color-bonus: oklch(0.75 0.15 155);
+	}
+
+	html {
+		background-color: var(--color-surface-0);
+		/* Přetažení stránky na iOS nesmí odhalit podklad pod aplikací. */
+		overscroll-behavior-y: none;
+	}
+
+	body {
+		background-color: var(--color-surface-0);
+		color: var(--color-ink);
+		font-family: var(--font-sans);
+		-webkit-font-smoothing: antialiased;
+		text-rendering: optimizeLegibility;
+	}
+
+	/*
+	 * Ovládá se jednou rukou vestoje, často v rukavici od haly:
+	 * nic klikacího nesmí být menší než palec.
+	 */
 	button,
 	a[role='button'],
-	[role='tab'] {
+	[role='tab'],
+	input,
+	select {
 		min-height: 2.75rem;
+	}
+
+	/* Viditelné zaostření jen při ovládání klávesnicí — myš ho nepotřebuje. */
+	:focus-visible {
+		outline: 2px solid var(--color-accent);
+		outline-offset: 2px;
+	}
+
+	::selection {
+		background-color: var(--color-brand-600);
+		color: oklch(0.99 0 0);
+	}
+
+	/*
+	 * Částky se čtou ve sloupci pod sebou. Bez tabulkových číslic
+	 * poskakují řády a přehled dluhů se hůř porovnává.
+	 */
+	.tabular {
+		font-variant-numeric: tabular-nums;
+		font-feature-settings: 'tnum';
 	}
 }

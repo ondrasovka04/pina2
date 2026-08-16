@@ -3,8 +3,37 @@
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-		<meta name="theme-color" content="#0f172a" />
+		<meta name="color-scheme" content="light dark" />
+		<!-- Přepisuje se skriptem níž podle zvoleného motivu; musí odpovídat --color-surface-0. -->
+		<meta name="theme-color" content="#090d16" />
+
+		<!-- SVG zvládnou všechny současné prohlížeče, PNG je záloha pro záložky a starší systémy. -->
+		<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+		<link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+		<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
 		<title>Pína</title>
+		<script>
+			/*
+			 * Motiv se musí nastavit dřív, než se cokoli vykreslí — jinak při každém
+			 * načtení blikne světlé pozadí. Proto tenhle skript, a ne React.
+			 * Klíč i hodnoty drží ve shodě src/lib/theme.ts.
+			 */
+			;(function () {
+				var stored = null
+				try {
+					stored = localStorage.getItem('pina.theme')
+				} catch (e) {
+					/* localStorage může být zakázaný — padáme na systémovou volbu */
+				}
+
+				var dark =
+					stored === 'dark' || (stored !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+
+				document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+				document.querySelector('meta[name="theme-color"]').setAttribute('content', dark ? '#090d16' : '#f3f5f9')
+			})()
+		</script>
 	</head>
 	<body>
 		<div id="root"></div>
