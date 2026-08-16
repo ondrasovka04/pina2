@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { useEffect, useId, useRef, useState } from 'react'
+import { Link } from 'react-router'
 
 import { useTeam } from '@/app/team'
 import { CheckIcon, ChevronDownIcon } from '@/components/ui/icons'
@@ -15,7 +16,7 @@ import type { Season } from '@/lib/types'
  * že patří k němu.
  */
 export function TeamSwitcher() {
-	const { teams, team, seasons, season, selectTeam, selectSeason } = useTeam()
+	const { teams, team, seasons, season, selectTeam, selectSeason, can } = useTeam()
 	const [open, setOpen] = useState(false)
 	const panelId = useId()
 	const containerRef = useRef<HTMLDivElement>(null)
@@ -47,7 +48,9 @@ export function TeamSwitcher() {
 
 	if (team === null) return null
 
-	const switchable = teams.length > 1 || seasons.length > 1
+	// Admin panel potřebuje i v družstvu s jedinou sezónou — jinak by neměl kudy
+	// založit další.
+	const switchable = teams.length > 1 || seasons.length > 1 || can('admin')
 
 	if (!switchable) {
 		return (
@@ -121,6 +124,23 @@ export function TeamSwitcher() {
 								/>
 							))}
 						</Section>
+					) : null}
+
+					{/*
+					 * Vstup do správy sezón patří sem, kde má člověk sezóny zrovna na mysli.
+					 * Jen jeden odkaz — dvě tlačítka vedle sebe se do panelu nevešla
+					 * a text se lámal. Zakládání nové sezóny je na té stránce.
+					 */}
+					{can('admin') ? (
+						<div className="border-line/60 border-t p-2">
+							<Link
+								to="/sezony"
+								onClick={() => setOpen(false)}
+								className="hover:bg-surface-2 text-ink-muted block rounded-lg px-2 py-2 text-center text-sm"
+							>
+								Spravovat sezóny
+							</Link>
+						</div>
 					) : null}
 				</div>
 			) : null}

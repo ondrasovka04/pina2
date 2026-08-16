@@ -8,7 +8,9 @@ import type {
 	OffenceCategory,
 	OffenceType,
 	RecordList,
+	RosterEntry,
 	Season,
+	TeamMember,
 	TeamSummary,
 } from '@/lib/types'
 
@@ -26,6 +28,7 @@ export const queryKeys = {
 	records: (seasonId: number, membershipId?: number) =>
 		['seasons', seasonId, 'records', membershipId ?? 'all'] as const,
 	batch: (batchId: number) => ['batches', batchId] as const,
+	members: (teamId: number) => ['teams', teamId, 'members'] as const,
 }
 
 /**
@@ -56,6 +59,94 @@ export function useBalances(seasonId: number | null) {
 		queryKey: queryKeys.balances(seasonId ?? 0),
 		queryFn: ({ signal }) => api.get<BalanceList>(`/seasons/${seasonId}/balances`, signal),
 		enabled: seasonId !== null,
+	})
+}
+
+export function useRoster(seasonId: number | null) {
+	return useQuery({
+		queryKey: [...queryKeys.season(seasonId ?? 0), 'roster'] as const,
+		queryFn: async ({ signal }) =>
+			(await api.get<{ roster: RosterEntry[] }>(`/seasons/${seasonId}/roster`, signal)).roster,
+		enabled: seasonId !== null,
+	})
+}
+
+export function useTeamMembers(teamId: number | null) {
+	return useQuery({
+		queryKey: queryKeys.members(teamId ?? 0),
+		queryFn: async ({ signal }) =>
+			(await api.get<{ members: TeamMember[] }>(`/teams/${teamId}/members`, signal)).members,
+		enabled: teamId !== null,
+		staleTime: 60_000,
+	})
+}
+
+export interface NewSeasonInput {
+	name: string
+	startsOn: string
+	endsOn: string
+}
+
+/** Server sám zruší příznak aktuální sezóny u ostatních — v družstvu smí být jen jedna. */
+export function useCreateSeason(teamId: number) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: (input: NewSeasonInput) => api.post<Season>(`/teams/${teamId}/seasons`, input),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: queryKeys.seasons(teamId) })
+			void queryClient.invalidateQueries({ queryKey: queryKeys.teams })
+		},
+	})
+}
+
+export function useCloseSeason(teamId: number) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: (seasonId: number) => api.post<Season>(`/seasons/${seasonId}/close`),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: queryKeys.seasons(teamId) })
+		},
+	})
+}
+
+export function useSaveRoster(teamId: number) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: ({ seasonId, membershipIds }: { seasonId: number; membershipIds: number[] }) =>
+			api.put<{ roster: RosterEntry[] }>(`/seasons/${seasonId}/roster`, { membershipIds }),
+		onSuccess: (_data, variables) => {
+			void queryClient.invalidateQueries({ queryKey: queryKeys.season(variables.seasonId) })
+			void queryClient.invalidateQueries({ queryKey: queryKeys.seasons(teamId) })
+		},
+	})
+}
+
+/**
+ * Převzetí sazebníku z jiné sezóny. Bez `items` se kopíruje celý, s nimi jen
+ * vybrané položky a volitelně za jinou cenu — ceny se mezi sezónami mění častěji
+ * než samotný seznam prohřešků.
+ */
+export interface CopyOffenceTypesInput {
+	targetSeasonId: number
+	sourceSeasonId: number
+	items?: Array<{ offenceTypeId: number; amountCzk?: number }>
+}
+
+export function useCopyOffenceTypes() {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: ({ targetSeasonId, sourceSeasonId, items }: CopyOffenceTypesInput) =>
+			api.post<{ createdCount: number; skipped: unknown[] }>(
+				`/seasons/${targetSeasonId}/offence-types/copy-from/${sourceSeasonId}`,
+				items === undefined ? undefined : { items },
+			),
+		onSuccess: (_data, variables) => {
+			void queryClient.invalidateQueries({ queryKey: queryKeys.season(variables.targetSeasonId) })
+		},
 	})
 }
 

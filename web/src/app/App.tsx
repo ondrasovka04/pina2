@@ -19,6 +19,8 @@ import { MemberPage } from '@/features/balances/MemberPage'
 import { NewBatchPage } from '@/features/offences/NewBatchPage'
 import { OffenceTypesPage } from '@/features/offences/OffenceTypesPage'
 import { ProfilePage } from '@/features/profile/ProfilePage'
+import { NewSeasonWizard } from '@/features/seasons/NewSeasonWizard'
+import { SeasonsPage } from '@/features/seasons/SeasonsPage'
 import { ApiError } from '@/lib/api'
 
 const queryClient = new QueryClient({
@@ -54,6 +56,8 @@ const router = createBrowserRouter(
 					<Route path="hraci/:membershipId" element={<MemberPage />} />
 					<Route path="zapsat" element={<NewBatchPage />} />
 					<Route path="sazebnik" element={<OffenceTypesPage />} />
+					<Route path="sezony" element={<SeasonsPage />} />
+					<Route path="sezony/nova" element={<NewSeasonWizard />} />
 					<Route path="ja" element={<ProfilePage />} />
 				</Route>
 			</Route>

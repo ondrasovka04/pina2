@@ -67,6 +67,30 @@ export interface Season {
 /** Musí odpovídat `OffenceTypeService::CATEGORIES`. Pořadí určuje i pořadí sekcí v sazebníku. */
 export const offenceCategories = ['discipline', 'performance', 'fun', 'attendance'] as const
 
+/** Kdo je na soupisce sezóny. Členství přetrvává, soupiska se dělá každou sezónu znovu. */
+export interface RosterEntry {
+	membershipId: number
+	userId: number
+	name: string
+	role: Role
+	status: MemberStatus
+	jerseyNumber: number | null
+	paymentReference: string
+}
+
+/** Člen družstva napříč sezónami — zdroj, ze kterého se soupiska sestavuje. */
+export interface TeamMember {
+	id: number
+	userId: number
+	name: string
+	email: string
+	role: Role
+	status: MemberStatus
+	jerseyNumber: number | null
+	paymentReference: string
+	joinedAt: string
+}
+
 export type OffenceCategory = (typeof offenceCategories)[number]
 
 export const categoryLabels: Record<OffenceCategory, string> = {
