@@ -83,7 +83,7 @@ Hosting nemá SSH, deploy jde přes FTP a rozděluje se na dvě místa:
 |     | Obsah | Stav |
 |---|---|---|
 | F0 | ověření hostingu, dump dat, repo | hotovo |
-| F1 | schéma, migrace, auth, role, týmy, sezóny | backend hotový |
+| F1 | schéma, migrace, auth, role, týmy, sezóny, členové | hotovo |
 | F2 | prohřešky — sazebník, dávkový zápis, přehledy | hotovo |
 | F3 | docházka, nominace, opakované akce | |
 | F4 | dluhy, platby, QR (SPAYD), cesťáky, zúčtování | |
@@ -91,3 +91,26 @@ Hosting nemá SSH, deploy jde přes FTP a rozděluje se na dvě místa:
 | F6 | párování plateb z bankovního API (follow-up) | |
 
 Cíl: F1 + F2 na start sezóny 26/27 (září 2026), pak vypnout starou aplikaci.
+
+## Kde to stojí
+
+K 16. 8. 2026 je hotové všechno, co F1 a F2 potřebují: přihlášení a role, družstva
+a jejich členové, sezóny se soupiskami, sazebník, dávkový zápis prohřešků, přehled
+dluhů, pozvánky a aktivační odkazy e-mailem, obnova zapomenutého hesla a konzole
+správce platformy. Světlý i tmavý režim.
+
+175 testů na backendu, 60 na frontendu, PHPStan level 8 čistý.
+
+**Před spuštěním zbývá:**
+
+1. **Nasazení.** Na hostingu pořád běží verze z roku 2023. Deploy zatím nikdo
+   neautomatizoval, dělá se ručně přes FTP podle tabulky výš.
+2. **Rozeslat aktivační odkazy.** Hesla se ze staré verze nepřenášela (byly to
+   SHA-256 otisky bez soli), takže se 90 z 91 účtů nemá čím přihlásit. Rozesílá
+   se po družstvech, po 25 zprávách na kliknutí. Začít je potřeba u adminů —
+   kadeti ani VK Benátky nemají zatím jediného přihlášeného člena včetně svých.
+3. **Zkontrolovat aktuální sezóny.** Kadeti mají označenou „Kadeti 24/25“, dva
+   roky starou.
+
+VK Benátky jsou v datech cizí živý klub s vlastním adminem. Oddělení od Prosku
+drží role na serveru, ne jen UI — správce platformy vidí jejich zdraví, ne peníze.
