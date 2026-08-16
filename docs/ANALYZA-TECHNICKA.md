@@ -1028,9 +1028,16 @@ už 12/2026.
 6. **Výchozí session cookie nastavení je nezabezpečené** (`cookie_httponly=Off`,
    `cookie_secure=Off`, `use_strict_mode=Off`) → parametry cookie nastavovat explicitně
    v aplikaci, nespoléhat na php.ini.
-7. **Odchozí pošta** jde přes `/usr/bin/cwebsmail` (`sendmail_from webmaster@pinaprosek.eu`),
-   SMTP `localhost:25`. Pro doručitelnost pozvánek ověřit SPF/DKIM domény; při problémech
-   sáhnout po externím SMTP.
+7. **Odchozí pošta** — ověřeno 16. 8. 2026. Doména má nastavený SPF
+   (`v=spf1 include:spf-zoner-zmail.zoner.com ~all`) i MX na `*.zoner.com`, v administraci
+   je zapnuté „DKIM Zmail" a „SPF Zmail". Ty se ale týkají **Zonerovy mailové služby**,
+   ne funkce `mail()` z webhostingu. Aplikace proto posílá přes **SMTP `smtp.zoner.com:465`**
+   s účtem `pina@pinaprosek.eu` — jen tak zpráva projde infrastrukturou, kterou SPF pokrývá,
+   a dostane DKIM podpis.
+
+   **Zbývá:** založit mailbox `pina@pinaprosek.eu` (využit 1 z 6), přidat DMARC záznam
+   `_dmarc TXT v=DMARC1; p=none; rua=mailto:postmaster@pinaprosek.eu` a před rozesláním
+   pozvánek ověřit doručitelnost na mail-tester.com.
 8. `max_input_vars = 1000` — netýká se nás, dávkový zápis jde jako JSON body, ne form fields.
 
 ### 10.2 Prostředí
