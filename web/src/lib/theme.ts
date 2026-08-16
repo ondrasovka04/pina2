@@ -1,17 +1,9 @@
-/**
- * Světlý a tmavý režim.
- *
- * Vybraný motiv se ukládá do localStorage a stejnou hodnotu čte i krátký skript
- * v `index.html`, který nastaví `data-theme` ještě před prvním vykreslením —
- * jinak by při každém načtení bliklo světlé pozadí. Klíč i logika se proto musí
- * držet ve shodě s ním.
- */
+// Motiv v localStorage — klíč a logika se drží se shodou s index.html skriptem
 export type ThemePreference = 'system' | 'light' | 'dark'
 export type ResolvedTheme = 'light' | 'dark'
 
 export const STORAGE_KEY = 'pina.theme'
 
-/** Musí odpovídat `--color-surface-0` v obou režimech, aby lišta prohlížeče navazovala. */
 const themeColors: Record<ResolvedTheme, string> = {
 	light: '#f3f5f9',
 	dark: '#090d16',
@@ -33,7 +25,6 @@ export function readPreference(): ThemePreference {
 
 		return isPreference(stored) ? stored : 'system'
 	} catch {
-		// Privátní režim v Safari umí localStorage zakázat; motiv pak jen nepřežije reload.
 		return 'system'
 	}
 }
@@ -48,7 +39,6 @@ export function resolveTheme(preference: ThemePreference): ResolvedTheme {
 	return prefersDark() ? 'dark' : 'light'
 }
 
-/** Zapíše motiv do DOM. Barvu lišty prohlížeče je nutné přepsat ručně — meta tag se sám neaktualizuje. */
 export function applyTheme(preference: ThemePreference): ResolvedTheme {
 	const resolved = resolveTheme(preference)
 
@@ -62,6 +52,6 @@ export function savePreference(preference: ThemePreference): void {
 	try {
 		localStorage.setItem(STORAGE_KEY, preference)
 	} catch {
-		// Neuložilo se — volba platí do konce relace.
+		// Neuložilo se — volba zůstane do konce relace
 	}
 }

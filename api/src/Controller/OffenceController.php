@@ -10,13 +10,10 @@ use Pina\Http\Request;
 use Pina\Http\Response;
 use Pina\Service\OffenceService;
 
-/**
- * Zápisy prohřešků a dávkový zápis. Controller kontroluje tvar vstupu,
- * pravidla i autorizaci řeší OffenceService.
- */
+/** Tvar vstupu; pravidla a autorizace v OffenceService. */
 final class OffenceController
 {
-    /** Rozumné stropy, aby jeden požadavek nezaložil desetitisíce řádků. */
+    /** Limity: jeden požadavek ≠ desetitisíce řádků. */
     private const MAX_ITEMS       = 500;
     private const MAX_COUNT       = 99;
     private const MAX_TITLE       = 120;
@@ -44,10 +41,7 @@ final class OffenceController
         ));
     }
 
-    /**
-     * Dávkový zápis — jádro aplikace. Idempotenci zajišťuje clientUuid,
-     * takže opakované odeslání téhož těla nic nezdvojí.
-     */
+    /** Dávka (jádro app): idempotence přes clientUuid. */
     public function createBatch(Request $request): Response
     {
         $items = [];

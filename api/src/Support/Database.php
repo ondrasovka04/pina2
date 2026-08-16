@@ -7,10 +7,7 @@ namespace Pina\Support;
 use PDO;
 use PDOStatement;
 
-/**
- * Tenká vrstva nad PDO. Všechny dotazy jdou přes prepared statements —
- * v celém projektu se SQL nikdy neskládá konkatenací.
- */
+/** Tenká vrstva nad PDO: všechny dotazy přes prepared statements. */
 final class Database
 {
     private ?PDO $pdo = null;
@@ -85,8 +82,7 @@ final class Database
     }
 
     /**
-     * Zápisy měnící víc tabulek (dávka prohřešků, zúčtování) musí být atomické:
-     * projde všechno, nebo nic.
+     * Multi-table writes (batch, settlement): all or nothing.
      *
      * @template T
      * @param  callable(): T $callback

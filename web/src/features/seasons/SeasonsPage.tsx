@@ -22,8 +22,7 @@ export function SeasonsPage() {
 	const { data, isPending, error, refetch } = useSeasons(team?.id ?? null)
 	const seasons = data ?? []
 
-	// Soupiska se dotahuje jen pro jednu rozbalenou sezónu — hooky se nesmí volat
-	// v cyklu, takže se volají jednou tady a do karet se předávají výsledky.
+	// Soupiska jen pro jednu rozbalenou sezónu — hooky se nesmí volat v cyklu
 	const [openSeasonId, setOpenSeasonId] = useState<number | null>(null)
 	const roster = useRoster(openSeasonId)
 	const members = useTeamMembers(team?.id ?? null)

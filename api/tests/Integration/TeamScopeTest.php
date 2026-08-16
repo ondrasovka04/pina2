@@ -9,10 +9,7 @@ use Pina\Auth\Role;
 use Pina\Auth\TeamScope;
 use Pina\Http\ApiException;
 
-/**
- * Izolace klubů. Přesně to, co staré verzi chybělo: kdokoli znal URL API,
- * mohl číst i mazat data libovolného týmu.
- */
+/** Izolace klubů — chyba staré verze. */
 final class TeamScopeTest extends DatabaseTestCase
 {
     private TeamScope $scope;
@@ -56,8 +53,7 @@ final class TeamScopeTest extends DatabaseTestCase
 
     public function testForeignClubLooksLikeItDoesNotExist(): void
     {
-        // Pínař Prosku zkusí sáhnout na sezónu Benátek. Musí dostat 404, ne 403 —
-        // jinak by API prozradilo, že takové ID existuje.
+        // 404, ne 403 — aby se nezměňovalo, co existuje.
         $this->expectException(ApiException::class);
         $this->expectExceptionCode(0);
 
@@ -90,8 +86,7 @@ final class TeamScopeTest extends DatabaseTestCase
 
     public function testRevokedRoleInDatabaseBeatsToken(): void
     {
-        // Token tvrdí, že je admin, ale v databázi je jen hráč — vydaný token
-        // platí ještě 15 minut, proto se role ověřuje proti databázi.
+        // DB Role nad tokenem — token ještě platí.
         $userId = $this->makeUser('byvaly@prosek.cz');
         $this->makeMembership($userId, $this->prosekTeam, 'player');
 
@@ -128,10 +123,9 @@ final class TeamScopeTest extends DatabaseTestCase
     {
         $closed = $this->makeSeason($this->prosekTeam, '25/26', '2026-06-30 23:59:59');
 
-        // Čtení uzavřené sezóny projde...
+        // Čtení ano, zápis ne.
         self::assertSame($this->prosekTeam, $this->scope->season($this->prosekTreasurer, $closed, Role::Player));
 
-        // ...ale zápis do ní ne.
         try {
             $this->scope->writableSeason($this->prosekTreasurer, $closed, Role::Treasurer);
             self::fail('do uzavřené sezóny nelze zapisovat');
@@ -162,13 +156,12 @@ final class TeamScopeTest extends DatabaseTestCase
             $this->prosekTeam => Role::Player,
         ]);
 
-        // Vlastní RSVP si hráč změní.
+        // Své ano, cizí ne.
         self::assertSame(
             $this->prosekTeam,
             $this->scope->ownMembershipOr($player, $ownM, Role::Treasurer),
         );
 
-        // Cizí ne.
         try {
             $this->scope->ownMembershipOr($player, $otherM, Role::Treasurer);
             self::fail('hráč nesmí měnit záznam spoluhráče');

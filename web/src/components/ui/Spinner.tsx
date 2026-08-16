@@ -5,10 +5,7 @@ interface SpinnerProps {
 	label?: string
 }
 
-/**
- * Čekání. `label` je pro odečítač obrazovky — vizuálně stačí kroužek,
- * ale bez popisu by uživatel se čtečkou nevěděl, že se něco děje.
- */
+// label je pro odečítač — vizuálně stačí kroužek, ale bez popisu by uživatel nevěděl.
 export function Spinner({ className, label = 'Načítá se' }: SpinnerProps) {
 	return (
 		<span

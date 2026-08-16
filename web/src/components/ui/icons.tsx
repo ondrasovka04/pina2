@@ -1,11 +1,6 @@
 import type { SVGProps } from 'react'
 
-/**
- * Vlastní sada místo knihovny ikon. Potřebujeme jich necelou desítku a všechny
- * jsou jednoduché tahy — kvůli tomu nemá smysl tahat do buildu celý balík.
- *
- * Ikony jsou dekorace vedle textového popisku, proto mají `aria-hidden`.
- */
+// Vlastní sada — jednoduchých tahů pod deset, tahat balík by nemělo smysl.
 type IconProps = SVGProps<SVGSVGElement>
 
 function Icon({ children, ...rest }: IconProps) {

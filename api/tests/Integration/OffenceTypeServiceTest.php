@@ -10,10 +10,7 @@ use Pina\Auth\TeamScope;
 use Pina\Http\ApiException;
 use Pina\Service\OffenceTypeService;
 
-/**
- * Sazebník prohřešků: kdo ho smí měnit, jak se archivuje a jak se přebírá
- * do nové sezóny.
- */
+/** Oprávnění, archivace a přenesení sazebníku mezi sezónami. */
 final class OffenceTypeServiceTest extends DatabaseTestCase
 {
     private OffenceTypeService $service;
@@ -92,10 +89,7 @@ final class OffenceTypeServiceTest extends DatabaseTestCase
         self::assertSame(-200, $updated['amountCzk']);
     }
 
-    /**
-     * Sazebník patří pínaři, ne adminovi. Je to peněžní agenda a spravuje ji
-     * ten, kdo peníze reálně vybírá — stejně jako uzavírání zúčtování.
-     */
+    /** Sazebník spravuje pínař, ne admin. */
     public function testTreasurerManagesPriceList(): void
     {
         $created = $this->service->create($this->treasurer, $this->season, [
@@ -164,7 +158,7 @@ final class OffenceTypeServiceTest extends DatabaseTestCase
         }
     }
 
-    /** Archivace místo mazání — na položce visí historie zápisů. */
+    /** Archivace, ne mazání — kvůli historii. */
     public function testArchiveKeepsRow(): void
     {
         $id = $this->create();
@@ -174,7 +168,7 @@ final class OffenceTypeServiceTest extends DatabaseTestCase
 
         self::assertSame(1, (int) $this->db->value('SELECT COUNT(*) FROM offence_type WHERE id = ?', [$id]));
 
-        // Archivaci lze vzít zpět.
+        // Vrácení.
         $restored = $this->service->update($this->admin, $id, ['archived' => false]);
         self::assertNull($restored['archivedAt']);
     }
@@ -205,7 +199,7 @@ final class OffenceTypeServiceTest extends DatabaseTestCase
         self::assertSame([], $result['skipped']);
         self::assertSame([20, -20], array_column($result['created'], 'amountCzk'));
 
-        // Opakované spuštění už nic nezaloží.
+        // Už druhé spuštění nezaloží nic nového.
         $again = $this->service->copyFrom($this->admin, $this->season, $this->lastSeason);
         self::assertSame([], $again['created']);
         self::assertCount(2, $again['skipped']);
@@ -228,7 +222,7 @@ final class OffenceTypeServiceTest extends DatabaseTestCase
         self::assertSame('Pozdní příchod', $result['created'][0]['name']);
         self::assertSame(30, $result['created'][0]['amountCzk']);
 
-        // Zdrojová sezóna zůstala nedotčená.
+        // Zdroj beze změny.
         $source = array_column($this->service->listForSeason($this->admin, $this->lastSeason), 'amountCzk', 'name');
         self::assertSame(20, $source['Pozdní příchod']);
     }

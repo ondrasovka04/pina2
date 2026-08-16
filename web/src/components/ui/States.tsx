@@ -13,10 +13,7 @@ export function LoadingState({ label = 'Načítá se…' }: { label?: string }) 
 	)
 }
 
-/**
- * Chybová hláška. U chyb z API se ukazuje text ze serveru — ten je česky
- * a konkrétní; obecné „něco se pokazilo" uživateli neřekne nic.
- */
+// Chyba z API — text ze serveru je konkrétnější než „něco se pokazilo".
 export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
 	const message =
 		error instanceof ApiError ? error.message : 'Nepodařilo se načíst data. Zkontrolujte připojení a zkuste to znovu.'

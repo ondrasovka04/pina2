@@ -9,10 +9,7 @@ use Pina\Http\Request;
 use Pina\Http\Response;
 use Pina\Service\OffenceTypeService;
 
-/**
- * Sazebník prohřešků. Controller jen hlídá tvar vstupu, veškerá logika
- * i autorizace jsou v OffenceTypeService.
- */
+/** Sazebník: tvar vstupu; logika a autorizace v OffenceTypeService. */
 final class OffenceTypeController
 {
     private const MAX_NAME = 120;
@@ -87,7 +84,7 @@ final class OffenceTypeController
         return Response::ok($this->types->update($request->identity(), $request->routeId('id'), $changes));
     }
 
-    /** Nové pořadí sazebníku. Posílá se celý seznam ID, ne jednotlivé posuny. */
+    /** Nové pořadí: celý seznam ID (ne jednotlivé posuny). */
     public function reorder(Request $request): Response
     {
         $ids = [];

@@ -13,7 +13,6 @@ interface NavItem {
 	to: string
 	label: string
 	icon: ComponentType<SVGProps<SVGSVGElement>>
-	/** Položka se ukáže jen tomu, kdo na ni má roli. */
 	requires?: Role
 }
 
@@ -50,7 +49,6 @@ export function AppLayout() {
 				style={{ paddingTop: 'env(safe-area-inset-top)' }}
 			>
 				<div className="mx-auto flex w-full max-w-3xl items-center gap-3 px-4 py-2.5">
-					{/* Znak vede na přehled dluhů — to je domovská obrazovka aplikace. */}
 					<Link to="/dluhy" aria-label="Přehled dluhů" className="shrink-0">
 						<ClubMark className="h-8" />
 					</Link>
@@ -83,8 +81,7 @@ export function AppLayout() {
 				</div>
 			</header>
 
-			{/* Sezóny dorazí až po týmu. Rám zůstává, aby se při přepnutí družstva
-			    nerozsypala celá obrazovka — mění se jen obsah. */}
+			{/* Rám zůstává při přepnutí týmu — mění se jen obsah */}
 			<main className="mx-auto w-full max-w-3xl flex-1 px-4 pt-4 pb-28 md:pb-8">
 				{isSeasonLoading ? <LoadingState /> : <Outlet />}
 			</main>

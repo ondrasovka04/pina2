@@ -6,10 +6,7 @@ namespace Pina\Http;
 
 use Pina\Auth\Identity;
 
-/**
- * Příchozí HTTP požadavek. Vstupy se čtou výhradně přes typované metody,
- * aby se nikde nepracovalo přímo se superglobály.
- */
+/** HTTP požadavek: vstupy jen přes typované metody (bez superglobál). */
 final class Request
 {
     /** @var array<string,string> */
@@ -116,11 +113,7 @@ final class Request
         return (int) $value;
     }
 
-    /**
-     * Celé číslo, které smí být záporné. Částky v sazebníku jsou se znaménkem —
-     * záporná hodnota je bonus („MVP extraligy" −20 Kč), takže na ně `int()`
-     * s kontrolou `ctype_digit` nestačí.
-     */
+    /** Celé číslo se znaménkem (bonusy jsou záporné). */
     public function signedInt(string $key, ?int $default = null): int
     {
         $value = $this->body[$key] ?? $default;
@@ -176,7 +169,7 @@ final class Request
         return is_string($value) && ctype_digit($value) ? (int) $value : $default;
     }
 
-    /** Přihlášený uživatel; volá se až za auth middlewarem. */
+    /** Přihlášený uživatel (po auth middleware). */
     public function identity(): Identity
     {
         return $this->identity ?? throw ApiException::unauthenticated();

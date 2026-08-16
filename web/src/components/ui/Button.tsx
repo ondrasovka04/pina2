@@ -3,10 +3,7 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { Spinner } from '@/components/ui/Spinner'
 import { cn } from '@/lib/cn'
 
-/**
- * `primary` je běžná akce, `accent` (zlatá) se nechává na tu jedinou hlavní
- * na obrazovce — když svítí všechno, nesvítí nic.
- */
+// primary: běžná. accent (zlatá): jediná hlavní — když svítí všechno, nesvítí nic.
 type Variant = 'primary' | 'accent' | 'ghost' | 'danger'
 type Size = 'sm' | 'md' | 'lg'
 

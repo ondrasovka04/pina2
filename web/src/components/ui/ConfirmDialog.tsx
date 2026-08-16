@@ -16,11 +16,7 @@ interface ConfirmDialogProps {
 	onCancel: () => void
 }
 
-/**
- * Postaveno na nativním `<dialog>` — zdarma dostaneme past na fokus, zavření
- * Escapem a vrstvení nad vším ostatním. `open` je jediný zdroj pravdy, dialog
- * sám o sobě žádný stav nedrží.
- */
+// Nativní <dialog> — past na fokus, Escape, vrstvení. `open` je jediný zdroj pravdy.
 export function ConfirmDialog({
 	open,
 	title,
@@ -52,21 +48,15 @@ export function ConfirmDialog({
 			aria-labelledby={titleId}
 			aria-describedby={description === undefined ? undefined : descriptionId}
 			onCancel={(event) => {
-				// Escape zavírá dialog sám — zavření musí řídit rodič přes `open`,
-				// jinak by stav zůstal `open: true` a dialog by se už nedal otevřít.
+				// Escape: rodič musí zavřít skrz `open`, ne dialog sám.
 				event.preventDefault()
 				onCancel()
 			}}
 			onClick={(event) => {
-				// Klik na podklad (::backdrop) doráží click event na samotný
-				// <dialog>, klik na obsah na jeho potomky — tím je jde rozlišit.
+				// Klik na podklad dorazí na <dialog> sám, na obsah na potomky.
 				if (event.target === dialogRef.current) onCancel()
 			}}
-			/*
-			 * `m-auto` tu musí být: prohlížeč modální dialog centruje přes
-			 * `margin: auto`, jenže Tailwind Preflight sráží okraje na nulu
-			 * a dialog by skončil v levém horním rohu.
-			 */
+			// m-auto: Tailwind Preflight sráží okraje, bez toho by dialog byl v rohu.
 			className="border-line bg-surface-1 text-ink m-auto max-w-96 rounded-2xl border p-5 shadow-xl backdrop:bg-black/50"
 		>
 			<h2 id={titleId} className="text-lg font-semibold">

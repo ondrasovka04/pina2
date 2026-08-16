@@ -35,9 +35,8 @@ describe('nextSeasonName', () => {
 })
 
 describe('suggestSeason', () => {
-	it('jede podle předchozí sezóny, ať má tým jakýkoli rytmus', () => {
-		// Junioři začínají v půlce srpna, muži až v září — proto se datum posouvá,
-		// místo aby se dosazovalo jednotné.
+	it('jede podle předchozí sezóny', () => {
+		// Různé rytmy — datum se posouvá, ne dosazuje.
 		expect(suggestSeason(season('25/26', '2025-08-15', '2026-06-30'), '2026-08-16')).toEqual({
 			name: '26/27',
 			startsOn: '2026-08-15',
@@ -60,7 +59,7 @@ describe('suggestSeason', () => {
 		})
 	})
 
-	it('na jaře patří dnešek ještě k sezóně, která začala loni', () => {
+	it('na jaře se počítá minulý ročník', () => {
 		expect(suggestSeason(null, '2027-03-04').name).toBe('26/27')
 	})
 })

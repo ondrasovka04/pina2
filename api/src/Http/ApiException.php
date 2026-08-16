@@ -6,10 +6,7 @@ namespace Pina\Http;
 
 use RuntimeException;
 
-/**
- * Chyba s jednotným tvarem odpovědi. Stará verze vracela 400 úplně na všechno,
- * takže klient nedokázal rozlišit chybný vstup od chybějícího oprávnění.
- */
+/** Chyba s jednotným tvarem (ne 400 na všechno). */
 class ApiException extends RuntimeException
 {
     /** @param array<string,mixed> $details */
@@ -38,10 +35,7 @@ class ApiException extends RuntimeException
         return new self(403, 'FORBIDDEN', $message);
     }
 
-    /**
-     * Pozor: používá se i tam, kde záznam existuje, ale nepatří volajícímu klubu.
-     * Rozlišovat 403 a 404 by prozradilo, která cizí ID existují.
-     */
+    /** 404 na neexistující i cizí záznam (nerozlišuj IDs). */
     public static function notFound(string $message = 'Záznam nebyl nalezen.'): self
     {
         return new self(404, 'NOT_FOUND', $message);

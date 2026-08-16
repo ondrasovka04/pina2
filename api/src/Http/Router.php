@@ -4,12 +4,7 @@ declare(strict_types=1);
 
 namespace Pina\Http;
 
-/**
- * Router s parametry v cestě ve tvaru {name}.
- *
- * Náhrada za 45 samostatných PHP souborů staré verze, kde každý znovu řešil
- * metodu, autorizaci i připojení k databázi.
- */
+/** Router s parametry v cestě {name} (místo 45 souborů). */
 final class Router
 {
     /** @var list<array{method:string,pattern:string,regex:string,params:list<string>,handler:callable,auth:bool}> */
@@ -41,7 +36,7 @@ final class Router
     }
 
     /**
-     * Najde odpovídající routu a doplní parametry do požadavku.
+     * Najde routu a doplní parametry.
      *
      * @return array{handler:callable,auth:bool}
      */
@@ -67,8 +62,7 @@ final class Router
             return ['handler' => $route['handler'], 'auth' => $route['auth']];
         }
 
-        // Existující cesta se špatnou metodou má vracet 405, ne 404 —
-        // pomáhá to při ladění klienta.
+        // Existující cesta se špatnou metodou → 405 (pomáhá ladění).
         if ($pathMatched) {
             throw new ApiException(405, 'METHOD_NOT_ALLOWED', 'Tato metoda není na daném endpointu povolena.');
         }

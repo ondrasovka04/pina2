@@ -8,19 +8,8 @@ use Pina\Http\ApiException;
 use Pina\Support\Database;
 
 /**
- * Ověřuje, že volající smí sáhnout na konkrétní záznam, a zároveň že ten záznam
- * patří jeho týmu.
- *
- * Tohle je hlavní obrana proti IDOR — útoku, kdy útočník změní ID v URL a dostane
- * se k cizím datům. Stará verze proti tomu neměla vůbec nic: role existovaly jen
- * v UI a API vůbec neřešilo, kdo volá.
- *
- * Role se čte z databáze, ne z tokenu. Nestojí to nic navíc: aby se zjistilo,
- * komu daný záznam patří, se do databáze sáhnout musí tak jako tak, takže se
- * členství připojí do téhož dotazu.
- *
- * Zásada: když záznam neexistuje NEBO nepatří volajícímu, vrací se shodně 404.
- * Rozdíl mezi 403 a 404 by prozrazoval, která cizí ID existují.
+ * Autorizace na úroveň záznamu: role z DB (ne tokenu), 404 na cizí i neexistující.
+ * Hlavní obrana proti IDOR útokům (změna ID v URL).
  */
 final class TeamScope
 {
@@ -34,7 +23,7 @@ final class TeamScope
         $this->resolve($identity, 'team', 'SELECT t.id AS team_id FROM team t WHERE t.id = ?', $teamId, $required);
     }
 
-    /** Sezóna → tým. Vrací team_id, aby ho volající nemusel dohledávat. */
+    /** Sezóna → tým (vrací team_id). */
     public function season(Identity $identity, int $seasonId, Role $required): int
     {
         $row = $this->resolve(
@@ -48,10 +37,7 @@ final class TeamScope
         return (int) $row['team_id'];
     }
 
-    /**
-     * Sezóna, do které se bude zapisovat. Navíc kontroluje, že není uzavřená —
-     * do skončené sezóny nemá smysl doplňovat prohřešky.
-     */
+    /** Sezóna pro zápis: musí být otevřená. */
     public function writableSeason(Identity $identity, int $seasonId, Role $required): int
     {
         $row = $this->resolve(
@@ -73,7 +59,7 @@ final class TeamScope
         return (int) $row['team_id'];
     }
 
-    /** Členství → tým. */
+    /** Členství → tým (vrací team_id). */
     public function membership(Identity $identity, int $membershipId, Role $required): int
     {
         $row = $this->resolve(
@@ -87,7 +73,7 @@ final class TeamScope
         return (int) $row['team_id'];
     }
 
-    /** Pozvánka → tým. */
+    /** Pozvánka → tým (vrací team_id). */
     public function invitation(Identity $identity, int $invitationId, Role $required): int
     {
         $row = $this->resolve(
@@ -101,7 +87,7 @@ final class TeamScope
         return (int) $row['team_id'];
     }
 
-    /** Akce → sezóna → tým. */
+    /** Akce → sezóna → tým (vrací team_id). */
     public function event(Identity $identity, int $eventId, Role $required): int
     {
         $row = $this->resolve(
@@ -115,10 +101,7 @@ final class TeamScope
         return (int) $row['team_id'];
     }
 
-    /**
-     * Hráč smí měnit jen vlastní záznamy (RSVP, „jedu autem"). Pínař a admin
-     * mohou zasahovat i ostatním.
-     */
+    /** Hráč jen svůj záznam; pínař a admin i ostatní. */
     public function ownMembershipOr(Identity $identity, int $membershipId, Role $required): int
     {
         $row = $this->db->first(
@@ -156,7 +139,7 @@ final class TeamScope
         return $teamId;
     }
 
-    /** Klub. Používá se u nastavení a míst, která jsou sdílená mezi družstvy. */
+    /** Klub: sdílená nastavení mezi družstvy. */
     public function club(Identity $identity, int $clubId, Role $required): void
     {
         if ($identity->isPlatformAdmin) {
@@ -182,15 +165,11 @@ final class TeamScope
     }
 
     /**
-     * Jedním dotazem zjistí vlastníka záznamu i roli volajícího v jeho týmu.
+     * Zjistí vlastníka a roli volajícího v jednom dotazu.
+     * POZOR: $sql jen literál z téže třídy, nikdy z požadavku (SQL injection prevence).
      *
-     * POZOR: $sql se vkládá do výsledného dotazu textově, protože parametrizovat
-     * lze jen hodnoty, nikoli části příkazu. Smí sem proto přijít **výhradně
-     * literál napsaný v této třídě** — nikdy nic, co pochází z požadavku.
-     * Hodnoty ($id, userId) jdou standardně jako parametry.
-     *
-     * @param  string              $alias  popis entity pro čitelnost volání
-     * @param  string              $sql    literál; musí vracet sloupec team_id a mít jeden parametr (id)
+     * @param  string              $alias  popis entity pro čitelnost
+     * @param  string              $sql    literál; musí vracet team_id a jeden parametr
      * @return array<string,mixed>
      */
     private function resolve(Identity $identity, string $alias, string $sql, int $id, Role $required): array
@@ -213,7 +192,7 @@ final class TeamScope
             return $row;
         }
 
-        // Volající v týmu vůbec není — záznam se tváří jako neexistující.
+        // Volající není v týmu — vrátit 404 (nerozlišuj od neexistujícího).
         if ($row['my_role'] === null) {
             throw ApiException::notFound();
         }

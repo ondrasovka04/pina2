@@ -1,13 +1,6 @@
 import { cn } from '@/lib/cn'
 
-/**
- * Značka aplikace: štít se zlatým lemem a míč, tvarově odvozené z klubového
- * znaku SK Prosek. Kreslí se jako SVG, ne jako obrázek — používá se v hlavičce
- * i na přihlašovací obrazovce v různých velikostech a musí zůstat ostrá.
- *
- * Až bude k dispozici oficiální znak v křivkách, nahradí se tenhle soubor;
- * zbytek aplikace zná jen komponentu.
- */
+// Aplikační značka — SVG odvozené ze znaku SK Prosek. Kreslí se jako SVG pro ostrost.
 export function ClubMark({ className }: { className?: string }) {
 	return (
 		<svg viewBox="0 0 48 56" role="img" aria-label="Pína" className={cn('shrink-0', className)}>

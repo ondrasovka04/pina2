@@ -4,10 +4,7 @@ declare(strict_types=1);
 
 namespace Pina\Http;
 
-/**
- * Odpověď API. Vždy JSON, vždy stejný tvar chyby — stará verze vracela
- * 400 na všechno a klient nedokázal rozlišit příčinu.
- */
+/** Odpověď API: vždy JSON, jednotný tvar chyby. */
 final class Response
 {
     /**

@@ -5,28 +5,19 @@ import { useSeasons, useTeams } from '@/lib/queries'
 import type { Role, Season, TeamSummary } from '@/lib/types'
 import { atLeast } from '@/lib/types'
 
-/**
- * Vybrané družstvo a sezóna.
- *
- * Hráč bývá ve víc družstvech (u mužů hráč, u juniorů pínař) a role se mezi
- * nimi liší, takže na výběru týmu závisí i to, co smí dělat. Sezóna je druhá
- * osa: za juniory se hraje několik let po sobě a starší ročníky musí jít
- * prohlížet, i když se do nich už nezapisuje.
- */
+// Vybrané družstvo a sezóna — role se mezi nimi liší
 interface TeamValue {
 	teams: TeamSummary[]
 	team: TeamSummary | null
 	seasons: Season[]
 	season: Season | null
 	seasonId: number | null
-	/** Uzavřená sezóna se dá prohlížet, ale server do ní odmítne cokoli zapsat. */
 	isSeasonClosed: boolean
 	role: Role | null
 	can: (required: Role) => boolean
 	selectTeam: (teamId: number) => void
 	selectSeason: (seasonId: number) => void
 	isLoading: boolean
-	/** Sezóny se dotahují až po týmu; než dorazí, nemá smysl kreslit obsah. */
 	isSeasonLoading: boolean
 	error: Error | null
 }
@@ -60,8 +51,7 @@ export function TeamProvider({ children }: { children: ReactNode }) {
 
 	const teams = useMemo(() => teamsQuery.data ?? [], [teamsQuery.data])
 
-	// Uložený tým nemusí existovat (odchod z družstva) — v tom případě padáme
-	// na první nearchivovaný, ať uživatel neskončí na prázdné obrazovce.
+	// Uložený tým nemusí existovat — padáme na první nearchivovaný
 	const team = useMemo(() => {
 		const preferred = teams.find((item) => item.id === preferredTeamId)
 		if (preferred !== undefined) return preferred
@@ -72,10 +62,7 @@ export function TeamProvider({ children }: { children: ReactNode }) {
 	const seasonsQuery = useSeasons(team?.id ?? null)
 	const seasons = useMemo(() => seasonsQuery.data ?? [], [seasonsQuery.data])
 
-	/**
-	 * Volba sezóny se pamatuje pro každý tým zvlášť. Kdo si u juniorů otevře
-	 * ročník 23/24 a přepne na muže, nemá se mu po návratu ztratit.
-	 */
+	// Volba sezóny se pamatuje pro každý tým zvlášť
 	const [seasonByTeam, setSeasonByTeam] = useState<Record<number, number>>({})
 
 	const season = useMemo(() => {

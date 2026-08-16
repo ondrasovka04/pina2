@@ -8,10 +8,7 @@ interface ThemeControl {
 	setPreference: (next: ThemePreference) => void
 }
 
-/**
- * Přepínání motivu. Volba „podle systému" musí reagovat i za běhu — telefony
- * přepínají na tmavý režim podle času, a to nesmí vyžadovat načtení stránky.
- */
+// Přepínání motivu — reakce na systémovou volbu za běhu
 export function useTheme(): ThemeControl {
 	const [preference, setStored] = useState<ThemePreference>(readPreference)
 

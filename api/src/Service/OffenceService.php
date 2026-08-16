@@ -12,21 +12,8 @@ use Pina\Http\ApiException;
 use Pina\Support\Database;
 
 /**
- * Zápis prohřešků — nejpoužívanější část aplikace (viz analýza 7.3).
- *
- * Tři věci, na kterých stojí správnost:
- *
- * 1. **Transakce** — dávka projde celá, nebo vůbec. Půl zapsaného tréninku je
- *    horší než nic, protože se nepozná, co chybí.
- * 2. **Idempotence** přes `client_uuid` — dvojklik ani výpadek sítě nesmí
- *    zapsat peníze dvakrát.
- * 3. **Snapshot ceny** do `offence_record.amount_czk` — pozdější úprava sazebníku
- *    nesmí přepsat historii. Hlavní nedostatek staré verze: tam se dluh počítal
- *    joinem na aktuální ceník, takže zdražení pozdě příchodů zpětně zdražilo
- *    i loňské tréninky.
- *
- * Storno se nikdy nedělá DELETE, jen `voided_at` — smazané peníze se nedají
- * dohledat a v týmu z toho bývá dohadování.
+ * Transakce (atomicita), idempotence (client_uuid), snapshot ceny.
+ * Storno přes voided_at, ne DELETE.
  *
  * @phpstan-type BatchItemPayload array{
  *     offenceTypeId: int, name: string, amountCzk: int,
@@ -127,8 +114,7 @@ final class OffenceService
     }
 
     /**
-     * Storno celé dávky. Opakované volání nic nezmění — pínař po dvojkliku
-     * nemá dostat chybu.
+     * Idempotentní — pínař nemusí mít strach z dvojkliku.
      *
      * @return BatchSummary
      */
@@ -253,16 +239,7 @@ final class OffenceService
     }
 
     /**
-     * Kdo kolik dluží. Součet je se znaménkem, takže bonusy dluh snižují
-     * a hráč se může dostat i do plusu (tým dluží jemu).
-     *
-     * Zdrojem je **soupiska sezóny**, ne seznam členů družstva. Členství se
-     * nemaže kvůli historii, takže u juniorů má tým 48 členů, ale v sezóně
-     * 25/26 hrálo 21 lidí — vypsat všechny by dělalo přehled nečitelným.
-     *
-     * Kdo na soupisce není, ale v té sezóně má zápis, se ukáže taky: odchod
-     * z týmu dluh nemaže. Takový řádek nese `onRoster: false`, aby ho UI umělo
-     * odlišit.
+     * Zdroj: soupiska sezóny, ne všichni členové. Včetně těch, co odešli ale dluh zůstal.
      *
      * @return array{seasonId:int, totalCzk:int, members: list<array{
      *     membershipId:int, userId:int, name:string, jerseyNumber:int|null,
@@ -277,9 +254,7 @@ final class OffenceService
             'SELECT m.id AS membership_id, m.user_id, m.jersey_number, m.status, u.display_name,
                     re.membership_id IS NOT NULL AS on_roster,
                     COALESCE(SUM(CASE WHEN r.voided_at IS NULL THEN r.amount_czk END), 0) AS balance_czk,
-                    -- Podmínka na r.id tu být musí: u hráče bez zápisu doplní LEFT JOIN
-                    -- prázdný řádek, ve kterém `voided_at IS NULL` platí, a počet by
-                    -- vyšel 1 místo 0.
+                    -- r.id IS NOT NULL: bez něj by prázdný řádek LEFT JOIN počítá jako 1 zápis
                     SUM(CASE WHEN r.id IS NOT NULL AND r.voided_at IS NULL THEN 1 ELSE 0 END) AS record_count
                FROM membership m
                JOIN `user` u ON u.id = m.user_id
@@ -374,8 +349,7 @@ final class OffenceService
     // ------------------------------------------------------------- validace
 
     /**
-     * Všechna členství musí patřit do týmu té sezóny. Bez téhle kontroly by
-     * pínař mohl zapsat prohřešek hráči cizího klubu.
+     * Bez ověření by pínař zapsal prohřešek hráči cizího klubu.
      *
      * @param  list<array{membershipId:int,offenceTypeId:int,count:int,note:string|null,expectedAmountCzk:int|null}> $items
      * @return array<int,array{userId:int,name:string}>
@@ -413,8 +387,7 @@ final class OffenceService
     }
 
     /**
-     * Prohřešky musí být ze sazebníku téže sezóny a nesmí být archivované —
-     * do archivu se položka dává právě proto, aby se už nezapisovala.
+     * Archivované položky se nezapisují.
      *
      * @param  list<array{membershipId:int,offenceTypeId:int,count:int,note:string|null,expectedAmountCzk:int|null}> $items
      * @return array<int,array{name:string,amountCzk:int}>
@@ -466,8 +439,7 @@ final class OffenceService
     }
 
     /**
-     * Klient smí poslat cenu, kterou zobrazil v souhrnu. Když se mezitím změnil
-     * sazebník, vrátí se 409 s rozdílem a klient souhrn přepočítá (analýza 7.3).
+     * Změna sazebníku vrátí 409; klient si souhrn přepočítá.
      *
      * @param list<array{membershipId:int,offenceTypeId:int,count:int,note:string|null,expectedAmountCzk:int|null}> $items
      * @param array<int,array{name:string,amountCzk:int}>                                                          $types
@@ -540,9 +512,7 @@ final class OffenceService
 
         $seasonId = (int) $batch['season_id'];
 
-        // Seskupení po hráči a prohřešku — přesně to, co pínař vidí v souhrnu.
-        // Do klíče patří i amount_czk: kdyby se v jedné dávce sešly dvě ceny
-        // téhož prohřešku, nesmí se slít do jednoho řádku.
+        // amount_czk v klíči: dvě ceny téhož prohřešku se nesmí sloučit.
         $rows = $this->db->all(
             'SELECT r.membership_id, r.offence_type_id, r.amount_czk,
                     t.name AS type_name, t.sort_order,

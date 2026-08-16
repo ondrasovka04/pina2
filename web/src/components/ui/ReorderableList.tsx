@@ -21,10 +21,7 @@ interface DragState {
 	/** Posun taženého řádku od výchozí pozice. */
 	offsetY: number
 	height: number
-	/**
-	 * Středy řádků v dokumentových souřadnicích, změřené jednou na začátku tažení.
-	 * Dokumentové proto, aby měření přežilo odrolování stránky.
-	 */
+	// Středy řádků v dokumentových souřadnicích — přežijí odrolování.
 	midpoints: number[]
 	startPageY: number
 }
@@ -34,24 +31,11 @@ const SCROLL_ZONE = 72
 const SCROLL_STEP = 14
 
 /**
- * Seznam, jehož pořadí se mění přetažením za úchyt.
- *
- * Postavené na Pointer Events, ne na HTML5 drag-and-drop — ten na dotykových
- * displejích nefunguje a sazebník se srovnává i na telefonu.
- *
- * Klíčové je, že se **během tažení pořadí nemění**. Rozměry řádků se změří
- * jednou na začátku a cíl se počítá proti tomuhle snímku; ostatní řádky se jen
- * odsunou o výšku taženého. Kdyby se pole přeskládávalo za běhu, tažený řádek
- * by si podsouval podklad pod vlastní prst a dál než o jednu pozici by se
- * nedostal.
+ * Pointer Events, ne HTML5 drag-and-drop — to na dotykových displejích nefunguje.
+ * Během tažení se pořadí nemění — rozměry se změří jednou, ostatní řádky se jen posunou.
  */
 export function ReorderableList<T>({ items, getKey, getLabel, renderItem, onReorder }: ReorderableListProps<T>) {
-	/**
-	 * Lokálně se drží jen **pořadí klíčů**, ne celé položky. O pořadí rozhoduje
-	 * uživatel, o obsahu a složení seznamu server — kdyby se sem po každé změně
-	 * propsal celý seznam, přepsalo by nové pořadí to staré, dokud nedoběhne
-	 * ukládání, a seznam by po puštění poskočil tam a zpátky.
-	 */
+	// Lokálně jen pořadí klíčů — server řídí obsah, aby se seznam neposkokal.
 	const [orderKeys, setOrderKeys] = useState(() => items.map(getKey))
 	const [drag, setDrag] = useState<DragState | null>(null)
 	const containerRef = useRef<HTMLUListElement>(null)
@@ -141,9 +125,7 @@ export function ReorderableList<T>({ items, getKey, getLabel, renderItem, onReor
 						className={cn(
 							'bg-surface-1 flex items-stretch gap-2',
 							dragged && 'relative z-10 shadow-lg',
-							// Animuje se jen uhýbání během tažení. Po puštění musí posuny
-							// zmizet okamžitě — řádky už jsou přeskládané a dojezd animace
-							// by je táhl z místa, kde dávno nejsou.
+							// Animace jen během tažení — po puštění musí posuny zmizet.
 							drag !== null && !dragged && 'transition-transform duration-150',
 						)}
 					>

@@ -1,11 +1,7 @@
 import { cn } from '@/lib/cn'
 import { formatCzk } from '@/lib/types'
 
-/**
- * `balance` je zůstatek hráče: kladné číslo znamená dluh, a ten se má
- * červenat. `plain` je cena v sazebníku nebo částka jednoho zápisu —
- * tam je pokuta normální stav a barví se jen záporná částka, tedy bonus.
- */
+// balance: dluh červeně. plain: bonus zeleně.
 type Tone = 'plain' | 'balance'
 
 interface MoneyProps {

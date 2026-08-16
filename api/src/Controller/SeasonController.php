@@ -10,9 +10,7 @@ use Pina\Http\Request;
 use Pina\Http\Response;
 use Pina\Service\SeasonService;
 
-/**
- * Sezóny a soupisky.
- */
+/** Sezóny a soupisky. */
 final class SeasonController
 {
     public function __construct(private readonly SeasonService $seasons)
@@ -99,7 +97,7 @@ final class SeasonController
         ]);
     }
 
-    /** Datum se posílá jako RRRR-MM-DD; jiný tvar by MySQL tiše uložila jako 0000-00-00. */
+    /** Datum RRRR-MM-DD; MySQL by jiný tvar uložila jako 0000-00-00. */
     private function date(Request $request, string $key): string
     {
         $value = $request->string($key);

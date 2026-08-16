@@ -41,7 +41,7 @@ final class RouterTest extends TestCase
 
     public function testNonNumericRouteIdIsRejected(): void
     {
-        // Ochrana proti pokusu podstrčit do ID něco jiného než číslo.
+        // ID pouze číslo.
         $router = new Router();
         $router->get('/api/v1/seasons/{season}', static fn (): Response => Response::noContent());
 
@@ -89,7 +89,7 @@ final class RouterTest extends TestCase
 
     public function testRouteParameterDoesNotSpanSlashes(): void
     {
-        // {id} nesmí pohltit lomítko, jinak by /seasons/1/offences odpovídalo /seasons/{id}
+        // Parametr nekončí za dalším lomítkem.
         $router = new Router();
         $router->get('/api/v1/seasons/{id}', static fn (): Response => Response::noContent());
 

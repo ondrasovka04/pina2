@@ -11,13 +11,7 @@ use Pina\Http\ApiException;
 use Pina\Http\RateLimiter;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-/**
- * Hlídá, že uživatelský vstup nemůže ovlivnit strukturu SQL dotazu.
- *
- * Všechny dotazy v projektu používají prepared statements s vypnutou emulací
- * (PDO::ATTR_EMULATE_PREPARES = false), takže data putují do databáze odděleně
- * od příkazu. Tenhle test to ověřuje na místech, kam se dostane vstup zvenčí.
- */
+/** Ověření, že prepared statements (bez emulace) opravdu hlídají vstup. */
 final class SqlInjectionTest extends DatabaseTestCase
 {
     /** @return list<array{string}> */
@@ -77,7 +71,7 @@ final class SqlInjectionTest extends DatabaseTestCase
     #[DataProvider('payloads')]
     public function testPayloadIsStoredVerbatim(string $payload): void
     {
-        // Vstup se uloží doslova jako text, ne jako část příkazu.
+        // Uložení jako text, ne jako část SQL.
         $limiter = new RateLimiter($this->db);
         $limiter->record($payload, '127.0.0.1', false);
 

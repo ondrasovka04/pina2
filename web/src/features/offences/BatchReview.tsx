@@ -14,7 +14,6 @@ interface BatchReviewProps {
 	summary: DraftSummary
 	occurredOn: string
 	title: string | null
-	/** Server odmítl zápis, protože se mezi souhrnem a odesláním změnil sazebník. */
 	priceChanges: PriceChange[] | null
 	submitting: boolean
 	error: string | null
@@ -22,11 +21,7 @@ interface BatchReviewProps {
 	onConfirm: () => void
 }
 
-/**
- * Souhrn před zápisem. Peníze se zapisují cizím lidem, takže poslední krok
- * není „odeslat", ale „přečti si, co se stane": u každého hráče je vidět
- * rozpis, součet i to, na jaký dluh se dostane.
- */
+// Poslední krok: přečti si rozpis a dluh před potvrzením
 export function BatchReview({
 	summary,
 	occurredOn,
@@ -107,7 +102,6 @@ export function BatchReview({
 				</p>
 			)}
 
-			{/* Plave nad spodní lištou, aby byl součet i tlačítko po ruce i u dlouhé dávky. */}
 			<div className="sticky bottom-24 z-10 md:bottom-4">
 				<Card className="border-line bg-surface-2/95 flex items-center gap-3 p-3 backdrop-blur">
 					<div className="min-w-0 flex-1">
@@ -130,7 +124,6 @@ interface BatchResultProps {
 	onAnother: () => void
 }
 
-/** Potvrzení po zápisu — pínař si má odnést jistotu, že to prošlo a v jaké výši. */
 export function BatchResult({ result, onAnother }: BatchResultProps) {
 	return (
 		<div className="flex flex-col gap-4">

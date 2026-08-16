@@ -12,15 +12,8 @@ use Pina\Support\Database;
 use Throwable;
 
 /**
- * Vydávání a ověřování tokenů.
- *
- *   access token  — JWT, 15 minut, klient ho drží v paměti (ne v localStorage kvůli XSS)
- *   refresh token — 32 náhodných bajtů, 30 dní, HttpOnly cookie; v DB jen jako otisk
- *
- * JWT je ze své podstaty nezneplatnitelný — server si vydané tokeny nepamatuje,
- * jen ověřuje podpis. Proto má uživatel razítko `tokens_valid_from`: posunutím
- * na „teď“ se odmítnou všechny dříve vydané tokeny. Používá se při změně role,
- * změně hesla a při odhlášení ze všech zařízení.
+ * Access token (JWT, 15 min) a refresh token (32 bajtů, 30 dní, HttpOnly).
+ * Zneplatnění přes `tokens_valid_from` razítko (role, heslo, logout všude).
  */
 final class TokenService
 {
@@ -61,8 +54,7 @@ final class TokenService
     public function verify(string $token): Identity
     {
         try {
-            // JWT::decode vrací stdClass i u vnořených struktur (memberships),
-            // proto se převádí na pole rekurzivně.
+            // JWT::decode vrací stdClass — převést na pole kvůli vnořeným strukturám.
             $object  = JWT::decode($token, new Key(Config::get('JWT_SECRET'), self::ALGORITHM));
             $decoded = json_decode((string) json_encode($object), true);
         } catch (Throwable) {
@@ -85,8 +77,7 @@ final class TokenService
             throw ApiException::unauthenticated();
         }
 
-        // Token vydaný před posunutím razítka (změna role, změna hesla, odhlášení
-        // ze všech zařízení) je neplatný, i když má správný podpis a nevypršel.
+        // Token vydaný před zneplatnění razítka je neplatný, i když není expirovaný.
         if ($issuedAt < (int) $validFrom) {
             throw ApiException::unauthenticated('Vaše oprávnění se změnila, přihlaste se prosím znovu.');
         }
@@ -95,10 +86,8 @@ final class TokenService
     }
 
     /**
-     * Vymění refresh token za nový pár. Starý se okamžitě zneplatní (rotace).
-     *
-     * Když se objeví už použitý token, znamená to, že ho někdo zkopíroval —
-     * zneplatní se proto všechny relace daného uživatele.
+     * Refresh token → nový pár (rotace, starý se zneplatní).
+     * Dvojité použití = detekce kopírování → všechny relace zneplatní.
      *
      * @return array{accessToken:string,refreshToken:string,expiresIn:int}
      */
@@ -148,16 +137,13 @@ final class TokenService
         );
     }
 
-    /**
-     * Zneplatní všechny vydané access tokeny uživatele. Volá se při změně role,
-     * změně hesla a odhlášení ze všech zařízení.
-     */
+    /** Zneplatní všechny access tokeny: role, heslo, logout všude. */
     public function invalidateAccessTokens(int $userId): void
     {
         $this->db->run('UPDATE `user` SET tokens_valid_from = NOW() WHERE id = ?', [$userId]);
     }
 
-    /** Změna role musí okamžitě dopadnout na už vydané tokeny. */
+    /** Role se změnila — zneplatnit všechny tokeny okamžitě. */
     public function onRoleChanged(int $userId): void
     {
         $this->invalidateAccessTokens($userId);
@@ -215,7 +201,7 @@ final class TokenService
         );
     }
 
-    /** V databázi je uložen jen otisk — únik tabulky sám o sobě relace neprozradí. */
+    /** Otisk v DB — únik tabulky sám relace neprozradí. */
     private function hash(string $token): string
     {
         return hash('sha256', $token);

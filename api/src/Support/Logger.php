@@ -6,10 +6,7 @@ namespace Pina\Support;
 
 use Throwable;
 
-/**
- * Zápis chyb do souboru. Na hostingu je `log_errors` vypnuté a `error_log`
- * prázdný, takže bez tohoto by chyby zmizely beze stopy.
- */
+/** Zápis chyb do souboru (na hostingu je log_errors vypnutý). */
 final class Logger
 {
     public function __construct(private readonly string $directory)

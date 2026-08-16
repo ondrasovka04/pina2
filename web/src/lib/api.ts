@@ -1,11 +1,4 @@
-/**
- * Klient API.
- *
- * Access token se drží pouze v paměti — ne v localStorage, aby ho při XSS
- * nešlo přečíst. Refresh token je v HttpOnly cookie, kam JavaScript nevidí
- * vůbec; obnovení se proto dělá požadavkem s `credentials: 'include'`.
- */
-
+// Access token v paměti (ne localStorage) — Refresh cookie drží refresh token
 export interface ApiErrorBody {
 	error: {
 		code: string
@@ -25,7 +18,6 @@ export class ApiError extends Error {
 		this.name = 'ApiError'
 	}
 
-	/** Chyba u konkrétního pole formuláře, pokud ji server označil. */
 	get field(): string | undefined {
 		const field = this.details?.['field']
 		return typeof field === 'string' ? field : undefined
@@ -43,7 +35,6 @@ export function getAccessToken(): string | null {
 	return accessToken
 }
 
-/** Zavolá se, když ani obnovení tokenu nepomůže — uživatel se musí přihlásit znovu. */
 export function setUnauthenticatedHandler(handler: () => void): void {
 	onUnauthenticated = handler
 }
@@ -52,14 +43,10 @@ interface RequestOptions {
 	method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 	body?: unknown
 	signal?: AbortSignal
-	/** Interní: zabraňuje nekonečné smyčce při obnovování tokenu. */
 	skipRefresh?: boolean
 }
 
-/**
- * Probíhající obnovení tokenu. Když vyprší token a stránka pošle pět požadavků
- * naráz, obnovujeme jen jednou a ostatní počkají na stejný výsledek.
- */
+// Jedinou aktualizaci tokenu — ostatní čekají na stejný výsledek
 let refreshInFlight: Promise<boolean> | null = null
 
 async function refreshAccessToken(): Promise<boolean> {

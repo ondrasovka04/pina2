@@ -10,10 +10,7 @@ use Pina\Auth\TeamScope;
 use Pina\Http\ApiException;
 use Pina\Service\OffenceService;
 
-/**
- * Dávkový zápis prohřešků — jde o cizí peníze, takže se testuje důkladně:
- * idempotence, snapshot ceny, bonusy, storno a izolace klubů.
- */
+/** Důkladné testování dávek: idempotence, cena, bonusy, storno, izolace. */
 final class OffenceServiceTest extends DatabaseTestCase
 {
     private OffenceService $service;
@@ -102,7 +99,7 @@ final class OffenceServiceTest extends DatabaseTestCase
             ['membershipId' => $this->petr, 'offenceTypeId' => $this->lateType, 'count' => 1],
         ]);
 
-        // count = 3 znamená tři samostatné řádky, ne jeden s násobkem.
+        // count = 3 → tři samostatné řádky, ne jeden s násobkem.
         self::assertSame(4, (int) $this->db->value('SELECT COUNT(*) FROM offence_record'));
         self::assertSame(4, $summary['recordCount']);
         self::assertSame(80, $summary['totalCzk']);
@@ -129,7 +126,7 @@ final class OffenceServiceTest extends DatabaseTestCase
         self::assertSame(40, $second['totalCzk']);
     }
 
-    /** Hlavní nedostatek staré verze: změna sazebníku přepsala i historii. */
+    /** Změna sazebníku nesmí přepsat starší zápisy. */
     public function testPriceChangeDoesNotRewriteHistory(): void
     {
         $this->batch([['membershipId' => $this->honza, 'offenceTypeId' => $this->lateType, 'count' => 1]]);
@@ -160,7 +157,7 @@ final class OffenceServiceTest extends DatabaseTestCase
 
         self::assertSame(40, $this->balanceOf($this->honza));
 
-        // Bonusy mohou hráče dostat i do plusu — tým pak dluží jemu.
+        // Bonusy mohou dát hráči plus — tým pak dluží jemu.
         $this->batch(
             [['membershipId' => $this->petr, 'offenceTypeId' => $this->mvpType, 'count' => 2]],
             '22222222-2222-2222-2222-222222222222',
@@ -187,7 +184,7 @@ final class OffenceServiceTest extends DatabaseTestCase
         self::assertSame(0, $this->balanceOf($this->honza));
         self::assertSame(0, $this->balanceOf($this->petr));
 
-        // Nic se nemaže, jen se označí.
+        // Označení místo mazání.
         self::assertSame(3, (int) $this->db->value('SELECT COUNT(*) FROM offence_record'));
         self::assertSame(
             3,
@@ -329,7 +326,7 @@ final class OffenceServiceTest extends DatabaseTestCase
 
         $detail = $this->service->showBatch($this->player, $batchId);
 
-        // Honza 2×20 − 20 bonus = 20, Petr 20 → dávka celkem 40 Kč.
+        // Honza: 2×20−20=20 Kč, Petr: 20 Kč, dávka: 40 Kč.
         self::assertSame(40, $detail['totalCzk']);
         self::assertSame('Trénink 16. 9.', $detail['batch']['title']);
 
@@ -348,7 +345,7 @@ final class OffenceServiceTest extends DatabaseTestCase
 
         $balances = $this->service->balances($this->treasurer, $this->season);
 
-        // Hráči bez zápisu se v přehledu objeví s nulou.
+        // Všichni členové soupisky, i bez zápisu (nula).
         self::assertCount(4, $balances['members']);
         self::assertSame(20, $balances['totalCzk']);
 
@@ -357,7 +354,7 @@ final class OffenceServiceTest extends DatabaseTestCase
         self::assertSame(-20, $byId[$this->petr]['balanceCzk']);
     }
 
-    /** Hráč bez zápisu musí mít nulu, ne jedničku z prázdného řádku po LEFT JOINu. */
+    /** Bez zápisu se počítá 0 záznamů, ne 1 z LEFT JOINu. */
     public function testBalancesCountZeroRecordsAsZero(): void
     {
         $this->batch([['membershipId' => $this->honza, 'offenceTypeId' => $this->lateType, 'count' => 2]]);
@@ -369,7 +366,7 @@ final class OffenceServiceTest extends DatabaseTestCase
         self::assertSame(0, $byId[$this->petr]['balanceCzk']);
     }
 
-    /** Stornovaný zápis se nepočítá ani do částky, ani do počtu. */
+    /** Stornované záp isy se nepočítají. */
     public function testBalancesIgnoreVoidedRecords(): void
     {
         $batch = $this->batch([['membershipId' => $this->honza, 'offenceTypeId' => $this->lateType, 'count' => 1]]);
@@ -381,10 +378,7 @@ final class OffenceServiceTest extends DatabaseTestCase
         self::assertSame(0, $byId[$this->honza]['balanceCzk']);
     }
 
-    /**
-     * Členství se kvůli historii nemaže, takže družstvo má víc členů než
-     * kolik jich v dané sezóně hrálo. Přehled ukazuje soupisku sezóny.
-     */
+    /** Přehled ukazuje soupisu sezóny, ne všechna členství. */
     public function testBalancesFollowSeasonRosterNotTeamMembership(): void
     {
         $this->makeMembership($this->makeUser('loni@prosek.cz'), $this->team, 'player');
@@ -395,7 +389,7 @@ final class OffenceServiceTest extends DatabaseTestCase
         self::assertNotContains('loni', array_column($balances['members'], 'name'));
     }
 
-    /** Odchod z týmu dluh nemaže — kdo má zápis, zůstává v přehledu i mimo soupisku. */
+    /** Člen s dluhem zůstane i bez soupisy. */
     public function testBalancesKeepMemberWithRecordsOutsideRoster(): void
     {
         $odchozi = $this->makeMembership($this->makeUser('odchozi@prosek.cz'), $this->team, 'player', 'left');

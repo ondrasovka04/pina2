@@ -9,12 +9,7 @@ use Pina\Support\Config;
 use Pina\Support\Logger;
 use Throwable;
 
-/**
- * Zpracování požadavku: CORS → routa → autentizace → handler → odpověď.
- *
- * Autentizace probíhá na jednom místě, ne v každém endpointu zvlášť.
- * Autorizaci (kdo smí na který záznam) pak řeší TeamScope uvnitř handlerů.
- */
+/** Centrální autentizace (ne v každém endpointu). Autorizace v TeamScope. */
 final class Kernel
 {
     public function __construct(
@@ -58,7 +53,7 @@ final class Kernel
                 $this->corsHeaders(),
             );
         } catch (Throwable $e) {
-            // Na hostingu je log_errors vypnutý, proto se loguje vlastními silami.
+            // Na hostingu je log_errors vypnutý — vlastní logging.
             $this->logger->error($e, [
                 'method' => $request->method,
                 'path'   => $request->path,
@@ -80,8 +75,7 @@ final class Kernel
     }
 
     /**
-     * Povolen je jen konkrétní původ, ne '*' jako ve staré verzi — jinak by
-     * jakákoli stránka mohla volat API jménem přihlášeného uživatele.
+     * Konkrétní origin, ne '*' (brání CSRF na přihlášeného uživatele).
      *
      * @return array<string,string>
      */

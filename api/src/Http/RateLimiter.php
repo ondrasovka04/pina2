@@ -7,12 +7,7 @@ namespace Pina\Http;
 use Pina\Support\Database;
 
 /**
- * Omezení počtu pokusů o přihlášení. Bez něj je login na sdíleném hostingu
- * volně zkoušitelný hrubou silou — stará verze proti tomu neměla nic.
- *
- * Počítá se zvlášť podle e-mailu a podle IP: útočník zkoušející hesla k jednomu
- * účtu narazí na první limit, útočník zkoušející jedno heslo na mnoho účtů
- * (password spraying) na druhý.
+ * Rate limiting na login: per-email a per-IP (brání bruteforce i spraying).
  */
 final class RateLimiter
 {
@@ -65,7 +60,7 @@ final class RateLimiter
         );
     }
 
-    /** Úspěšné přihlášení maže historii neúspěchů, aby limit nedoháněl majitele účtu. */
+    /** Úspěšné přihlášení — vymazat selhání (aby limit nenapadl majitele). */
     public function clear(string $email): void
     {
         $this->db->run('DELETE FROM login_attempt WHERE email = ? AND succeeded = 0', [$email]);

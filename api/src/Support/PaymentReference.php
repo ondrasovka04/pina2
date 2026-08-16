@@ -5,18 +5,8 @@ declare(strict_types=1);
 namespace Pina\Support;
 
 /**
- * Variabilní symbol členství.
- *
- * Musí být stabilní: hráč si ho jednou uloží do trvalého příkazu a už ho nikdy
- * nemění. Proto se počítá z ID týmu a uživatele, ne z pořadí nebo data.
- *
- * Tvar je 3 číslice týmu + 4 číslice uživatele + kontrolní číslice, dohromady 8 —
- * banky u VS připouštějí deset, takže je rezerva. Kontrolní číslice odchytí
- * překlep při ručním přepisu z papíru.
- *
- * Kolize jsou teoreticky možné (týmy 1 a 1001 mají stejné tři číslice), proto má
- * `membership.payment_reference` unikátní index — vložení kolidujícího VS selže
- * a nedojde k tichému spárování platby s cizím člověkem.
+ * Variabilní symbol: stabilní (z ID týmu+uživatele, ne data).
+ * 8 cifer: 3×tým, 4×uživatel, 1×kontrola. Kolize chytá DB unikátní index.
  */
 final class PaymentReference
 {

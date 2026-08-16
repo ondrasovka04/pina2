@@ -1,14 +1,6 @@
 import type { BatchInput, MemberBalance, OffenceType } from '@/lib/types'
 
-/**
- * Rozepsaná dávka prohřešků, než ji pínař odešle.
- *
- * Držíme ji jako plochou mapu `hráč:prohřešek → počet`, ne jako zanořenou
- * strukturu — přidání dalšího zápisu je pak jedna změna klíče a React nemusí
- * porovnávat vnořená pole. Logika je schválně mimo komponentu: souhrn s částkami
- * je to jediné, co pínař před odesláním čte, takže se musí dát otestovat
- * bez vykreslování.
- */
+// Rozepsaná dávka jako plochá mapa (ne zanoření) — jeden klíč = jedna změna v Reactu
 export type Draft = Readonly<Record<string, number>>
 
 export const emptyDraft: Draft = {}
@@ -21,10 +13,7 @@ export function draftCount(draft: Draft, membershipId: number, offenceTypeId: nu
 	return draft[draftKey(membershipId, offenceTypeId)] ?? 0
 }
 
-/**
- * Přičte (nebo ubere) zápisy. Klesne-li počet na nulu, klíč se z dávky vyhodí —
- * jinak by v souhrnu zůstávaly řádky s nulou.
- */
+// Klesne-li počet na nulu, klíč vymizí — řádky s nulou nejsou v souhrnu
 export function changeCount(draft: Draft, membershipId: number, offenceTypeId: number, delta: number): Draft {
 	const key = draftKey(membershipId, offenceTypeId)
 	const next = (draft[key] ?? 0) + delta
@@ -56,7 +45,6 @@ export interface DraftMember {
 	membershipId: number
 	name: string
 	jerseyNumber: number | null
-	/** Zůstatek hráče před touhle dávkou. */
 	balanceCzk: number
 	totalCzk: number
 	items: DraftItem[]
@@ -68,15 +56,11 @@ export interface DraftSummary {
 	totalCzk: number
 }
 
-/** Řazení podle jména s českou abecedou — jinak by „Šimek" spadl až za „Zeman". */
 function byName(a: { name: string }, b: { name: string }): number {
 	return a.name.localeCompare(b.name, 'cs')
 }
 
-/**
- * Souhrn k odsouhlasení. Skládá se z toho, co má klient právě na obrazovce —
- * server si stejně pořádí vlastní kontrolu a při změně sazebníku zápis odmítne.
- */
+// Souhrn k odsouhlasení — server stejně kontroluje a při změně sazebníku odmítne
 export function summarizeDraft(
 	draft: Draft,
 	members: readonly MemberBalance[],
@@ -97,8 +81,7 @@ export function summarizeDraft(
 		const member = memberById.get(membershipId)
 		const type = typeById.get(offenceTypeId)
 
-		// Hráč nebo prohřešek mezitím zmizel ze sazebníku či soupisky —
-		// tichý přeskok je lepší než pád obrazovky s rozepsanou dávkou.
+		// Hráč nebo prohřešek zmizel — přeskok, ne pád s rozepsanou dávkou
 		if (member === undefined || type === undefined) continue
 
 		const itemTotal = type.amountCzk * count
@@ -133,11 +116,7 @@ export function summarizeDraft(
 	return { members: sorted, recordCount, totalCzk }
 }
 
-/**
- * Tělo požadavku. `expectedAmountCzk` posílá cenu, kterou pínař viděl v souhrnu:
- * když se mezitím změnil sazebník, server zápis odmítne (409) místo aby potichu
- * strhl jinou částku.
- */
+// expectedAmountCzk chrání před tichým snížením, když se sazebník změní
 export function toBatchInput(
 	summary: DraftSummary,
 	options: { clientUuid: string; occurredOn: string; title: string | null },

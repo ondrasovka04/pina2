@@ -5,10 +5,8 @@ declare(strict_types=1);
 namespace Pina\Auth;
 
 /**
- * Přihlášený uživatel a jeho role v jednotlivých týmech.
- *
- * Členství přichází z JWT kvůli rychlosti, ale u každého zápisu se ověřuje
- * znovu proti databázi (viz TeamScope) — token je nápověda, ne důkaz.
+ * Přihlášený uživatel a role v jednotlivých týmech.
+ * Z JWT pro rychlost, ale ověřuje se proti DB (token je nápověda, ne důkaz).
  */
 final class Identity
 {

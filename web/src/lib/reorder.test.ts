@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { moveItem, shift, targetIndex } from './reorder'
 
-/** Pět řádků po 40 px začínajících na y = 100; středy jsou 120, 160, 200, 240, 280. */
+// Pět řádků, středy na 120, 160, 200, 240, 280.
 const midpoints = [120, 160, 200, 240, 280]
 
 describe('targetIndex', () => {
@@ -12,7 +12,7 @@ describe('targetIndex', () => {
 		expect(targetIndex(midpoints, 210)).toBe(3)
 	})
 
-	/** Tohle byla ta chyba: přes jednu pozici se dřív nedalo dostat. */
+	// Chyba: přes jednu pozici se nedalo dostat.
 	it('dotáhne položku přes celý seznam, ne jen o jedno místo', () => {
 		expect(targetIndex(midpoints, 999)).toBe(4)
 		expect(targetIndex(midpoints, 0)).toBe(0)

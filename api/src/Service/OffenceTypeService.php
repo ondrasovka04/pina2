@@ -11,18 +11,8 @@ use Pina\Http\ApiException;
 use Pina\Support\Database;
 
 /**
- * Sazebník prohřešků. Je vázaný na sezónu (a sezóna na tým), takže každé družstvo
- * má vlastní ceník a nová sezóna může začít s jinými cenami, aniž by se sáhlo
- * na historii.
- *
- * `amount_czk` je celé číslo **se znaménkem**: záporná částka je bonus
- * („MVP extraligy" −20 Kč, „Vánoce" −200 Kč). Kladnost se proto nikde nevaliduje.
- *
- * Položka sazebníku se nemaže, jen archivuje — visí na ní zapsaná historie
- * a cizí klíč offence_record.offence_type_id je RESTRICT.
- *
- * Sazebník spravuje **pínař**, ne admin. Je to peněžní agenda a rozhoduje o ní
- * ten, kdo peníze reálně vybírá; admin řeší lidi, role a sezóny.
+ * Per sezóna. amount_czk se znaménkem (bonusy jsou záporné).
+ * Archivace místo smazání. Spravuje pínař, ne admin.
  *
  * @phpstan-type OffenceType array{
  *     id: int,
@@ -50,8 +40,7 @@ final class OffenceTypeService
     }
 
     /**
-     * Sazebník sezóny. Archivované položky se posílají jen na vyžádání — klient
-     * je potřebuje, aby uměl vykreslit i staré zápisy.
+     * Archivované jen na vyžádání — pro vykreslení starých záznamů.
      *
      * @return list<OffenceType>
      */
@@ -95,8 +84,7 @@ final class OffenceTypeService
     }
 
     /**
-     * Změna sazebníku se nikdy nepromítne do už zapsaných prohřešků — ty nesou
-     * vlastní snapshot ceny (viz OffenceService).
+     * Zapsané prohřešky mají snapshot ceny — změní se jen nové zápisy.
      *
      * @param  array{name?:string,amountCzk?:int,sortOrder?:int,category?:string|null,autoRule?:string,archived?:bool} $changes
      * @return OffenceType
@@ -141,14 +129,9 @@ final class OffenceTypeService
     }
 
     /**
-     * Přeuspořádání sazebníku. Pořadí není kosmetika: v tomhle pořadí se položky
-     * nabízejí při zápisu, takže si pínař dopředu srovná nahoru to, co zapisuje
-     * po každém tréninku.
+     * Atomicita: selháním uprostřed by se sazebník rozsypal.
      *
-     * Bere se celý seznam naráz, ne položka po položce — jinak by se při výpadku
-     * uprostřed přetahování sazebník rozsypal do nekonzistentního pořadí.
-     *
-     * @param  list<int>          $orderedIds v pořadí, v jakém se mají zobrazovat
+     * @param  list<int>          $orderedIds
      * @return list<OffenceType>
      */
     public function reorder(Identity $identity, int $seasonId, array $orderedIds): array
@@ -189,8 +172,7 @@ final class OffenceTypeService
     }
 
     /**
-     * Archivace místo smazání: položka zmizí ze sazebníku, ale zapsané prohřešky
-     * si dál umí dohledat svůj název.
+     * Archivace místo smazání — zapsané prohřešky si znají jméno.
      *
      * @return OffenceType
      */
@@ -207,14 +189,10 @@ final class OffenceTypeService
     }
 
     /**
-     * Převzetí sazebníku z jiné sezóny téhož týmu. Nová sezóna tak nezačíná
-     * prázdným ceníkem, který by pínař vyplňoval znovu ručně.
-     *
-     * Kopírují se jen nearchivované položky. Položka, jejíž název už v cílové
-     * sezóně existuje, se přeskočí — opakované spuštění tedy nic nezduplikuje.
+     * Jen nearchivované, bez duplikátů. Lze přepsat částky.
      *
      * @param  list<int>      $onlyTypeIds      prázdné = celý sazebník
-     * @param  array<int,int> $amountOverrides  id zdrojové položky => nová částka
+     * @param  array<int,int> $amountOverrides  id zdrojové => nová částka
      * @return array{created: list<OffenceType>, skipped: list<string>}
      */
     public function copyFrom(
@@ -307,8 +285,7 @@ final class OffenceTypeService
     }
 
     /**
-     * Ověří oprávnění nad položkou sazebníku přes sezónu, do které patří —
-     * TeamScope pracuje s entitami, které nesou team_id.
+     * TeamScope pracuje s team_id; sazebník je vázaný na sezónu.
      */
     private function authorizeType(Identity $identity, int $typeId, Role $required): int
     {

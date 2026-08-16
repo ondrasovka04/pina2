@@ -34,14 +34,7 @@ const stepTitles: Record<Step, string> = {
 	done: 'Hotovo',
 }
 
-/**
- * Průvodce založením sezóny.
- *
- * Nová sezóna se skoro nikdy nedělá od nuly — sazebník i soupiska z minulého
- * ročníku platí z devadesáti procent dál. Průvodce proto obojí předvyplní
- * z předchozí sezóny a admin jen odškrtá, kdo skončil, a upraví ceny.
- * Vypisovat pětačtyřicet položek ručně by nikdo nedělal.
- */
+// Průvodce předvyplní sazebník i soupisku z minulé sezóny
 export function NewSeasonWizard() {
 	const { team, seasons, selectSeason, can } = useTeam()
 	const navigate = useNavigate()
@@ -55,7 +48,6 @@ export function NewSeasonWizard() {
 	const [endsOn, setEndsOn] = useState(suggestion.endsOn)
 
 	const [sourceSeasonId, setSourceSeasonId] = useState<number | null>(previous?.id ?? null)
-	/** Vybrané položky sazebníku: id → cena jako text, aby šlo pole vyprázdnit. */
 	const [prices, setPrices] = useState<Record<number, string>>({})
 	const [rosterIds, setRosterIds] = useState<Set<number>>(new Set())
 
@@ -71,8 +63,7 @@ export function NewSeasonWizard() {
 	const copyTypes = useCopyOffenceTypes()
 	const saveRoster = useSaveRoster(team?.id ?? 0)
 
-	// Předvyplnění se dělá jednou pro každou zdrojovou sezónu. Bez téhle pojistky
-	// by každé došlé načtení přepsalo, co už admin naklikal.
+	// Pojistka — bez ní by každé načtení přepsalo, co admin naklikal
 	const filledFrom = useRef<number | null>(null)
 
 	useEffect(() => {
