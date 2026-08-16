@@ -118,6 +118,12 @@ npm run typecheck && npm run lint && npm test && npm run format
   `useBlocker` — rozepsaná dávka se nesmí ztratit odchodem ze stránky.
   Přechod zpět na `<BrowserRouter>` by tuhle ochranu tiše vypnul.
 - **Záporné částky jsou běžné.** Nikde nepředpokládejte kladné číslo.
+- **Odkaz na jedno použití se ukáže jen jednou.** Pozvánka i aktivační odkaz
+  nesou token, který server drží jen jako otisk — po zavření dialogu se
+  nedohledá. `OneTimeLinkDialog` to musí říct nahlas a nabídnout zkopírování.
+  Odkazy se **neposílají e-mailem**, předávají se v týmovém chatu.
+- **Členství se nemaže, jen mění stav.** Odešlý člen zůstává kvůli historii,
+  takže seznam členů roste; ve výpisech patří dolů (`sortMembers`).
 - **Seznamy chodí zabalené** (`{ teams: [...] }`, `{ items: [...] }`, `{ seasons: [...] }`),
   detaily ne. Než napíšete typ odpovědi, podívejte se do příslušného controlleru
   v `api/src/Controller/` — TypeScript tenhle rozdíl sám nezachytí a projeví se

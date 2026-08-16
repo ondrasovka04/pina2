@@ -127,16 +127,23 @@ export function TeamSwitcher() {
 					) : null}
 
 					{/*
-					 * Vstup do správy sezón patří sem, kde má člověk sezóny zrovna na mysli.
-					 * Jen jeden odkaz — dvě tlačítka vedle sebe se do panelu nevešla
-					 * a text se lámal. Zakládání nové sezóny je na té stránce.
+					 * Vstupy do správy patří sem, kde má člověk družstvo i sezónu zrovna
+					 * na mysli. Odkazy jsou pod sebou — vedle sebe se do panelu nevešly
+					 * a text se lámal.
 					 */}
 					{can('admin') ? (
-						<div className="border-line/60 border-t p-2">
+						<div className="border-line/60 flex flex-col border-t p-2">
+							<Link
+								to="/druzstvo"
+								onClick={() => setOpen(false)}
+								className="hover:bg-surface-2 text-ink-muted flex min-h-11 items-center justify-center rounded-lg px-2 text-sm"
+							>
+								Spravovat družstvo
+							</Link>
 							<Link
 								to="/sezony"
 								onClick={() => setOpen(false)}
-								className="hover:bg-surface-2 text-ink-muted block rounded-lg px-2 py-2 text-center text-sm"
+								className="hover:bg-surface-2 text-ink-muted flex min-h-11 items-center justify-center rounded-lg px-2 text-sm"
 							>
 								Spravovat sezóny
 							</Link>

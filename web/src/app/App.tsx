@@ -13,6 +13,7 @@ import { AppLayout } from '@/app/AppLayout'
 import { SessionProvider, useSession } from '@/app/session'
 import { TeamProvider } from '@/app/team'
 import { ClubMark } from '@/components/ClubMark'
+import { AcceptInvitationPage } from '@/features/auth/AcceptInvitationPage'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { BalancesPage } from '@/features/balances/BalancesPage'
 import { MemberPage } from '@/features/balances/MemberPage'
@@ -21,6 +22,7 @@ import { OffenceTypesPage } from '@/features/offences/OffenceTypesPage'
 import { ProfilePage } from '@/features/profile/ProfilePage'
 import { NewSeasonWizard } from '@/features/seasons/NewSeasonWizard'
 import { SeasonsPage } from '@/features/seasons/SeasonsPage'
+import { TeamPage } from '@/features/team/TeamPage'
 import { ApiError } from '@/lib/api'
 
 const queryClient = new QueryClient({
@@ -48,6 +50,8 @@ const router = createBrowserRouter(
 	createRoutesFromElements(
 		<Route element={<SessionRoot />}>
 			<Route path="/prihlaseni" element={<AnonymousOnly />} />
+			{/* Pozvánka je veřejná — celé oprávnění nese token v adrese. */}
+			<Route path="/pozvanka" element={<AcceptInvitationPage />} />
 
 			<Route element={<Protected />}>
 				<Route element={<AppLayout />}>
@@ -56,6 +60,7 @@ const router = createBrowserRouter(
 					<Route path="hraci/:membershipId" element={<MemberPage />} />
 					<Route path="zapsat" element={<NewBatchPage />} />
 					<Route path="sazebnik" element={<OffenceTypesPage />} />
+					<Route path="druzstvo" element={<TeamPage />} />
 					<Route path="sezony" element={<SeasonsPage />} />
 					<Route path="sezony/nova" element={<NewSeasonWizard />} />
 					<Route path="ja" element={<ProfilePage />} />

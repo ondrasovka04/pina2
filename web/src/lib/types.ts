@@ -89,6 +89,42 @@ export interface TeamMember {
 	jerseyNumber: number | null
 	paymentReference: string
 	joinedAt: string
+	/** `false` = účet z migrace, který se ještě nikdy nepřihlásil. */
+	hasPassword: boolean
+}
+
+export const memberStatusLabels: Record<MemberStatus, string> = {
+	active: 'aktivní',
+	suspended: 'pozastavený',
+	left: 'odešel',
+}
+
+/** Nevyzvednutá pozvánka. Token se vrací jen jednou při vytvoření, tady nikdy. */
+export interface TeamInvitation {
+	id: number
+	email: string
+	role: Role
+	expiresAt: string
+	expired: boolean
+	createdAt: string
+}
+
+/** Odkaz vydaný na jedno použití — po zavření dialogu už ho nelze znovu zobrazit. */
+export interface IssuedLink {
+	email: string
+	role: Role
+	expiresAt: string
+	token: string
+}
+
+export interface TeamDetail {
+	id: number
+	name: string
+	color: string | null
+	archivedAt: string | null
+	clubId: number
+	clubName: string
+	memberCount: number
 }
 
 export type OffenceCategory = (typeof offenceCategories)[number]
@@ -256,6 +292,21 @@ export function formatDate(iso: string): string {
 	const date = new Date(`${iso.slice(0, 10)}T00:00:00`)
 
 	return Number.isNaN(date.getTime()) ? iso : new Intl.DateTimeFormat('cs-CZ').format(date)
+}
+
+/**
+ * „2026-08-19 14:30:00" → „19. 8. 2026 14:30". Používá se u platnosti odkazů,
+ * kde je rozdíl mezi ránem a večerem podstatný — pozvánka platí jen 72 hodin.
+ *
+ * MySQL vrací čas bez zóny; mezera se mění na „T", jinak si ho Safari přečte
+ * jako neplatné datum.
+ */
+export function formatDateTime(iso: string): string {
+	const date = new Date(iso.replace(' ', 'T'))
+
+	return Number.isNaN(date.getTime())
+		? iso
+		: new Intl.DateTimeFormat('cs-CZ', { dateStyle: 'short', timeStyle: 'short' }).format(date)
 }
 
 /** Dnešek ve tvaru `YYYY-MM-DD` v místním čase — `toISOString()` by posunul přes půlnoc. */

@@ -5,11 +5,16 @@ import type {
 	BalanceList,
 	BatchInput,
 	BatchSummary,
+	IssuedLink,
+	MemberStatus,
 	OffenceCategory,
 	OffenceType,
 	RecordList,
+	Role,
 	RosterEntry,
 	Season,
+	TeamDetail,
+	TeamInvitation,
 	TeamMember,
 	TeamSummary,
 } from '@/lib/types'
@@ -29,6 +34,7 @@ export const queryKeys = {
 		['seasons', seasonId, 'records', membershipId ?? 'all'] as const,
 	batch: (batchId: number) => ['batches', batchId] as const,
 	members: (teamId: number) => ['teams', teamId, 'members'] as const,
+	invitations: (teamId: number) => ['teams', teamId, 'invitations'] as const,
 }
 
 /**
@@ -78,6 +84,113 @@ export function useTeamMembers(teamId: number | null) {
 			(await api.get<{ members: TeamMember[] }>(`/teams/${teamId}/members`, signal)).members,
 		enabled: teamId !== null,
 		staleTime: 60_000,
+	})
+}
+
+export function useTeamDetail(teamId: number | null) {
+	return useQuery({
+		queryKey: ['teams', teamId ?? 0, 'detail'] as const,
+		queryFn: ({ signal }) => api.get<TeamDetail>(`/teams/${teamId}`, signal),
+		enabled: teamId !== null,
+		staleTime: 60_000,
+	})
+}
+
+export function useRenameTeam(teamId: number) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: (name: string) => api.patch<TeamDetail>(`/teams/${teamId}`, { name }),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: ['teams', teamId, 'detail'] })
+			void queryClient.invalidateQueries({ queryKey: queryKeys.teams })
+		},
+	})
+}
+
+/** Družstvo zakládá admin jiného družstva téhož klubu a stává se jeho adminem. */
+export function useCreateTeam(clubId: number) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: ({ name, color }: { name: string; color?: string }) =>
+			api.post<TeamDetail>(`/clubs/${clubId}/teams`, color === undefined ? { name } : { name, color }),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: queryKeys.teams })
+		},
+	})
+}
+
+/** Změny členství — posílají se jen pole, která se mění. */
+export interface MembershipChanges {
+	role?: Role
+	status?: MemberStatus
+	jerseyNumber?: number | null
+}
+
+export function useUpdateMembership(teamId: number) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: ({ membershipId, changes }: { membershipId: number; changes: MembershipChanges }) =>
+			api.patch<TeamMember>(`/memberships/${membershipId}`, changes),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: queryKeys.members(teamId) })
+			// Role a odchod mění i to, kdo je na soupisce k výběru, a přehled dluhů.
+			void queryClient.invalidateQueries({ queryKey: queryKeys.teams })
+		},
+	})
+}
+
+export function useInvitations(teamId: number | null, enabled: boolean) {
+	return useQuery({
+		queryKey: queryKeys.invitations(teamId ?? 0),
+		queryFn: async ({ signal }) =>
+			(await api.get<{ invitations: TeamInvitation[] }>(`/teams/${teamId}/invitations`, signal)).invitations,
+		enabled: teamId !== null && enabled,
+	})
+}
+
+/**
+ * Pozvánka nového člena. Token se vrací **jen v této odpovědi** — v databázi je
+ * jen jeho otisk, takže ztracený odkaz se řeší novou pozvánkou, ne dohledáním.
+ */
+export function useInviteMember(teamId: number) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: ({ email, role }: { email: string; role: Role }) =>
+			api.post<{ invitation: IssuedLink & { id: number } }>(`/teams/${teamId}/members`, { email, role }),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: queryKeys.invitations(teamId) })
+		},
+	})
+}
+
+export function useRevokeInvitation(teamId: number) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: (invitationId: number) => api.delete(`/invitations/${invitationId}`),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: queryKeys.invitations(teamId) })
+		},
+	})
+}
+
+/**
+ * Aktivační odkaz pro stávajícího člena bez hesla. Hesla se ze staré aplikace
+ * nemigrovala, takže tudy se do aplikace dostane zbytek týmu.
+ */
+export function useActivationLink(teamId: number) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: (membershipId: number) =>
+			api.post<{ activation: IssuedLink }>(`/memberships/${membershipId}/activation`),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: queryKeys.invitations(teamId) })
+		},
 	})
 }
 

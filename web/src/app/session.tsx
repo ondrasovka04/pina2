@@ -11,6 +11,8 @@ interface SessionValue {
 	status: SessionStatus
 	user: CurrentUser | null
 	signIn: (email: string, password: string) => Promise<void>
+	/** Přijetí pozvánky rovnou přihlašuje — server v odpovědi vrací tokeny. */
+	acceptInvitation: (token: string, password: string, name: string) => Promise<void>
 	signOut: () => Promise<void>
 }
 
@@ -78,6 +80,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 		setStatus('authenticated')
 	}, [])
 
+	const acceptInvitation = useCallback(async (token: string, password: string, name: string) => {
+		const result = await api.post<LoginResponse>('/invitations/accept', { token, password, name })
+
+		setAccessToken(result.accessToken)
+		setUser(result.user)
+		setStatus('authenticated')
+	}, [])
+
 	const signOut = useCallback(async () => {
 		try {
 			await api.post('/auth/logout')
@@ -91,7 +101,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 		}
 	}, [queryClient])
 
-	const value = useMemo<SessionValue>(() => ({ status, user, signIn, signOut }), [status, user, signIn, signOut])
+	const value = useMemo<SessionValue>(
+		() => ({ status, user, signIn, acceptInvitation, signOut }),
+		[status, user, signIn, acceptInvitation, signOut],
+	)
 
 	return <SessionContext value={value}>{children}</SessionContext>
 }
