@@ -1,10 +1,4 @@
-/**
- * Tvary dat z API.
- *
- * Zatím psané ručně a udržované podle `@phpstan-type` anotací v `api/src/Service`;
- * jakmile bude hotová většina endpointů, vygenerují se z OpenAPI popisu, aby se
- * PHP a TypeScript nemohly rozejít.
- */
+/** Tvary dat z API — psané ručně podle `@phpstan-type` anotací v `api/src/Service`, dokud se negenerují z OpenAPI. */
 
 export type Role = 'player' | 'treasurer' | 'admin'
 
@@ -155,6 +149,21 @@ export interface PlatformTeam {
 	currentSeason: string | null
 }
 
+export type SettlementPeriod = 'none' | 'half_year' | 'season'
+
+/** Nastavení družstva. Cesťáky i zúčtování jsou volitelné — mládež je řešit nemusí. */
+export interface TeamSettings {
+	travelEnabled: boolean
+	travelRateCzkKm: number
+	/** Proplácí se cesta tam i zpět (× 2). */
+	travelRoundTrip: boolean
+	settlementPeriod: SettlementPeriod
+	/** Domácí hala. Od ní se měří vzdálenost k soupeři a podle ní se pozná domácí zápas. */
+	homeLocationId: number | null
+	attendanceVisibleToPlayers: boolean
+	balancesVisibleToPlayers: boolean
+}
+
 export interface TeamDetail {
 	id: number
 	name: string
@@ -163,6 +172,7 @@ export interface TeamDetail {
 	clubId: number
 	clubName: string
 	memberCount: number
+	settings: TeamSettings
 }
 
 export type OffenceCategory = (typeof offenceCategories)[number]
@@ -179,6 +189,46 @@ export function toCategory(value: string): OffenceCategory | '' {
 	return offenceCategories.find((category) => category === value) ?? ''
 }
 
+/**
+ * Co aplikace navrhne sama z docházky. Omluvenou a neomluvenou absenci rozlišuje
+ * odpověď hráče předem — kdo řekl „nepřijdu", omluvil se. Pozdní příchod se
+ * odvodit nedá (nikdo nezapisuje čas příchodu) a zůstává ruční.
+ */
+export const autoRules = ['none', 'excused_absence', 'unexcused_absence'] as const
+
+export type AutoRule = (typeof autoRules)[number]
+
+export const autoRuleLabels: Record<AutoRule, string> = {
+	none: 'Nenavrhovat',
+	excused_absence: 'Omluvená absence',
+	unexcused_absence: 'Neomluvená absence',
+}
+
+/** Ověří hodnotu ze `<select>`; co nepoznáme, znamená „nenavrhovat". */
+export function toAutoRule(value: string): AutoRule {
+	return autoRules.find((rule) => rule === value) ?? 'none'
+}
+
+/**
+ * U kterého druhu akce pravidlo platí. Každé družstvo má za trénink a za zápas
+ * jinou sazbu (junioři 25/100, muži 35/100, Benátky 50/1000), takže bez tohohle
+ * by návrh z docházky strhl částku o stovky vedle.
+ */
+export const autoEventTypes = ['any', 'training', 'match', 'other'] as const
+
+export type AutoEventType = (typeof autoEventTypes)[number]
+
+export const autoEventTypeLabels: Record<AutoEventType, string> = {
+	any: 'U každé akce',
+	training: 'Jen u tréninku',
+	match: 'Jen u zápasu',
+	other: 'Jen u jiné akce',
+}
+
+export function toAutoEventType(value: string): AutoEventType {
+	return autoEventTypes.find((type) => type === value) ?? 'any'
+}
+
 export interface OffenceType {
 	id: number
 	seasonId: number
@@ -187,6 +237,7 @@ export interface OffenceType {
 	sortOrder: number
 	category: OffenceCategory | null
 	autoRule: string
+	autoEventType: string
 	archivedAt: string | null
 }
 
@@ -307,6 +358,153 @@ export interface PriceChange {
 	currentCzk: number
 }
 
+// --- docházka ------------------------------------------------------------
+
+export const eventTypes = ['training', 'match', 'other'] as const
+
+export type EventType = (typeof eventTypes)[number]
+
+export const eventTypeLabels: Record<EventType, string> = {
+	training: 'Trénink',
+	match: 'Zápas',
+	other: 'Jiná akce',
+}
+
+/** Co hráč řekl předem. `unknown` = nezaklikl se. */
+export type Rsvp = 'unknown' | 'yes' | 'no'
+
+/**
+ * Výsledný stav docházky. `null` znamená, že akce ještě nezačala nebo je
+ * zrušená — ne že by se stav nezjistil.
+ */
+export type Attendance = 'present' | 'absent' | 'injured'
+
+export const attendanceLabels: Record<Attendance, string> = {
+	present: 'Byl',
+	absent: 'Nebyl',
+	injured: 'Zraněný',
+}
+
+/** Nominace na zápas. Dokud nikdo nesestavil, server vrací všem `nominated` (jede celá soupiska). Po prvním
+ * uložení `none` znamená „nejede", ne „ještě se neřešilo". */
+export type Nomination = 'none' | 'nominated' | 'substitute'
+
+export const nominationLabels: Record<Nomination, string> = {
+	nominated: 'Jede',
+	substitute: 'Náhradník',
+	// U tréninku se nominace neřeší; server tam vrací `none`.
+	none: '—',
+}
+
+export type Transport = 'none' | 'driver' | 'passenger'
+
+export type EventStatus = 'planned' | 'cancelled' | 'done'
+
+export interface EventLocation {
+	id: number
+	name: string
+	address: string | null
+	lat: number | null
+	lng: number | null
+	note: string | null
+}
+
+/** Místo i s tím, kolika akcím slouží — bez toho by šlo smazat používanou halu. */
+export interface ClubLocation extends EventLocation {
+	clubId: number
+	usedByEvents: number
+}
+
+/** Vlastní řádek u akce. `null`, když volající do družstva nepatří. */
+export interface MyParticipation {
+	membershipId: number
+	rsvp: Rsvp
+	rsvpNote: string | null
+	nomination: Nomination
+	transport: Transport
+	carSeats: number | null
+	attendance: Attendance | null
+}
+
+export interface TeamEvent {
+	id: number
+	seasonId: number
+	seriesId: number | null
+	type: EventType
+	title: string
+	startsAt: string
+	endsAt: string | null
+	meetAt: string | null
+	location: EventLocation | null
+	opponent: string | null
+	note: string | null
+	distanceKm: number | null
+	nominationDeadline: string | null
+	status: EventStatus
+	/** Hraje se doma? `null` = nedá se říct (trénink, chybějící místo nebo domácí hala). Za domácí zápas cesťák nevzniká. */
+	isHome: boolean | null
+	/** Akce už začala — odpověď se nedá měnit a platí docházka. */
+	started: boolean
+	/** Termín ze série někdo ručně upravil; hromadná změna série ho přeskočí. */
+	overridden: boolean
+	rosterCount: number
+	counts: { yes: number; no: number; unknown: number }
+	me: MyParticipation | null
+}
+
+export interface EventParticipant {
+	membershipId: number
+	userId: number
+	name: string
+	jerseyNumber: number | null
+	/** `false` = na soupisce sezóny není, ale u akce záznam má. */
+	onRoster: boolean
+	nomination: Nomination
+	rsvp: Rsvp
+	rsvpNote: string | null
+	transport: Transport
+	carSeats: number | null
+	attendance: Attendance | null
+	/** Docházku někdo ručně přepsal — jinak platí odvození z odpovědi. */
+	corrected: boolean
+}
+
+export interface EventDetail {
+	event: TeamEvent
+	participants: EventParticipant[]
+	/** Hráč docházku ostatních nevidí, dokud ji admin neotevře v nastavení. */
+	canSeeAttendance: boolean
+}
+
+export interface EventSeries {
+	id: number
+	seasonId: number
+	title: string
+	type: EventType
+	rrule: string
+	startTime: string
+	durationMin: number
+	location: EventLocation | null
+	meetBeforeMin: number | null
+	defaultNote: string | null
+	activeFrom: string
+	activeTo: string
+	eventCount: number
+}
+
+export interface AttendanceRow {
+	membershipId: number
+	userId: number
+	name: string
+	jerseyNumber: number | null
+	present: number
+	absent: number
+	injured: number
+	/** Jmenovatel účasti: zranění se do něj nepočítá. */
+	total: number
+	ratio: number | null
+}
+
 // --- pomocné funkce ------------------------------------------------------
 
 /**
@@ -332,13 +530,8 @@ export function formatDate(iso: string): string {
 	return Number.isNaN(date.getTime()) ? iso : new Intl.DateTimeFormat('cs-CZ').format(date)
 }
 
-/**
- * „2026-08-19 14:30:00" → „19. 8. 2026 14:30". Používá se u platnosti odkazů,
- * kde je rozdíl mezi ránem a večerem podstatný — pozvánka platí jen 72 hodin.
- *
- * MySQL vrací čas bez zóny; mezera se mění na „T", jinak si ho Safari přečte
- * jako neplatné datum.
- */
+/** „2026-08-19 14:30:00" → „19. 8. 2026 14:30" — používá se u platnosti odkazů, kde je rozdíl mezi ránem a večerem
+ * podstatný. Mezera se mění na „T", jinak by to Safari přečetlo jako neplatné datum. */
 export function formatDateTime(iso: string): string {
 	const date = new Date(iso.replace(' ', 'T'))
 

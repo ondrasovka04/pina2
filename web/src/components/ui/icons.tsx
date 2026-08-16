@@ -39,6 +39,34 @@ export function PlusIcon(props: IconProps) {
 	)
 }
 
+export function CalendarIcon(props: IconProps) {
+	return (
+		<Icon {...props}>
+			<rect x="3" y="5" width="18" height="16" rx="2" />
+			<path d="M3 10h18M8 3v4M16 3v4" />
+		</Icon>
+	)
+}
+
+export function CarIcon(props: IconProps) {
+	return (
+		<Icon {...props}>
+			<path d="M5 17h14M4 17v-4l2-5a2 2 0 0 1 1.9-1.4h8.2A2 2 0 0 1 18 8l2 5v4" />
+			<path d="M4 13h16" />
+			<path d="M7.5 17v1.5M16.5 17v1.5" />
+		</Icon>
+	)
+}
+
+export function MapPinIcon(props: IconProps) {
+	return (
+		<Icon {...props}>
+			<path d="M12 21s7-5.5 7-11a7 7 0 1 0-14 0c0 5.5 7 11 7 11z" />
+			<circle cx="12" cy="10" r="2.5" />
+		</Icon>
+	)
+}
+
 export function ListIcon(props: IconProps) {
 	return (
 		<Icon {...props}>

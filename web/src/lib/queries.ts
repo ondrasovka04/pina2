@@ -3,22 +3,35 @@ import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/rea
 import { api } from '@/lib/api'
 import type {
 	ActivationBatch,
+	Attendance,
+	AutoEventType,
+	AutoRule,
+	AttendanceRow,
 	BalanceList,
 	BatchInput,
 	BatchSummary,
+	ClubLocation,
+	EventDetail,
+	EventSeries,
+	EventType,
 	IssuedLink,
 	MemberStatus,
+	Nomination,
 	OffenceCategory,
 	OffenceType,
 	PlatformClub,
 	RecordList,
 	Role,
 	RosterEntry,
+	Rsvp,
 	Season,
 	TeamDetail,
+	TeamEvent,
 	TeamInvitation,
 	TeamMember,
+	TeamSettings,
 	TeamSummary,
+	Transport,
 } from '@/lib/types'
 
 // Klíče na jednom místě — struktura kopíruje API cesty pro přesnou invalidaci
@@ -33,6 +46,11 @@ export const queryKeys = {
 	batch: (batchId: number) => ['batches', batchId] as const,
 	members: (teamId: number) => ['teams', teamId, 'members'] as const,
 	invitations: (teamId: number) => ['teams', teamId, 'invitations'] as const,
+	events: (seasonId: number) => ['seasons', seasonId, 'events'] as const,
+	event: (eventId: number) => ['events', eventId] as const,
+	series: (seasonId: number) => ['seasons', seasonId, 'event-series'] as const,
+	attendance: (seasonId: number, type?: EventType) => ['seasons', seasonId, 'attendance', type ?? 'all'] as const,
+	locations: (clubId: number) => ['clubs', clubId, 'locations'] as const,
 }
 
 // Seznamy přijdou zabalené pro budoucí stránkování — hooky je rozbalují
@@ -116,6 +134,20 @@ export function useRenameTeam(teamId: number) {
 		onSuccess: () => {
 			void queryClient.invalidateQueries({ queryKey: ['teams', teamId, 'detail'] })
 			void queryClient.invalidateQueries({ queryKey: queryKeys.teams })
+		},
+	})
+}
+
+// Nastavení chodí i zpátky celé — PUT přepisuje všechno, ne jen změněné pole
+export function useSaveTeamSettings(teamId: number) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: (settings: TeamSettings) => api.put<TeamSettings>(`/teams/${teamId}/settings`, settings),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: ['teams', teamId, 'detail'] })
+			// Domácí hala rozhoduje, co je domácí zápas — kalendář to musí přečíst znovu.
+			void queryClient.invalidateQueries({ queryKey: ['seasons'] })
 		},
 	})
 }
@@ -352,6 +384,9 @@ export interface OffenceTypeInput {
 	name: string
 	amountCzk: number
 	category: OffenceCategory | null
+	/** Který prohřešek aplikace navrhne z docházky. */
+	autoRule?: AutoRule
+	autoEventType?: AutoEventType
 }
 
 export function useCreateOffenceType(seasonId: number) {
@@ -369,6 +404,8 @@ export interface OffenceTypeChanges {
 	name?: string
 	amountCzk?: number
 	category?: OffenceCategory | null
+	autoRule?: AutoRule
+	autoEventType?: AutoEventType
 }
 
 export function useUpdateOffenceType(seasonId: number) {
@@ -419,6 +456,43 @@ export function useRecords(seasonId: number | null, membershipId?: number) {
 	})
 }
 
+export interface BatchListItem {
+	id: number
+	occurredOn: string
+	title: string | null
+	note: string | null
+	eventId: number | null
+	eventTitle: string | null
+	createdBy: { id: number; name: string } | null
+	createdAt: string
+	voidedAt: string | null
+	recordCount: number
+	memberCount: number
+	totalCzk: number
+}
+
+// Zápisy od nejnovějšího — pínař hledá poslední trénink, ne ten zářijový
+export function useBatches(seasonId: number | null) {
+	return useQuery({
+		queryKey: [...queryKeys.season(seasonId ?? 0), 'batches'] as const,
+		queryFn: async ({ signal }) =>
+			(await api.get<{ items: BatchListItem[] }>(`/seasons/${seasonId}/offence-batches`, signal)).items,
+		enabled: seasonId !== null,
+	})
+}
+
+/** Storno celé dávky. Zápisy se nemažou, jen se označí — po penězích musí zůstat stopa. */
+export function useVoidBatch(seasonId: number) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: (batchId: number) => api.post(`/offence-batches/${batchId}/void`),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: queryKeys.season(seasonId) })
+		},
+	})
+}
+
 // Dávkový zápis — idempotentní přes clientUuid
 export function useCreateBatch(seasonId: number) {
 	const queryClient = useQueryClient()
@@ -438,6 +512,291 @@ export function useVoidRecord(seasonId: number) {
 		mutationFn: (recordId: number) => api.post(`/offences/${recordId}/void`),
 		onSuccess: () => {
 			void queryClient.invalidateQueries({ queryKey: queryKeys.season(seasonId) })
+		},
+	})
+}
+
+// --- docházka ------------------------------------------------------------
+
+export function useEvents(seasonId: number | null) {
+	return useQuery({
+		queryKey: queryKeys.events(seasonId ?? 0),
+		queryFn: async ({ signal }) =>
+			(await api.get<{ events: TeamEvent[] }>(`/seasons/${seasonId}/events`, signal)).events,
+		enabled: seasonId !== null,
+	})
+}
+
+export function useEvent(eventId: number | null) {
+	return useQuery({
+		queryKey: queryKeys.event(eventId ?? 0),
+		queryFn: ({ signal }) => api.get<EventDetail>(`/events/${eventId}`, signal),
+		enabled: eventId !== null,
+	})
+}
+
+export interface RsvpInput {
+	rsvp: Rsvp
+	note?: string | null
+	transport: Transport
+	carSeats?: number | null
+}
+
+// Odpověď hráče za sebe. Jde jen do začátku akce — pak už je z ní docházka.
+export function useSaveRsvp(eventId: number, seasonId: number | null) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: (input: RsvpInput) => api.put<EventDetail>(`/events/${eventId}/rsvp`, input),
+		onSuccess: (detail) => {
+			queryClient.setQueryData(queryKeys.event(eventId), detail)
+			if (seasonId !== null) void queryClient.invalidateQueries({ queryKey: queryKeys.events(seasonId) })
+		},
+	})
+}
+
+export interface AttendanceChange {
+	membershipId: number
+	/** `null` opravu zruší a vrátí odvození z odpovědi hráče. */
+	attendance: Attendance | null
+}
+
+export function useSaveAttendance(eventId: number, seasonId: number | null) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: (items: AttendanceChange[]) => api.put<EventDetail>(`/events/${eventId}/attendance`, { items }),
+		onSuccess: (detail) => {
+			queryClient.setQueryData(queryKeys.event(eventId), detail)
+			if (seasonId !== null) {
+				void queryClient.invalidateQueries({ queryKey: ['seasons', seasonId, 'attendance'] })
+			}
+		},
+	})
+}
+
+export function useSaveNominations(eventId: number) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: (items: Array<{ membershipId: number; nomination: Nomination }>) =>
+			api.put<EventDetail>(`/events/${eventId}/nominations`, { items }),
+		onSuccess: (detail) => {
+			queryClient.setQueryData(queryKeys.event(eventId), detail)
+		},
+	})
+}
+
+export interface EventInput {
+	type: EventType
+	title: string
+	startsAt: string
+	endsAt?: string | null
+	meetAt?: string | null
+	locationId?: number | null
+	opponent?: string | null
+	note?: string | null
+	distanceKm?: number | null
+}
+
+export function useCreateEvent(seasonId: number) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: (input: EventInput) => api.post<TeamEvent>(`/seasons/${seasonId}/events`, input),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: queryKeys.events(seasonId) })
+		},
+	})
+}
+
+export function useUpdateEvent(eventId: number, seasonId: number | null) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: (changes: Partial<EventInput>) => api.patch<TeamEvent>(`/events/${eventId}`, changes),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: queryKeys.event(eventId) })
+			if (seasonId !== null) void queryClient.invalidateQueries({ queryKey: queryKeys.events(seasonId) })
+		},
+	})
+}
+
+// Zrušená akce se nemaže — nese odpovědi hráčů i případné prohřešky
+export function useCancelEvent(eventId: number, seasonId: number | null) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: (cancelled: boolean) => api.post<TeamEvent>(`/events/${eventId}/${cancelled ? 'cancel' : 'restore'}`),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: queryKeys.event(eventId) })
+			if (seasonId !== null) void queryClient.invalidateQueries({ queryKey: queryKeys.events(seasonId) })
+		},
+	})
+}
+
+/** Smazání je pro překlepy; zrušení pro akci, o které má tým vědět, že se nekoná. */
+export function useDeleteEvent(seasonId: number | null) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: (eventId: number) => api.delete(`/events/${eventId}`),
+		onSuccess: () => {
+			if (seasonId !== null) void queryClient.invalidateQueries({ queryKey: queryKeys.events(seasonId) })
+		},
+	})
+}
+
+export function useEventSeries(seasonId: number | null) {
+	return useQuery({
+		queryKey: queryKeys.series(seasonId ?? 0),
+		queryFn: async ({ signal }) =>
+			(await api.get<{ series: EventSeries[] }>(`/seasons/${seasonId}/event-series`, signal)).series,
+		enabled: seasonId !== null,
+		staleTime: 60_000,
+	})
+}
+
+export interface SeriesInput {
+	title: string
+	type: EventType
+	rrule: string
+	startTime: string
+	durationMin: number
+	locationId?: number | null
+	meetBeforeMin?: number | null
+	defaultNote?: string | null
+	activeFrom: string
+	activeTo: string
+}
+
+/** Série vyrobí všechny termíny naráz — odpověď říká kolik a kolik se přeskočilo. */
+export function useCreateSeries(seasonId: number) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: (input: SeriesInput) =>
+			api.post<{ series: EventSeries; created: number; skipped: number }>(`/seasons/${seasonId}/event-series`, input),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: queryKeys.events(seasonId) })
+			void queryClient.invalidateQueries({ queryKey: queryKeys.series(seasonId) })
+		},
+	})
+}
+
+/** Rozsah hromadné změny série. Jeden termín se upravuje přes `useUpdateEvent`. */
+export type SeriesScope = 'following' | 'all'
+
+export interface SeriesUpdate extends SeriesInput {
+	scope: SeriesScope
+	/** Termín, od kterého se změna projeví. U rozsahu `all` se neposílá. */
+	fromEventId?: number | null
+}
+
+export interface SeriesChangeResult {
+	series: EventSeries
+	updated: number
+	created: number
+	deleted: number
+	/** Ručně upravené termíny, kterých se hromadná změna nedotkla. */
+	skipped: number
+}
+
+export function useUpdateSeries(seasonId: number) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: ({ seriesId, ...body }: SeriesUpdate & { seriesId: number }) =>
+			api.patch<SeriesChangeResult>(`/event-series/${seriesId}`, body),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: queryKeys.events(seasonId) })
+			void queryClient.invalidateQueries({ queryKey: queryKeys.series(seasonId) })
+		},
+	})
+}
+
+// Smazat znamená smazat: jdou i termíny s odpověďmi, u rozsahu `all` i minulé
+export function useDeleteSeries(seasonId: number) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: ({ seriesId, scope, fromEventId }: { seriesId: number; scope: SeriesScope; fromEventId?: number }) => {
+			const from = scope === 'following' && fromEventId !== undefined ? `&from=${fromEventId}` : ''
+
+			return api.delete<{ deleted: number; kept: number }>(`/event-series/${seriesId}?scope=${scope}${from}`)
+		},
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: queryKeys.events(seasonId) })
+			void queryClient.invalidateQueries({ queryKey: queryKeys.series(seasonId) })
+		},
+	})
+}
+
+// Hráči se vrátí jen jejich řádek, adminovi celá tabulka — hlídá to server
+export function useAttendanceSummary(seasonId: number | null, type?: EventType) {
+	return useQuery({
+		queryKey: queryKeys.attendance(seasonId ?? 0, type),
+		queryFn: async ({ signal }) => {
+			const query = type === undefined ? '' : `?type=${type}`
+
+			return (await api.get<{ members: AttendanceRow[] }>(`/seasons/${seasonId}/attendance${query}`, signal)).members
+		},
+		enabled: seasonId !== null,
+	})
+}
+
+export function useLocations(clubId: number | null) {
+	return useQuery({
+		queryKey: queryKeys.locations(clubId ?? 0),
+		queryFn: async ({ signal }) =>
+			(await api.get<{ locations: ClubLocation[] }>(`/clubs/${clubId}/locations`, signal)).locations,
+		enabled: clubId !== null,
+		staleTime: 5 * 60_000,
+	})
+}
+
+export interface LocationInput {
+	name: string
+	address?: string | null
+	lat?: number | null
+	lng?: number | null
+	note?: string | null
+}
+
+export function useCreateLocation(clubId: number) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: (input: LocationInput) => api.post<ClubLocation>(`/clubs/${clubId}/locations`, input),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: queryKeys.locations(clubId) })
+		},
+	})
+}
+
+export function useUpdateLocation(clubId: number) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: ({ id, changes }: { id: number; changes: LocationInput }) =>
+			api.patch<ClubLocation>(`/locations/${id}`, changes),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: queryKeys.locations(clubId) })
+			// Místo se ukazuje i u akcí, takže kalendář i detaily musí přečíst nový název.
+			void queryClient.invalidateQueries({ queryKey: ['seasons'] })
+			void queryClient.invalidateQueries({ queryKey: ['events'] })
+		},
+	})
+}
+
+// Použité místo server smazat nedá (409) — halu u loňských zápasů nikdo mazat nebude
+export function useDeleteLocation(clubId: number) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: (id: number) => api.delete(`/locations/${id}`),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: queryKeys.locations(clubId) })
 		},
 	})
 }
