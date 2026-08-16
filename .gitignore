@@ -1,0 +1,31 @@
+# Citlivá data — NIKDY do repa
+.env
+.env.*
+!.env.example
+export/
+*.sql
+*.sql.gz
+*.csv
+storage/logs/
+storage/backups/
+
+# Závislosti
+node_modules/
+vendor/
+
+# Build
+dist/
+build/
+.vite/
+
+# Nástroje
+.phpunit.result.cache
+.phpstan/
+coverage/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
