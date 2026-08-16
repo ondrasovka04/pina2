@@ -119,6 +119,54 @@ v `tests/Integration/DatabaseTestCase.php` a neobchází se.
   a nic nerozlišoval — kdo v dané sezóně nehraje, prostě není na její soupisce.
 - **`tokens_valid_from`** u uživatele zneplatní vydané JWT; používá se při změně
   hesla, odhlášení všude a změně role.
+- **Docházka se nezapisuje, jen opravuje.** `event_participant.attendance` je
+  záznam o **ruční opravě**, ne o docházce samotné; skutečný stav vrací
+  `COALESCE(attendance, IF(rsvp = 'yes', 'present', 'absent'))`. Původní návrh
+  počítal s tím, že pínař po každé akci odklikne celý tým — tým to označil za
+  práci, kterou nikdo dělat nebude. Z toho plyne pojistka, která se neobchází:
+  **RSVP jde měnit jen do začátku akce**, jinak by si hráč druhý den přepsal
+  vlastní docházku.
+- **Zranění (`injured`) se nepočítá do jmenovatele** účasti: `present / (present + absent)`.
+  Omluvená a neomluvená absence se nerozlišuje — „absence je absence".
+- **Kdo přijde, vidí každý; jak akce dopadla, ne.** Odpovědi (`rsvp`, `transport`)
+  jsou veřejné, protože bez nich se nedomluví odvozy. Výslednou docházku ostatních
+  dostane jen pínař a admin, hráčům ji otevře až `team_settings.attendance_visible_to_players`.
+  Souhrnná procenta jsou výhradně pro admina. Je to výslovné přání týmu, ne
+  technické rozhodnutí — pína je legrace, docházka citlivější věc.
+- **Odvozy jen u venkovního zápasu a jen u toho, kdo přijede.**
+  `event_participant.transport` se u tréninku, u domácího zápasu i u odpovědi
+  „nepřijdu" srovná na `none` — do vlastní haly se každý dopraví sám. Není to chyba 400 —
+  přepnutí na „nepřijdu" by jinak spadlo kvůli poli, které uživatel nevidí.
+- **Doma se necestuje.** `isHome` v payloadu akce se odvozuje z porovnání
+  `event.location_id` s `team_settings.home_location_id`; `null` znamená „nevíme"
+  (trénink, chybějící místo, nenastavená hala). U domácího zápasu se `distance_km`
+  zahazuje, aby z něj nemohl vzniknout cesťák za cestu do vlastní haly.
+- **Série se materializuje celá při založení.** Sezóna ji ohraničuje, takže
+  termínů jsou desítky; žádné klouzavé okno ani plánovaná úloha.
+- **Hromadná změna série má dva rozsahy:** `following` (od zadaného termínu dál)
+  sérii **rozštěpí** — původní skončí den před hranicí a od ní platí nová, takže
+  stará pořád popisuje, jak se hrálo předtím. `all` přepíše sérii celou, minulé
+  termíny včetně. Termín, který zůstane na stejném datu, se **jen upraví**, takže
+  posun času neshodí odpovědi hráčů; mažou a zakládají se jen ty, kterým se datum
+  posunulo. Ručně upravený (`overridden`) termín se přeskočí a spočítá do `skipped`.
+- **Smazat znamená smazat.** `DELETE /events/{id}` i smazání série berou i termíny
+  s odpověďmi, u rozsahu `all` i minulé; docházka jde s nimi. Peníze ne —
+  `offence_record.event_id` i `offence_batch.event_id` jsou ON DELETE SET NULL,
+  takže zápis přežije bez akce. Zrušení (`status = 'cancelled'`) je něco jiného:
+  akce zůstane v kalendáři s cedulí, aby tým věděl, že se nehraje.
+- **Prohřešek z docházky se navrhuje, nezapisuje.** Který to je, říká
+  `offence_type.auto_rule` (omluvená / neomluvená absence) **spolu s**
+  `auto_event_type` (trénink / zápas / jiná / všechny). Obojí je nutné: sazba za
+  omluvený trénink a omluvený zápas se u všech tří družstev liší i o stovky.
+  Přednost má pravidlo pro konkrétní druh akce před `any`; když pro daný případ
+  žádné není, radši se nenavrhne nic, než aby se strhla částka z té druhé položky.
+  Pozdní příchod se odvodit nedá — čas příchodu nikdo nezapisuje.
+- **Nominace má jen dva stavy: jede, nebo náhradník.** Kdo je na soupisce, na
+  zápas jede, dokud ho admin neoznačí za náhradníka — `none` ve sloupci se čte
+  jako „jede", ne jako „nejede". Třetí stav by jen nutil admina odklikat celý
+  tým. `saveNominations` proto mění **jen poslané hráče**, nepřepisuje zbytek:
+  klient posílá jedno jméno po kliknutí. U tréninku je nominace vždycky `none` —
+  nominovat na trénink byla vyhodnocená jako zbytečná byrokracie.
 - **Obnova hesla nesmí prozradit, kdo je registrovaný.** `/auth/password/forgot`
   odpovídá stejně pro známou i neznámou adresu; i překročený limit se mlčí.
   Odkaz platí hodinu (přepisuje existující heslo) a vydává se jen samoobslužně —

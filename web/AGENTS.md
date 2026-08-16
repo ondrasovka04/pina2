@@ -107,6 +107,13 @@ npm run typecheck && npm run lint && npm test && npm run format
 - **Souhrn před odesláním posílá i cenu**, kterou uživatel viděl
   (`expectedAmountCzk`). Když se mezitím změnil sazebník, server vrátí 409
   `PRICE_CHANGED` a souhrn se přepočítá — není to chyba, je to pojistka.
+- **Návrh z docházky je jen předvyplněný koncept.** Když má zápis vybranou akci,
+  `suggestFromAttendance` naplní draft těm, kdo chyběli — a od té chvíle je to
+  obyčejný rozepsaný zápis, který jde libovolně upravit. Vloží se **jen jednou
+  a jen do prázdného draftu**; nikdy nepřepisuje, co pínař naklikal. Omluvenou
+  absenci pozná podle `rsvp === 'no'`, zraněné a lidi mimo soupisku vynechává.
+  Když chybí odpovídající položka sazebníku (`autoRule`), radši nenavrhne nic,
+  než aby strhla cizí částku.
 - **Role se liší podle týmu.** Tentýž člověk bývá u mužů hráč a u juniorů pínař;
   co smí, se ptejte přes `can()` z `useTeam()`, ne z globálního uživatele.
 - **Sezóna je druhá osa vedle týmu.** `useTeam()` dává `season`, `seasonId`
@@ -122,6 +129,24 @@ npm run typecheck && npm run lint && npm test && npm run format
   nesou token, který server drží jen jako otisk — po zavření dialogu se
   nedohledá. `OneTimeLinkDialog` to musí říct nahlas a nabídnout zkopírování.
   Odkazy se **neposílají e-mailem**, předávají se v týmovém chatu.
+- **Docházka se neodklikává, jen opravuje.** Hráč předem řekne „přijdu" a po
+  začátku akce je z toho docházka; pínař přepisuje výjimky. Obrazovka to musí
+  říkat nahlas, jinak bude pínař hledat tlačítko „zapsat docházku", které
+  schválně neexistuje. **Odpovídat jde jen do začátku akce** (`event.started`) —
+  server to odmítne s 409 `EVENT_STARTED`.
+- **Sourozenci nesmí sdílet `key`.** V detailu akce stály vedle sebe tři karty
+  s `key={event.id}` a React je při překreslení zdvojoval — projevilo se to jen
+  u zápasu, kde se vedle odpovědi vykreslí i nominace. Když komponentu resetujete
+  klíčem, dejte mu předponu (`odpoved-`, `nominace-`). Hlídá to `EventPage.test.tsx`.
+- **Doma se necestuje.** `TeamEvent.isHome` odvozuje server z domácí haly
+  družstva (`team_settings.home_location_id`); `null` znamená „nedá se říct" —
+  u tréninku nebo když hala nastavená není. U domácího zápasu se neřeší odvozy
+  ani vzdálenost, stejně jako u tréninku, a server obojí zahodí. Podmínka v UI
+  je `event.isHome !== true`, ne `=== false`: dokud hala není nastavená, není
+  důvod otázku na odvoz schovávat.
+- **Kdo přijde, vidí každý; jak akce dopadla, ne.** `EventDetail.canSeeAttendance`
+  říká, jestli se smí ukázat docházka ostatních. Nespoléhejte se na roli v klientu —
+  server posílá cizí `attendance` jako `null` a UI to musí ustát.
 - **Členství se nemaže, jen mění stav.** Odešlý člen zůstává kvůli historii,
   takže seznam členů roste; ve výpisech patří dolů (`sortMembers`).
 - **Seznamy chodí zabalené** (`{ teams: [...] }`, `{ items: [...] }`, `{ seasons: [...] }`),

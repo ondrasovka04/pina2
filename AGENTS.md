@@ -30,7 +30,7 @@ dokumentace, commit messages. Anglicky zůstávají jen identifikátory v kódu
 docker compose up -d                                        # MySQL + PHP na :8080
 cd web && npm run dev                                       # frontend na :5173
 
-docker compose run --rm php ./vendor/bin/phpunit            # 136 testů
+docker compose run --rm php ./vendor/bin/phpunit            # 252 testů
 docker compose run --rm php ./vendor/bin/phpstan analyse --memory-limit=512M
 cd web && npm run typecheck && npm run lint && npm test
 ```
@@ -84,9 +84,20 @@ pojmenovat v UI, držte se levého sloupce.
 | dluh / zůstatek | `balance_czk` | kladné číslo = hráč dluží |
 | bonus | záporná `amount_czk` | odměna, která dluh snižuje (např. MVP) |
 | cesťák | `travel_*` | náhrada za jízdu autem, sazba za km |
+| akce | `event` | trénink, zápas nebo cokoli, na co se chodí |
+| série | `event_series` | pravidlo opakování, ze kterého se vyrobí termíny |
+| nominace | `nomination` | kdo hraje zápas — u tréninku se neřeší |
 
 ## Stav
 
-F1 (auth, role, týmy, sezóny) a F2 (prohřešky) mají hotový backend. Frontend se
-staví teď. F3 docházka, F4 peníze a cesťáky, F5 PWA, F6 párování plateb z banky
-teprve budou. Tabulka fází je v README.
+F1 (auth, role, týmy, sezóny, členové), F2 (prohřešky) a F3 (docházka, nominace,
+opakované akce) jsou hotové na backendu i frontendu. F4 peníze a cesťáky, F5 PWA,
+F6 párování plateb z banky teprve budou. Tabulka fází je v README.
+
+Na pomezí F3 a F4 už stojí **návrh prohřešků z docházky**: po akci se pínaři nabídne
+zápis za ty, kdo chyběli, a on ho potvrdí nebo upraví. Který prohřešek to je, říká
+`offence_type.auto_rule` spolu s `auto_event_type` — sazba za trénink a za zápas se
+u všech družstev liší. Vazba `offence_batch.event_id` je tím pádem konečně plněná;
+do té doby byla ve schématu naprázdno.
+
+Nasazení je odložené záměrně až na konec — na hostingu pořád běží verze z roku 2023.

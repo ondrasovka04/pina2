@@ -85,7 +85,7 @@ Hosting nemá SSH, deploy jde přes FTP a rozděluje se na dvě místa:
 | F0 | ověření hostingu, dump dat, repo | hotovo |
 | F1 | schéma, migrace, auth, role, týmy, sezóny, členové | hotovo |
 | F2 | prohřešky — sazebník, dávkový zápis, přehledy | hotovo |
-| F3 | docházka, nominace, opakované akce | |
+| F3 | docházka, nominace, opakované akce | hotovo |
 | F4 | dluhy, platby, QR (SPAYD), cesťáky, zúčtování | |
 | F5 | PWA, Web Push | |
 | F6 | párování plateb z bankovního API (follow-up) | |
@@ -94,12 +94,35 @@ Cíl: F1 + F2 na start sezóny 26/27 (září 2026), pak vypnout starou aplikaci
 
 ## Kde to stojí
 
-K 16. 8. 2026 je hotové všechno, co F1 a F2 potřebují: přihlášení a role, družstva
-a jejich členové, sezóny se soupiskami, sazebník, dávkový zápis prohřešků, přehled
-dluhů, pozvánky a aktivační odkazy e-mailem, obnova zapomenutého hesla a konzole
-správce platformy. Světlý i tmavý režim.
+K 17. 8. 2026 je hotové všechno z F1 a F2: přihlášení a role, družstva a jejich
+členové, sezóny se soupiskami, sazebník, dávkový zápis prohřešků, přehled dluhů,
+pozvánky a aktivační odkazy e-mailem, obnova zapomenutého hesla a konzole správce
+platformy. Světlý i tmavý režim.
 
-175 testů na backendu, 60 na frontendu, PHPStan level 8 čistý.
+Hotová je i celá **F3 — docházka**: kalendář v seznamu i v měsíční mřížce,
+jednorázové akce i opakované série (z pravidla „každé úterý a čtvrtek" se vyrobí
+všechny termíny do konce sezóny, měnit i mazat je jde od jednoho termínu dál nebo
+celé), odpovědi hráčů, domluva odvozů u venkovních zápasů, nominace, ruční opravy
+docházky, procenta účasti, správa míst konání a export do kalendáře v telefonu
+(`.ics`). Nastavení družstva drží domácí halu, viditelnost docházky a sazbu cesťáků.
+
+Tři rozhodnutí, která stojí za připomenutí, protože jdou proti první intuici:
+
+**Docházka se nezapisuje, jen opravuje.** Hráč předem řekne, jestli přijde, a po
+začátku akce je z toho docházkový stav; pínař přepisuje jen výjimky. Původní návrh
+počítal s odklikáváním celého týmu po každém tréninku — tým to označil za práci,
+kterou nikdo dělat nebude.
+
+**Zápis prohřešků se z docházky nabízí, nedoplňuje se sám.** Po vybrání akce se
+ukáže, koho a za kolik by to zapsalo, a teprve po potvrzení z toho vznikne obyčejný
+rozepsaný zápis. Omluvenou absenci pozná podle toho, že hráč předem řekl „nepřijdu".
+Který prohřešek to je, se nehádá z názvu — pínař ho označí v sazebníku, a to zvlášť
+pro trénink a zvlášť pro zápas, protože sazby se liší i o stovky korun.
+
+**Doma se necestuje.** Domácí zápas se pozná podle domácí haly družstva a nevzniká
+u něj ani vzdálenost, ani domluva odvozů — bude to podklad pro cesťáky ve F4.
+
+252 testů na backendu, 172 na frontendu, PHPStan level 8 čistý.
 
 **Před spuštěním zbývá:**
 
@@ -114,3 +137,42 @@ správce platformy. Světlý i tmavý režim.
 
 VK Benátky jsou v datech cizí živý klub s vlastním adminem. Oddělení od Prosku
 drží role na serveru, ne jen UI — správce platformy vidí jejich zdraví, ne peníze.
+
+## Nápady na později
+
+Věci, které dávají smysl, ale nejsou potřeba ke spuštění. Zapsané schválně
+i s tím, proč zatím počkaly.
+
+### Odběr kalendáře (`webcal://`)
+
+Dneska si jde rozpis stáhnout jako soubor `.ics`. Je to **snímek**: když se
+trénink přesune, v telefonu zůstane starý čas, dokud si člověk soubor nestáhne
+znovu. Odběr je proti tomu adresa, kterou si kalendář sám občas načte, takže se
+změna propíše bez zásahu.
+
+Zádrhel je v tom, že **kalendář v telefonu se neumí přihlásit**. Neposílá token
+ani neprojde přihlašovacím formulářem — sáhne na adresu a čeká `text/calendar`.
+Celé oprávnění tedy musí nést sama adresa, a ta se pak povaluje v nastavení
+telefonu a v zálohách. Je to jediná část aplikace, která by byla veřejně
+dostupná bez přihlášení, a takovou věc je lepší psát v klidu než v týdnu před
+spuštěním.
+
+Co by bylo potřeba:
+
+1. **Tabulka `calendar_feed`** — `user_id`, `team_id`, `season_id`, SHA-256 otisk
+   tokenu, `created_at`, `last_used_at`, `revoked_at`. Token se vydá jednou,
+   v databázi zůstane jen otisk, stejně jako u pozvánek.
+2. **Token na člověka a družstvo**, ne jeden sdílený na tým. Jinak by kalendář
+   četl i ten, kdo z družstva dávno odešel.
+3. **Veřejný endpoint** `GET /api/v1/calendar/{token}.ics` mimo autentizaci, který
+   ověří otisk, odmítne zneplatněný token, **zkontroluje trvající členství**,
+   omezí četnost dotazů (adresa je veřejná a kalendáře se ptají po hodinách)
+   a posílá `ETag`, aby se nepřenášelo osmdesát akcí pokaždé.
+4. **Obsah bez citlivých údajů** — místo, čas, soupeř, sraz. Žádná docházka,
+   dluhy ani jména; tenhle soubor může skončit ve sdíleném rodinném kalendáři.
+5. **Správa v profilu** — odkaz `webcal://`, který na iOS i Androidu otevře rovnou
+   dialog pro přidání, a hlavně možnost odběr **zneplatnit**. Při ztrátě telefonu
+   je to jediná obrana.
+
+Odhad je zhruba den práce. Pořadí: **až za cesťáky** — ty řeší skutečné peníze
+a vyčistí sazebník mužů, kde je dnes třetina položek pojmenovaná po hráčích.
