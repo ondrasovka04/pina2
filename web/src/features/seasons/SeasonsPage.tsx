@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 
 import { useTeam } from '@/app/team'
@@ -221,68 +221,66 @@ function RosterEditor({
 	roster: RosterEntry[]
 	onSave: (membershipIds: number[]) => Promise<unknown>
 }) {
-	// Výchozí výběr je aktuální soupiska. Komponenta se remountuje při přepnutí
-	// rozbalené sezóny (viz `key` u volání níž), takže se stav pokaždé srovná
-	// s čerstvě načtenou soupiskou dané sezóny.
+	// Výchozí výběr je aktuální soupiska; komponenta se remountuje při přepnutí sezóny (viz `key` níž),
+	// takže se stav vždy srovná s čerstvými daty.
 	const [selected, setSelected] = useState<Set<number>>(() => new Set(roster.map((entry) => entry.membershipId)))
 
-	// Kdo odešel, ale zůstal na soupisce, musí jít pořád odškrtnout — jinak by
-	// uložení tichem smazalo jeho místo, aniž by to admin viděl.
-	const rosterIds = new Set(roster.map((entry) => entry.membershipId))
-	/*
-	 * Nahoře jsou lidé, kteří na soupisce už jsou. Řadí se podle *načtené*
-	 * soupisky, ne podle zaškrtnutí — jinak by řádky poskakovaly pod rukou,
-	 * jak by se odškrtávalo.
-	 */
+	// Pořadí a kandidáti se zmrazí při otevření panelu, ať řádky při odškrtávání neposkakují —
+	// kdo odešel, ale byl na soupisce, zůstává viditelný i po odškrtnutí.
+	const [initialRoster] = useState(() => new Set(roster.map((entry) => entry.membershipId)))
+
 	const candidates = members
-		.filter((member) => member.status !== 'left' || rosterIds.has(member.id))
+		.filter((member) => member.status !== 'left' || initialRoster.has(member.id))
 		.toSorted((a, b) => {
-			const byRoster = Number(rosterIds.has(b.id)) - Number(rosterIds.has(a.id))
+			const byRoster = Number(initialRoster.has(b.id)) - Number(initialRoster.has(a.id))
 
 			return byRoster === 0 ? a.name.localeCompare(b.name, 'cs') : byRoster
 		})
 
-	/**
-	 * Ukládá se celá soupiska naráz, ne každé zaškrtnutí zvlášť — server ji
-	 * nahrazuje jedním požadavkem. Tlačítko proto musí umět říct, že je hotovo,
-	 * jinak člověk neví, jestli se něco stalo.
-	 */
 	const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
 
+	// Každé kliknutí ukládá rovnou celou soupisku; požadavky jdou ve frontě, ať rychlé klikání
+	// nedoručí starší stav jako poslední.
+	const queue = useRef<Promise<unknown>>(Promise.resolve())
+	/** Poslední potvrzený stav; při chybě se výběr vrátí k němu. */
+	const confirmed = useRef<Set<number>>(new Set(roster.map((entry) => entry.membershipId)))
+	/** Zrcadlo výběru pro případ dvou kliknutí dřív, než se komponenta překreslí. */
+	const latest = useRef<Set<number>>(selected)
+
 	function toggle(id: number) {
-		setStatus('idle')
-		setSelected((current) => {
-			const next = new Set(current)
-			if (next.has(id)) next.delete(id)
-			else next.add(id)
+		const next = new Set(latest.current)
+		if (next.has(id)) next.delete(id)
+		else next.add(id)
 
-			return next
-		})
-	}
-
-	async function save() {
+		latest.current = next
+		setSelected(next)
 		setStatus('saving')
 
-		try {
-			await onSave([...selected])
-			setStatus('saved')
-		} catch {
-			setStatus('error')
-		}
+		const snapshot = [...next]
+
+		queue.current = queue.current
+			.then(async () => {
+				await onSave(snapshot)
+				confirmed.current = new Set(snapshot)
+				setStatus('saved')
+			})
+			.catch(() => {
+				// Neuložilo se — výběr se vrátí tam, kde ho server naposledy potvrdil,
+				// ať obrazovka neukazuje soupisku, která nikde není.
+				latest.current = new Set(confirmed.current)
+				setSelected(new Set(confirmed.current))
+				setStatus('error')
+			})
 	}
 
 	return (
 		<div className="flex flex-col gap-3">
-			<div className="flex items-center justify-between gap-3">
-				<p className="text-ink-muted text-sm">
-					{players(selected.size)} vybráno
-					{status === 'saved' ? <span className="text-bonus ml-2">· uloženo</span> : null}
-					{status === 'error' ? <span className="text-debt ml-2">· uložení selhalo</span> : null}
-				</p>
-				<Button size="sm" loading={status === 'saving'} onClick={() => void save()}>
-					Uložit soupisku
-				</Button>
-			</div>
+			<p className="text-ink-muted text-sm">
+				{players(selected.size)} na soupisce
+				{status === 'saving' ? <span className="text-ink-faint ml-2">· ukládá se…</span> : null}
+				{status === 'saved' ? <span className="text-bonus ml-2">· uloženo</span> : null}
+				{status === 'error' ? <span className="text-debt ml-2">· uložení selhalo, zkuste to znovu</span> : null}
+			</p>
 
 			{candidates.length === 0 ? (
 				<p className="text-ink-muted text-sm">Družstvo zatím nemá žádného člena k zařazení.</p>
