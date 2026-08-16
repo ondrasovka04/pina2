@@ -19,7 +19,7 @@ několik týmů — ale byla ošklivá, uměla jenom prohřešky a mobilní verz
 přestala existovat (přišel jsem o účet ve vývojářském portálu Googlu).
 
 **Teď to píšu celé znovu od nuly** — nový vzhled, nové funkce a hlavně: kromě
-prohřešků bude aplikace umět i **docházku, nominace na tréninky a zápasy a evidenci
+prohřešků bude aplikace umět i **docházku, nominace na zápasy, cesťáky a evidenci
 plateb**. Poběží v prohlížeči a půjde si ji přidat na plochu telefonu jako běžnou
 aplikaci — bez stahování z obchodu.
 
@@ -28,9 +28,8 @@ ve čtyřech týmech a šesti sezónách — historie zůstane zachovaná včetn
 cen, které se mezi sezónami měnily. Jediné, co se nepřenáší, jsou hesla: každý
 dostane pozvánku a nastaví si nové.
 
-**Od tebe potřebuju hlavně jedno:** projít níže uvedený seznam funkcí a říct,
-co je zbytečné, co chybí a co bys jako hráč/trenér/pínař reálně používal.
-Otázky k zamyšlení jsou v kapitole 8.
+**Dokument je po prvním kole připomínek z týmu** (16. 8. 2026) — co se na jejich
+základě změnilo, shrnuje kapitola 8. Otevřené otázky jsou v kapitole 9.
 
 ---
 
@@ -44,29 +43,28 @@ Většina lidí. Nezapisuje nic, jen sleduje a odpovídá.
 - Vidí, kolik dluží a za co konkrétně.
 - Vidí přehled celého týmu — kdo je největší hříšník.
 - Vidí kalendář tréninků a zápasů: kdy, kde, čas srazu, adresa s prokliknutím do navigace.
-- Dostane nominaci a odpoví, jestli dorazí.
-- Vidí svoje procento účasti.
+- Zaklikne, jestli na akci dorazí, a jestli jede autem.
+- Vidí **svoje** procento účasti (cizí ne).
 
 ### Pínař (ten, co zapisuje)
 Nejaktivnější uživatel. Sedí v šatně nebo v hospodě a zapisuje.
 - Zapisuje prohřešky — rychle, hromadně, ideálně na pár klepnutí.
 - Může zápis stornovat, když se splete.
-- Zapisuje docházku po tréninku (kdo dorazil, kdo se omluvil, kdo ne).
+- Opravuje docházku, když se liší od toho, co si hráči naklikali.
 - Označuje, kdo už zaplatil.
 - Vidí, kolik je v kase a kdo dluží nejvíc.
 
 ### Admin týmu
-Většinou trenér, kapitán nebo zakladatel týmu.
+Většinou trenér, kapitán nebo zakladatel týmu. Role trenéra se nezavádí zvlášť —
+v praxi je to tentýž člověk.
 - Umí všechno, co pínař, a navíc:
 - Zve nové hráče a přiděluje jim role.
 - Vytváří sezóny a zavírá je.
 - Nastavuje sazebník — jaké prohřešky existují a kolik stojí.
 - Zakládá tréninky a zápasy, včetně opakovaných ("každé úterý a čtvrtek v 19:00").
-- Sestavuje nominace.
-- Nastavuje pravidla týmu (např. jestli hráči vidí dluhy ostatních).
-
-> **Otázka k diskuzi:** stačí tyhle tři role? Nechybí například role *trenér*,
-> který sestavuje nominace a zapisuje docházku, ale nemá co dělat s penězi?
+- Sestavuje nominace na zápasy.
+- Jako jediný vidí **procenta účasti a žebříčky docházky**.
+- Nastavuje pravidla týmu — sazbu za kilometr, zúčtovací období, viditelnost dat.
 
 ---
 
@@ -85,8 +83,12 @@ protože ceny se mění. Například:
 | Hlava (míč do hlavy) | 20 Kč |
 | Nepřipravenost na trénink | 30 Kč |
 
-Prohřešky mají pořadí, aby ty nejčastější byly při zapisování první.
-Mohly by mít i kategorie (disciplína / herní / srandovní) — má to smysl?
+Prohřešky mají pořadí, aby ty nejčastější byly při zapisování první. Kategorie
+(disciplína / herní / srandovní) budou volitelné — na funkčnost je potřeba nejsou,
+ale pínaři usnadní hledání v dlouhém seznamu.
+
+**Sazebník umí i záporné částky** — bonusy. „MVP extraligy" −20, „Eso po týmu" −20,
+„Vánoce" −200. Odečítají se z dluhu a v přehledech budou barevně odlišené od pokut.
 
 ### Zapisování
 Pínař vybere trénink, zápas nebo turnaj a projde tým: u koho co a kolikrát.
@@ -151,33 +153,45 @@ Trénink každé úterý a čtvrtek v 19:00 se zadá **jednou** a aplikace vygen
 všechny termíny v sezóně. Jednotlivý termín se dá zrušit (hala je obsazená)
 nebo přesunout, aniž by se rozbila celá série.
 
-### Nominace
-Admin (nebo trenér) označí, kdo je na akci nominovaný a kdo je náhradník.
-Nominovat se dá i na trénink, ne jen na zápas.
+### Kdo přijde: hráči si klikají sami
+Ke každé akci hráč zaklikne **jdu / nejdu**, případně s poznámkou („dorazím
+o 20 minut později"). Trenér tak předem vidí, s kým počítat, místo dohledávání
+ve skupinovém chatu.
 
-Hráč dostane upozornění a odpoví: **jdu / nejdu / ještě nevím**, s možností
-poznámky ("dorazím o 20 minut později", "mám zkoušku, dám vědět v pondělí").
+**Nominace jen u zápasů.** Admin označí, kdo je nominovaný a kdo náhradník.
+U tréninků se nenominuje — bylo by to zbytečné papírování.
 
-Trenér tak před akcí vidí, s kým počítat — místo dohledávání ve skupinovém chatu.
+### Docházka se nezapisuje, jen opravuje
+Tohle je hlavní změna oproti prvnímu návrhu. Původně to bylo tak, že po každém
+tréninku někdo proklikává celý tým a zaznamenává, kdo dorazil. To by nikdo nedělal.
 
-### Docházka
-Po akci pínař nebo trenér zaklikne, jak to dopadlo:
-**byl / omluven / neomluven / přišel pozdě**.
+Místo toho **se docházka vezme z toho, co si hráči naklikali předem**:
 
-Z toho vzniká:
-- **procento účasti každého hráče** za sezónu,
-- žebříček docházky,
-- podklad pro to, kdo si zaslouží místo v sestavě.
+```
+hráč zaklikne "jdu"      →  počítá se jako přítomen
+hráč zaklikne "nejdu"    →  počítá se jako nepřítomen
+hráč neklikne nic        →  počítá se jako nepřítomen
+```
 
-### Propojení docházky s pínou
-Neomluvená absence může být automaticky **navržena** jako prohřešek — pínař ji
-jen potvrdí. Záměrně jen návrh, ne automatický zápis: peníze bez lidské kontroly
-jsou v týmu zdroj konfliktů.
+Po akci pak trenér nebo pínař **přepíše jen výjimky** — někdo dorazil, i když
+psal, že nemůže. Většinou nebude potřeba dělat vůbec nic.
 
-> **Otázky:**
-> - Má se do procenta účasti počítat omluvená absence, nebo se má ignorovat?
-> - Mají hráči vidět docházku ostatních, nebo jenom svoji?
-> - Má smysl "potvrzení na místě" — hráč si v hale sám odklikne, že dorazil?
+**Absence se nerozlišuje** na omluvenou a neomluvenou — absence je absence.
+Jediná výjimka je **zranění nebo dlouhodobá nemoc**, kterou lze zakliknout zvlášť
+a do procenta účasti se vůbec nepočítá. Nemá smysl, aby někomu klesala statistika
+kvůli natrženému kotníku.
+
+### Kdo co vidí
+
+| | Hráč | Pínař | Admin |
+|---|:--:|:--:|:--:|
+| Dluhy ostatních | ✓ | ✓ | ✓ |
+| Vlastní docházka | ✓ | ✓ | ✓ |
+| Docházka ostatních | — | ✓ | ✓ |
+| Procenta účasti a žebříčky | — | — | ✓ |
+
+Dluhy jsou veřejné, protože jsou legrace. Docházka ne — je to citlivější věc
+a hráči by z ní neměli dělat závody.
 
 ---
 
@@ -188,6 +202,26 @@ jsou v týmu zdroj konfliktů.
 - Pínař označí přijatou platbu (hotovost nebo převod).
 - Ukáže, **kolik je v kase** a kolik ještě chybí vybrat.
 - Pošle upomínku dlužníkům.
+
+### Cesťáky a půlroční zúčtování
+Zjistilo se, že tým mužů si proplácení cest eviduje tak, že si do sazebníku založí
+položku „Cesťák 1.pol Vénis" se zápornou částkou. Aplikace to totiž neuměla.
+
+Nově to bude pořádně:
+
+- U zápasu venku hráč zaklikne, že **jede autem** (a kolik má volných míst —
+  poslouží to zároveň k domluvě odvozů).
+- Aplikace zná vzdálenost a **sazbu za kilometr**, kterou si tým nastaví sám.
+- Z toho spočítá, kolik komu tým dluží.
+
+Na konci období — typicky **po půlce sezóny**, jak to děláte teď — se udělá
+**zúčtování**: sečtou se prohřešky, bonusy, cesťáky i zaplacené částky a vyjde
+jediné číslo. Kdo je v mínusu, doplácí; komu tým dluží za odvozy, tomu se to proplatí.
+
+Z píny se tím stává **obousměrná pokladna** — dosud uměla jen vybírat.
+
+Obojí je **volitelné a nastavuje se pro každý tým zvlášť**. Mládežnické družstvo,
+které cesťáky neřeší, o tom nemusí vůbec vědět.
 
 ### QR platba
 U svého dluhu si hráč zobrazí **QR kód**, naskenuje ho v bankovní aplikaci
@@ -210,11 +244,9 @@ u píny 20–50 Kč jsou poplatky brány proporčně vysoké, vyžaduje to smlou
 a ověření a přibude účetnictví. **QR platba plus napojení na banku dělá to samé
 za nula korun.** Brána zůstává jako možnost do budoucna.
 
-> **Otázky:**
-> - Vybírá se u vás pína průběžně, nebo jednorázově na konci sezóny?
-> - Vyplatí se evidovat i **výdaje** z kasy (co se za peníze koupilo)?
->   Byla by z toho úplná pokladní kniha týmu.
-> - Má hráč vidět, kolik je celkem v kase, nebo je to věc pínaře?
+**Výdaje z kasy** (co se za peníze nakoupilo) aplikace evidovat nebude — na to není
+týmová pína byznys. Jedinou výjimkou jsou cesťáky, které se proplácejí hráčům
+a jsou tedy součástí zúčtování.
 
 ---
 
@@ -240,9 +272,11 @@ za nula korun.** Brána zůstává jako možnost do budoucna.
 | Mobil | Android aplikace (dnes nedostupná) | webová aplikace na ploše telefonu, i na iPhonu |
 | Role | admin / hráč | **admin / pínař / hráč**, různé v každém týmu |
 | Prohřešky | ano | ano, plus **souhrn před odesláním**, storno celé dávky, zamrazená cena, vazba na akci |
-| Docházka | — | **tréninky, zápasy, opakované akce, místa, navigace** |
-| Nominace | — | **nominace + odpovědi hráčů** |
-| Statistiky účasti | — | **procenta účasti, žebříčky** |
+| Docházka | — | **odvozená z toho, co si hráči naklikali; opravují se jen výjimky** |
+| Nominace | — | **na zápasy, s odpověďmi hráčů** |
+| Statistiky účasti | — | **procenta a žebříčky — vidí je jen admin** |
+| Cesťáky | řešeno záporným prohřeškem pro každého hráče | **sazba za km, „jedu autem", automatický výpočet** |
+| Zúčtování | ručně mimo aplikaci | **půlroční uzávěrka: prohřešky − bonusy − cesťáky − platby** |
 | Peníze | jen součet dluhu | QR platba, evidence úhrad, upomínky, později napojení na banku |
 | Upozornění | pop-up v aplikaci | push do telefonu + e-mail, agregované, s vlastním nastavením |
 | Bezpečnost | slabá (viz technická analýza) | přepsáno od základu |
@@ -250,35 +284,51 @@ za nula korun.** Brána zůstává jako možnost do budoucna.
 
 ---
 
-## 8. Na co potřebuju tvůj názor
+## 8. Zpětná vazba z týmu — co se změnilo
 
-1. **Role** — stačí admin / pínař / hráč? Chybí trenér?
-2. **Nominace na tréninky** — používali byste to, nebo je to zbytečná byrokracie
-   a stačí u zápasů?
-3. **Docházka** — kdo ji má zapisovat? A má si ji hráč moct odkliknout sám?
-4. **Veřejnost dat** — mají hráči vidět dluhy a docházku ostatních, nebo jen svoje?
-5. **Pokladní kniha** — má aplikace evidovat i výdaje z kasy?
-6. **Oznámení o prohřešcích** — chce je člověk dostat hned po tréninku, nebo je
-   příjemnější souhrn jednou týdně? A má u zprávy být rovnou vidět celkový dluh,
-   nebo je to zbytečné rýpání?
-7. **Co v seznamu chybí?** Napadá tě funkce, kvůli které bys aplikaci otevíral
-   častěji? (Statistiky ze zápasů? Rozdělování odvozů na venkovní zápasy?
-   Hlasování o termínu týmové akce? Střídání praní dresů?)
-8. **Co je naopak zbytečné?** Radši méně funkcí, které lidi opravdu používají,
-   než dvacet záložek, ve kterých se nikdo nevyzná.
-9. **Znáš tým, který by to zkusil?** Aplikace bude od začátku pro víc klubů,
-   takže reálné testování mimo Prosek by hodně pomohlo.
+Kolo připomínek proběhlo 16. 8. 2026 a promítlo se do návrhu takto:
+
+| Připomínka | Jak je zapracovaná |
+|---|---|
+| „Zaklikávat po každém tréninku bude strašný oser" | Docházka se bere z toho, co si hráči naklikali předem; opravují se jen výjimky |
+| „Absence je absence" | Omluvená/neomluvená se nerozlišuje, zvlášť je jen zranění a dlouhodobá nemoc |
+| „Docházku vidět jen svoji, 100 %!" | Hráč vidí jen sebe, procenta a žebříčky vidí pouze admin |
+| „Dluhy ostatních klidně, to je prdel" | Zůstávají viditelné všem |
+| „Nominace na tréninky je zbytečná" | Nominuje se jen na zápasy |
+| „Role admin a trenér jsou vicemene totožné" | Zůstávají tři role, žádná se nepřidává |
+| „Kategorie prohřešků jsou jen zpřehlednění" | Volitelné, ne povinné |
+| „Výdaje z kasy jsou zbytečné" | Vypuštěno |
+| „Změnu docházky umožnit i pínaři" | Smí admin i pínař |
+| „Nešlo by něco s cesťáky? Zakliknout, že mám auto?" | Nová funkce — viz kapitola 5, včetně sazby za kilometr |
+| „Týdenní přehled není důležitý, rýpání nevadí" | Oznámení chodí hned, souhrn se neřeší |
+
+Otevřené k ověření v provozu: půlroční zúčtování jako volitelná funkce týmu
+a to, jestli se ke zkoušení přidá MFF nebo Modřany.
+
+## 9. Na co ještě potřebuju názor
+
+Zbývá dořešit hlavně kolem cesťáků, protože tam je nejvíc variant:
+
+1. **Kdo zadává kilometry?** Aplikace může znát vzdálenost k hale a předvyplnit ji,
+   ale někdo jede oklikou pro spoluhráče. Má řidič vzdálenost upravovat, nebo se
+   drží pevná sazba za zápas?
+2. **Počítá se náhrada na auto, nebo na hráče?** Když jedou tři lidi jedním autem,
+   dostane náhradu jen řidič (a spolujezdci se mu skládají), nebo se to dělí?
+3. **Platí to samé pro tréninky?** Nebo jen pro zápasy venku?
+4. **Kdy se zúčtování uzavírá** a kdo ho spouští — admin, nebo pínař?
+5. **Bonusy** („MVP extraligy", „Vánoce −200") — mají zůstat v jednom seznamu
+   s pokutami, nebo mít vlastní záložku?
 
 ---
 
-## 9. Co v první verzi vědomě nebude
+## 10. Co v první verzi vědomě nebude
 
 Aby se to vůbec dodělalo, nechávám stranou:
 - platby kartou přes platební bránu,
 - statistiky ze zápasů (body, úspěšnost podání) — to je jiná aplikace,
 - chat a diskuze v týmu — na to má každý tým WhatsApp a nemá cenu s tím soupeřit,
 - veřejný profil klubu, výsledkový servis,
-- rozdělování odvozů a spolujízdy (možná později, jako doplněk k akcím).
+- statistiky ze zápasů (body, úspěšnost podání),
 
 - napojení na banku a automatické párování plateb (samostatná věc na později).
 

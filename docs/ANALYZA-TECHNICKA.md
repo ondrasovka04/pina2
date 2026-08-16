@@ -342,30 +342,115 @@ série vygenerují rovnou všechny termíny do `season.ends_on`** — žádné k
 
 Jednotlivou instanci lze upravit (přesunutá hala) nebo zrušit, aniž by se měnila série.
 
-**`event_participant`** — nominace, odpověď hráče i skutečná docházka v jednom řádku.
+**`event_participant`** — nominace, odpověď hráče i docházka v jednom řádku.
+
+> **Revize po zpětné vazbě od týmu (16. 8. 2026):** původní návrh počítal s tím, že
+> pínař po každé akci odklikne docházku všech hráčů. Reakce z týmu byla jednoznačná —
+> „to bude strašný oser", který nikdo dělat nebude. Docházka se proto **nezapisuje,
+> jen opravuje**.
 ```sql
 id, event_id FK, membership_id FK,
-nomination  ENUM('none','nominated','substitute') DEFAULT 'none',   -- co určil trenér
-rsvp        ENUM('unknown','yes','no','maybe') DEFAULT 'unknown',   -- co řekl hráč
-rsvp_note   VARCHAR(255) NULL,                                       -- "dorazím o 20 min později"
+nomination  ENUM('none','nominated','substitute') DEFAULT 'none',  -- jen u zápasů
+rsvp        ENUM('unknown','yes','no') DEFAULT 'unknown',          -- co řekl hráč předem
+rsvp_note   VARCHAR(255) NULL,
 rsvp_at     DATETIME NULL,
-attendance  ENUM('unknown','present','excused','unexcused','late') DEFAULT 'unknown',
+attendance  ENUM('present','absent','injured') NULL DEFAULT NULL,  -- NULL = žádná ruční oprava
 attendance_by BIGINT NULL FK, attendance_at DATETIME NULL,
+transport   ENUM('none','driver','passenger') DEFAULT 'none',
+car_seats   TINYINT NULL,
 UNIQUE (event_id, membership_id)
 ```
-Tři nezávislé osy — **nominace** (rozhodnutí trenéra), **RSVP** (co hráč slíbil),
-**docházka** (co se stalo). Procento účasti a automatické prohřešky se počítají
-z `attendance`, ale rozdíl mezi RSVP a docházkou je sám o sobě zajímavá metrika
-(kdo slíbí a nepřijde).
 
-**Výpočet docházky** (service vrstva, ne SQL procedura):
+**Tok docházky:**
 ```
-účast % = present + late  /  present + late + excused + unexcused
+hráč předem zaklikne  jdu / nejdu
+        │
+        ▼
+po akci se z toho SÁM stane docházkový stav      ← nikdo nic nedělá
+   rsvp='yes' → present,  jinak → absent
+        │
+        ▼
+admin nebo pínař přepíše jednotlivce             ← jen výjimky
+   (attendance přestane být NULL a má přednost)
 ```
-Varianty (počítat/nepočítat omluvené absence do jmenovatele, minimální počet akcí
-pro zobrazení) jsou konfigurace v `club_settings`, ne natvrdo v dotazu.
 
-### 4.6 Platby
+Kdo se nezaklikne, počítá se jako nedorazil. Skutečný stav vrací
+`COALESCE(attendance, derived_from_rsvp)` — sloupec `attendance` je tedy **záznam
+o ruční opravě**, ne o docházce samotné. To je celé kouzlo: bez zásahu člověka
+je docházka kompletní a správná ve většině případů.
+
+**Absence se nerozlišuje** na omluvenou a neomluvenou („absence je absence").
+Jedinou výjimkou je `injured` — zranění nebo dlouhodobá nemoc, která se nepočítá
+do jmenovatele:
+```
+účast % = present / (present + absent)        ← injured se vynechá úplně
+```
+
+**Nominace jen u zápasů.** U tréninků zůstává `none` — nominovat na trénink
+bylo vyhodnoceno jako zbytečná byrokracie.
+
+**Viditelnost je nesymetrická** (`team_settings`):
+
+| | Hráč | Pínař | Admin |
+|---|:--:|:--:|:--:|
+| Dluhy ostatních | ✓ | ✓ | ✓ |
+| Vlastní docházka | ✓ | ✓ | ✓ |
+| Docházka ostatních | — | ✓ | ✓ |
+| Procenta účasti a žebříčky | — | — | ✓ |
+
+Pínař vidí docházku ostatních jen proto, že ji smí opravovat; souhrnné statistiky
+jsou výhradně pro admina. Dluhy naopak vidí všichni — „to je prdel".
+
+### 4.6 Cestovní náhrady a zúčtování
+
+Vzniklo ze zpětné vazby týmu a z nálezu v datech (viz 8.4): tým mužů si proplácení
+cesťáků eviduje jako záporné položky sazebníku pojmenované po jednotlivých hráčích
+(„Cesťák 1.pol Vénis" −2 568 Kč). Tři na první pohled nesouvisející požadavky —
+cesťáky, „mám auto" a půlroční zúčtování — jsou ve skutečnosti jeden tok:
+
+```
+zápas venku ──> kdo jel autem ──> km × sazba ──> nárok hráče ──┐
+                                                               │
+prohřešky + bonusy ─────────────────────> dluh hráče ──────────┤
+                                                               ▼
+                                       zúčtování období: kdo komu kolik
+```
+
+Proto `event_participant.transport` neslouží jen k domluvě odvozů, ale je zároveň
+vstupem pro výpočet náhrady.
+
+**`team_settings`** — obojí je **volitelné na úrovni týmu**: mládežnické družstvo
+cesťáky řešit nemusí, tým mužů ano.
+```sql
+team_id PK, travel_enabled BOOLEAN, travel_rate_czk_km DECIMAL(5,2),
+settlement_period ENUM('none','half_year','season'),
+attendance_visible_to_players BOOLEAN DEFAULT 0,
+balances_visible_to_players   BOOLEAN DEFAULT 1
+```
+
+**`travel_claim`** — nárok na náhradu za cestu vlastním autem.
+```sql
+id, season_id FK, membership_id FK, event_id FK NULL, occurred_on DATE,
+distance_km SMALLINT, rate_czk_km DECIMAL(5,2),   -- snapshot sazby
+amount_czk INT, passengers TINYINT NULL, settlement_id FK NULL, voided_at
+```
+`distance_km` se předvyplní z `event.distance_km` (vzdálenost tam a zpět), takže
+řidič jen potvrdí. Sazba se ukládá jako snapshot — pozdější zdražení nepřepíše
+už vyúčtované období.
+
+**`settlement` + `settlement_line`** — uzávěrka období (typicky pololetí).
+Sečte prohřešky, bonusy, cesťáky a platby a vyčíslí, kdo komu kolik dluží:
+```sql
+settlement:      id, season_id, name, period_from, period_to, closed_at
+settlement_line: settlement_id, membership_id,
+                 offences_czk, bonuses_czk, travel_czk, paid_czk,
+                 balance_czk    -- >0 hráč dluží, <0 tým dluží hráči
+```
+Řádky jsou **snapshot** — po uzavření období se zpětnou změnou sazebníku ani
+doplněným zápisem nezmění. Tím se z píny stává obousměrná pokladna: dosud uměla
+jen vybírat, nově i proplácet.
+
+### 4.7 Platby
 
 **`payment`** — úhrada píny.
 ```sql
@@ -395,7 +480,7 @@ Pro rychlost lze později přidat materializovaný `balance_cache` s invalidací
 `membership.payment_reference` (8 číslic, `team_id` prefix + pořadí + kontrolní číslice
 modulo 11). Hráč platí pořád stejný VS, párování je pak jednoznačné.
 
-### 4.7 Infrastrukturní tabulky
+### 4.8 Infrastrukturní tabulky
 
 ```
 refresh_token   (id, user_id, token_hash, expires_at, revoked_at, user_agent, ip)
@@ -1040,8 +1125,9 @@ chyba v dluhu nebo v izolaci klubů je konec důvěry v aplikaci.
 | **F0 — Ověření** ✓ | phpinfo ✓, archivační dump staré DB ✓, přepnutí na PHP 8.5.9 ✓, ověření běhu staré aplikace ✓ — zbývá: založení repa, CI skeleton, ověření cronu a dosahu FTP účtu | jistota, že stack na hostingu poběží |
 | **F1 — Základ** | nové schéma, migrace dat, auth (login/pozvánka/reset), role, izolace klubů, layout + design systém | přihlášení a správa týmu v produkci |
 | **F2 — Prohřešky** | sazebník, dávkový zápis se souhrnnou obrazovkou, přehledy, storno dávky i zápisu, statistiky, export, **in-app a e-mailové oznámení o zápisu** | funkční náhrada staré aplikace → **vypnutí staré verze** |
-| **F3 — Docházka** | místa + navigace, jednorázové akce, opakované série, nominace, RSVP, zápis docházky, procenta účasti | hlavní nová funkce |
-| **F4 — Peníze** | dluhy, ruční platby, QR (SPAYD), upomínky | uzavření finančního cyklu |
+| **F3 — Docházka** | místa + navigace, jednorázové akce, opakované série, RSVP, nominace na zápasy, oprava docházky, procenta účasti (jen admin) | hlavní nová funkce |
+| **F4 — Peníze** | dluhy, bonusy, ruční platby, QR (SPAYD), upomínky | uzavření finančního cyklu |
+| **F4b — Cesťáky a zúčtování** | „jedu autem" + volná místa, sazba za km, nároky na náhradu, půlroční uzávěrka | nahradí dnešní obcházení přes záporné položky sazebníku |
 | **F5 — PWA a push** | instalace na plochu, Web Push nad frontou z F2, připomínky akcí, nastavení preferencí | náhrada zrušené mobilní aplikace |
 | **F6 — Bankovní párování** *(follow-up)* | Fio API import, algoritmus párování, rekonciliace, fronta nespárovaných | téma pro diplomovou práci; **mimo hlavní rozsah**, nic na něm nestojí |
 | **F7 — Volitelné** | platební brána jako modul, veřejná registrace klubů, statistiky napříč sezónami | podle zájmu |
