@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router'
 
 import { useTeam } from '@/app/team'
+import { NoSeasonState } from '@/components/NoSeasonState'
 import { Avatar } from '@/components/ui/Avatar'
 import { Card } from '@/components/ui/Card'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
@@ -23,19 +24,12 @@ export function MemberPage() {
 	const balances = useBalances(seasonId)
 	const records = useRecords(validId ? seasonId : null, validId ? membershipId : undefined)
 	const voidRecord = useVoidRecord(seasonId ?? 0)
-	// Id rušeného zápisu, `null` = dialog zavřený.
 	const [voidingRecordId, setVoidingRecordId] = useState<number | null>(null)
 
-	// Neplatné id ve zbytku komponenty nemá s čím pracovat.
 	if (!validId) return <Navigate to="/dluhy" replace />
 
 	if (seasonId === null) {
-		return (
-			<EmptyState
-				title="Tým nemá rozjetou sezónu"
-				description="Sezónu založí admin družstva. Bez ní není kam prohřešky zapisovat."
-			/>
-		)
+		return <NoSeasonState />
 	}
 
 	if (balances.isPending || records.isPending) return <LoadingState />
@@ -44,7 +38,6 @@ export function MemberPage() {
 
 	const member = balances.data.members.find((item) => item.membershipId === membershipId)
 
-	// Hráč zmizel ze seznamu (např. jiná sezóna) — návrat na přehled je bezpečnější než prázdná stránka.
 	if (member === undefined) return <Navigate to="/dluhy" replace />
 
 	const canVoid = can('treasurer')

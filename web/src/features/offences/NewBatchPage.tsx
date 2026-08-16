@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useBlocker } from 'react-router'
 
 import { useTeam } from '@/app/team'
+import { NoSeasonState } from '@/components/NoSeasonState'
 import { Avatar } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -30,14 +31,7 @@ import { formatCzk, today } from '@/lib/types'
 
 type Step = 'compose' | 'review' | 'done'
 
-/**
- * Zápis prohřešků — nejpoužívanější obrazovka aplikace.
- *
- * Postup kopíruje to, jak se to dělá doopravdy: pínař obchází kabinu a u každého
- * se ptá, co provedl. Proto se nejdřív vybere člověk a teprve pod ním se
- * naklikají prohřešky. Opačné pořadí (vyber prohřešek, ťukej na lidi) je rychlejší
- * jen u hromadných věcí typu pozdní příchod, ale nutí přeskakovat sem a tam.
- */
+// Nejdřív člověk, pak prohřešky — kopíruje postup v reálnosti
 export function NewBatchPage() {
 	const { seasonId, season, isSeasonClosed, can } = useTeam()
 	const balances = useBalances(seasonId)
@@ -54,11 +48,7 @@ export function NewBatchPage() {
 	const [priceChanges, setPriceChanges] = useState<PriceChange[] | null>(null)
 	const [submitError, setSubmitError] = useState<string | null>(null)
 
-	/**
-	 * Identifikátor dávky. Drží se přes všechny pokusy o odeslání, aby opakování
-	 * po výpadku sítě nezaložilo druhou dávku — server ho používá k idempotenci.
-	 * Nový vzniká až po úspěšném zápisu.
-	 */
+	// clientUuid se drží přes pokusy — serverová idempotence
 	const clientUuid = useRef(crypto.randomUUID())
 
 	const activeTypes = useMemo(
@@ -69,26 +59,20 @@ export function NewBatchPage() {
 		[types.data],
 	)
 
-	// Kdo v sezóně nehraje, tomu se nezapisuje. Dluh po něm ale zůstává,
-	// proto je pořád vidět v přehledu — jen ne tady.
+	// Jen hráči na soupisce — dluh po ostatních zůstává vidět
 	const members = useMemo(() => (balances.data?.members ?? []).filter((member) => member.onRoster), [balances.data])
 
 	const visibleMembers = useMemo(() => members.filter((member) => matches(member.name, search)), [members, search])
 	const summary = useMemo(() => summarizeDraft(draft, members, activeTypes), [draft, members, activeTypes])
 
-	/**
-	 * Rozepsaná dávka žije jen v paměti. Odchod na jinou obrazovku nebo obnovení
-	 * stránky ji zahodí, a to může být hodina obcházení kabiny — proto se ptáme.
-	 * Po odeslání už je co chránit na serveru, takže se hlídání vypne.
-	 */
+	// Rozepsaná dávka jen v paměti — po odeslání je na serveru
 	const hasDraft = !isDraftEmpty(draft) && step !== 'done'
 
 	const blocker = useBlocker(
 		({ currentLocation, nextLocation }) => hasDraft && currentLocation.pathname !== nextLocation.pathname,
 	)
 
-	// Obnovení stránky a zavření panelu umí zadržet jen prohlížeč, vlastním
-	// dialogem to nejde. Hláška je jeho, ovlivnit se nedá.
+	// beforeunload — jediný způsob na odchod, hláška je od prohlížeče
 	useEffect(() => {
 		if (!hasDraft) return
 
@@ -99,12 +83,7 @@ export function NewBatchPage() {
 	}, [hasDraft])
 
 	if (seasonId === null) {
-		return (
-			<EmptyState
-				title="Tým nemá rozjetou sezónu"
-				description="Sezónu založí admin družstva. Bez ní není kam prohřešky zapisovat."
-			/>
-		)
+		return <NoSeasonState />
 	}
 
 	if (!can('treasurer')) {
@@ -116,8 +95,7 @@ export function NewBatchPage() {
 		)
 	}
 
-	// Uzavřenou sezónu server odmítne až při odeslání. Říct to rovnou je slušnější
-	// než nechat pínaře naklikat celý trénink a pak mu to shodit.
+	// Uzavřenou sezónu řekneme dopředu — lepší než odmítnutí při odeslání
 	if (isSeasonClosed) {
 		return (
 			<EmptyState

@@ -45,8 +45,8 @@ final class SeasonService
     }
 
     /**
-     * Všechny sezóny družstva včetně uzavřených — starou sezónu je potřeba umět
-     * otevřít kvůli historii dluhů.
+     * Hráč vidí jen sezóny, kde je/byl na soupisce nebo má zápis.
+     * Pínař a admin vidí všechno.
      *
      * @return list<SeasonPayload>
      */
@@ -59,11 +59,42 @@ final class SeasonService
                     (SELECT COUNT(*) FROM roster_entry r WHERE r.season_id = s.id AND r.active = 1) AS roster_count
                FROM season s
               WHERE s.team_id = ?
+                AND (
+                    ? = 1
+                    OR EXISTS (
+                        SELECT 1 FROM roster_entry r
+                          JOIN membership m ON m.id = r.membership_id
+                         WHERE r.season_id = s.id AND r.active = 1 AND m.user_id = ?
+                    )
+                    OR EXISTS (
+                        SELECT 1 FROM offence_record o
+                          JOIN membership m ON m.id = o.membership_id
+                         WHERE o.season_id = s.id AND o.voided_at IS NULL AND m.user_id = ?
+                    )
+                )
               ORDER BY s.starts_on DESC, s.id DESC',
-            [$teamId],
+            [
+                $teamId,
+                $this->managesTeam($identity, $teamId) ? 1 : 0,
+                $identity->userId,
+                $identity->userId,
+            ],
         );
 
         return array_map($this->mapSeason(...), $rows);
+    }
+
+    /**
+     * Role se čte z databáze, ne z tokenu — odebrané oprávnění platí hned.
+     */
+    private function managesTeam(Identity $identity, int $teamId): bool
+    {
+        $role = $this->db->value(
+            "SELECT role FROM membership WHERE team_id = ? AND user_id = ? AND status <> 'left'",
+            [$teamId, $identity->userId],
+        );
+
+        return Role::tryFrom((string) $role)?->allows(Role::Treasurer) ?? false;
     }
 
     /**
@@ -157,8 +188,7 @@ final class SeasonService
     }
 
     /**
-     * Uzavření sezóny. Znovu uzavřít už uzavřenou nelze — to ohlídá
-     * writableSeason(), která na zavřenou sezónu vrací 409.
+     * writableSeason() zabrání znovu uzavřít.
      *
      * @return SeasonPayload
      */
@@ -182,9 +212,7 @@ final class SeasonService
     }
 
     /**
-     * Nastaví soupisku podle seznamu členství. Řádky se nemažou, jen se přepíná
-     * příznak active — na roster_entry se odkazuje historie a smazání by ji
-     * rozbilo.
+     * Soupiska se negeneruje, jen se přepíná active — smazání by rozbilo historii.
      *
      * @param  list<int> $membershipIds
      * @return list<RosterEntry>

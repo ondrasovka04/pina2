@@ -2,6 +2,7 @@ import type { SubmitEvent } from 'react'
 import { useMemo, useState } from 'react'
 
 import { useTeam } from '@/app/team'
+import { NoSeasonState } from '@/components/NoSeasonState'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
@@ -24,14 +25,13 @@ import { categoryLabels, isBonus, offenceCategories, toCategory } from '@/lib/ty
 
 type CategoryKey = OffenceCategory | 'other'
 
-/** „Ostatní" jde vždy na konec, ať položky bez kategorie nerozbíjí pořadí zbytku. */
+// Ostatní na konec — bez kategorie nerozbíjí pořadí
 const categoryOrder: CategoryKey[] = [...offenceCategories, 'other']
 
 function categoryLabel(key: CategoryKey): string {
 	return key === 'other' ? 'Ostatní' : categoryLabels[key]
 }
 
-/** Nabídka kategorií pro formuláře — prázdná hodnota znamená „bez kategorie". */
 const categoryOptions: Array<{ value: OffenceCategory | ''; label: string }> = [
 	{ value: '', label: 'Bez kategorie' },
 	...offenceCategories.map((key) => ({ value: key, label: categoryLabels[key] })),
@@ -45,7 +45,6 @@ const selectClassName = 'rounded-xl border border-line bg-surface-2 px-3 py-2.5 
 
 export function OffenceTypesPage() {
 	const { seasonId, can } = useTeam()
-	// Sazebník spravuje pínař: je to peněžní agenda, ne správa lidí.
 	const canEdit = can('treasurer')
 
 	const { data, isPending, error, refetch } = useOffenceTypes(seasonId)
@@ -54,8 +53,7 @@ export function OffenceTypesPage() {
 	const [formOpen, setFormOpen] = useState(false)
 	const [reordering, setReordering] = useState(false)
 
-	// Pořadí se srovnává přes celý sazebník, ne uvnitř kategorií — `sort_order`
-	// je jedno číslo na položku a dělené přetahování by z něj dělalo hádanku.
+	// Pořadí globálně — dělené by z sort_order dělalo hádanku
 	const active = useMemo(() => sortTypes((data ?? []).filter((item) => item.archivedAt === null)), [data])
 
 	const groups = useMemo(() => {
@@ -73,12 +71,7 @@ export function OffenceTypesPage() {
 	}, [active])
 
 	if (seasonId === null) {
-		return (
-			<EmptyState
-				title="Tým nemá rozjetou sezónu"
-				description="Sezónu založí admin družstva. Bez ní není sazebník k čemu vázat."
-			/>
-		)
+		return <NoSeasonState what="sazebník" />
 	}
 
 	if (isPending) return <LoadingState />

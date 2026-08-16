@@ -10,10 +10,7 @@ use Pina\Auth\TeamScope;
 use Pina\Http\ApiException;
 use Pina\Service\SeasonService;
 
-/**
- * Sezóny a soupisky. Kromě izolace klubů se testuje hlavně to, že uzavřená
- * sezóna je opravdu jen ke čtení a že aktuální sezóna je v družstvu jediná.
- */
+/** Izolace, uzamčení, jedinečnost aktuální sezóny. */
 final class SeasonServiceTest extends DatabaseTestCase
 {
     private SeasonService $service;
@@ -62,6 +59,73 @@ final class SeasonServiceTest extends DatabaseTestCase
             0,
             (int) $this->db->value('SELECT is_current FROM season WHERE id = ?', [$first['id']]),
         );
+    }
+
+    public function testPlayerSeesOnlySeasonsHeIsRosteredIn(): void
+    {
+        // Jen sezóny v soupisce, ne všechny družstva.
+        $this->makeSeason($this->prosekTeam, '24/25');
+        $last    = $this->makeSeason($this->prosekTeam, '25/26');
+        $current = $this->makeSeason($this->prosekTeam, '26/27');
+        $this->db->run('UPDATE season SET is_current = 1 WHERE id = ?', [$current]);
+        $this->makeRoster($last, [$this->playerMembership]);
+
+        $names = array_column($this->service->forTeam($this->player, $this->prosekTeam), 'name');
+
+        // Jen 25/26. Ani probíhající sezóna výjimku nemá — rozhoduje soupiska,
+        // ne členství v družstvu.
+        self::assertSame(['25/26'], $names);
+
+        // Admin spravuje historii družstva, ten vidí všechno.
+        self::assertCount(3, $this->service->forTeam($this->admin, $this->prosekTeam));
+    }
+
+    public function testPlatformAdminIsStillJustAPlayerInHisOwnTeam(): void
+    {
+        // Admin platformy je v cizím týmu jen hráčem — příznak neotevírá historii.
+        $this->makeSeason($this->prosekTeam, '24/25');
+        $mine = $this->makeSeason($this->prosekTeam, '25/26');
+        $this->makeRoster($mine, [$this->playerMembership]);
+
+        $superadmin = new Identity(
+            $this->player->userId,
+            'hrac@prosek.cz',
+            'hrac@prosek.cz',
+            isPlatformAdmin: true,
+            rolesByTeam: [$this->prosekTeam => Role::Player],
+        );
+
+        self::assertSame(['25/26'], array_column($this->service->forTeam($superadmin, $this->prosekTeam), 'name'));
+    }
+
+    public function testMemberOnNoRosterSeesNoSeasonsAtAll(): void
+    {
+        // Nový člen bez soupisu → žádné sezóny.
+        $current = $this->makeSeason($this->prosekTeam, '26/27');
+        $this->db->run('UPDATE season SET is_current = 1 WHERE id = ?', [$current]);
+
+        self::assertSame([], $this->service->forTeam($this->player, $this->prosekTeam));
+    }
+
+    public function testPlayerSeesSeasonWhereHeHasRecordsEvenWithoutRoster(): void
+    {
+        // Člen mimo soupisku vidí sezónu, kde má dluh.
+        $past = $this->makeSeason($this->prosekTeam, '24/25');
+        $this->makeRecord($past, $this->playerMembership);
+
+        $names = array_column($this->service->forTeam($this->player, $this->prosekTeam), 'name');
+
+        self::assertContains('24/25', $names);
+    }
+
+    public function testStornovanyZapisSamOSobeSezonuNeodemkne(): void
+    {
+        $past = $this->makeSeason($this->prosekTeam, '24/25');
+        $this->makeRecord($past, $this->playerMembership, voided: true);
+
+        $names = array_column($this->service->forTeam($this->player, $this->prosekTeam), 'name');
+
+        self::assertNotContains('24/25', $names);
     }
 
     public function testSeasonMustStartBeforeItEnds(): void
@@ -119,7 +183,8 @@ final class SeasonServiceTest extends DatabaseTestCase
 
         $this->service->setRoster($this->admin, $current, [$this->playerMembership]);
 
-        $seasons = $this->service->forTeam($this->player, $this->prosekTeam);
+        // Admin vidí historii, hráči jen své.
+        $seasons = $this->service->forTeam($this->admin, $this->prosekTeam);
         self::assertCount(2, $seasons);
 
         $byId = array_column($seasons, null, 'id');
@@ -204,7 +269,7 @@ final class SeasonServiceTest extends DatabaseTestCase
         self::assertCount(1, $roster);
         self::assertSame($otherM, $roster[0]['membershipId']);
 
-        // Řádek se nemaže, jen deaktivuje — navazuje na něj historie sezóny.
+        // Deaktivace místo mazání — kvůli historii.
         self::assertSame(2, (int) $this->db->value('SELECT COUNT(*) FROM roster_entry WHERE season_id = ?', [$season]));
     }
 

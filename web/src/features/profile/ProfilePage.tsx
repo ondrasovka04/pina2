@@ -44,10 +44,7 @@ export function ProfilePage() {
 	)
 }
 
-/**
- * Moje týmy i s dluhem v každém z nich. Kdo hraje za dvě družstva, má dvě
- * kasy a dva variabilní symboly — musí je vidět vedle sebe, ne po přepnutí.
- */
+// Dluhy v každém týmu — vedle sebe, ne po přepnutí
 function MyTeamsCard() {
 	const user = useCurrentUser()
 	const { teams } = useTeam()
@@ -95,7 +92,14 @@ function MembershipRow({
 
 			<div className="shrink-0 text-right">
 				{debt?.balanceCzk == null ? (
-					<p className="text-ink-faint text-sm">{loading ? '…' : 'bez sezóny'}</p>
+					/*
+					 * Dvě různé situace vypadaly stejně: družstvo nemá rozjetou
+					 * sezónu × sezóna běží, ale já na její soupisce nejsem.
+					 * „Bez sezóny" v druhém případě lhalo.
+					 */
+					<p className="text-ink-faint text-sm">
+						{loading ? '…' : debt?.seasonName == null ? 'bez sezóny' : 'nejste na soupisce'}
+					</p>
 				) : (
 					<>
 						<p className="text-lg font-semibold">

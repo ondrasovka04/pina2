@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 
 import { useTeam } from '@/app/team'
+import { NoSeasonState } from '@/components/NoSeasonState'
 import { Avatar } from '@/components/ui/Avatar'
 import { Card } from '@/components/ui/Card'
 import { ChevronRightIcon } from '@/components/ui/icons'
@@ -24,18 +25,12 @@ export function BalancesPage() {
 
 	const members = useMemo(() => {
 		const list = data?.members ?? []
-
-		// Server řadí podle jména; „kdo dluží nejvíc" je ale to, co pínař hledá první.
 		return sort === 'debt' ? list.toSorted((a, b) => b.balanceCzk - a.balanceCzk) : list
 	}, [data, sort])
 
 	const me = members.find((member) => member.membershipId === myMembershipId)
 
-	/**
-	 * Pořadí v žebříčku. Vlastní řádek se schválně nevytahuje na první místo —
-	 * pořadí podle dluhu je půlka zábavy a přeskládaný seznam by ho zabil.
-	 * Že jsem třetí z jednadvaceti, se dá říct číslem.
-	 */
+	// Pořadí v žebříčku — nevytahujeme si to na první místo, to by zbilo zábavu
 	const myRank = useMemo(() => {
 		if (me === undefined) return null
 		const order = (data?.members ?? []).toSorted((a, b) => b.balanceCzk - a.balanceCzk)
@@ -44,12 +39,7 @@ export function BalancesPage() {
 	}, [data, me])
 
 	if (seasonId === null) {
-		return (
-			<EmptyState
-				title="Tým nemá rozjetou sezónu"
-				description="Sezónu založí admin družstva. Bez ní není kam prohřešky zapisovat."
-			/>
-		)
+		return <NoSeasonState />
 	}
 
 	if (isPending) return <LoadingState />
