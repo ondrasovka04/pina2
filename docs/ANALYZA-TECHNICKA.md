@@ -1035,9 +1035,14 @@ už 12/2026.
    s účtem `pina@pinaprosek.eu` — jen tak zpráva projde infrastrukturou, kterou SPF pokrývá,
    a dostane DKIM podpis.
 
-   **Zbývá:** založit mailbox `pina@pinaprosek.eu` (využit 1 z 6), přidat DMARC záznam
-   `_dmarc TXT v=DMARC1; p=none; rua=mailto:postmaster@pinaprosek.eu` a před rozesláním
-   pozvánek ověřit doručitelnost na mail-tester.com.
+   **Stav k 16. 8. 2026 — hotovo:** mailbox `pina@pinaprosek.eu` založen,
+   DMARC nastaven na `_dmarc TXT "v=DMARC1; p=none;"`. Bez `rua` záměrně: agregované
+   reporty jsou XML archivy, které by se jen hromadily v nečtené schránce. Až bude
+   potřeba dohled, přidá se `rua` přes službu, která je převádí na čitelný souhrn
+   (např. Postmark DMARC Digest zdarma).
+
+   **Před rozesláním pozvánek zbývá:** doplnit `MAIL_PASSWORD` do `.env`, přepnout
+   `MAIL_ENABLED=true` a ověřit doručitelnost na mail-tester.com.
 8. `max_input_vars = 1000` — netýká se nás, dávkový zápis jde jako JSON body, ne form fields.
 
 ### 10.2 Prostředí
