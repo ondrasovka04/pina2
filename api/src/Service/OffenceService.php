@@ -30,6 +30,12 @@ use Pina\Support\Database;
  *     createdBy: array{id:int,name:string}|null, createdAt: string,
  *     voidedAt: string|null, voidedBy: int|null
  * }
+ * @phpstan-type BatchListItem array{
+ *     id: int, occurredOn: string, title: string|null, note: string|null,
+ *     eventId: int|null, eventTitle: string|null,
+ *     createdBy: array{id:int,name:string}|null, createdAt: string, voidedAt: string|null,
+ *     recordCount: int, memberCount: int, totalCzk: int
+ * }
  * @phpstan-type BatchSummary array{
  *     batch: BatchPayload,
  *     totalCzk: int, recordCount: int, voidedRecordCount: int, memberCount: int,
@@ -98,6 +104,53 @@ final class OffenceService
         }
 
         return $this->batchSummary($batchId);
+    }
+
+    /**
+     * Seznam dávek sezóny, od nejnovější. Podklad pro „stornovat celý trénink" —
+     * bez něj by pínař musel omylem odeslaný zápis odklikávat po lidech.
+     *
+     * @return list<BatchListItem>
+     */
+    public function batches(Identity $identity, int $seasonId): array
+    {
+        $this->scope->season($identity, $seasonId, Role::Player);
+
+        $rows = $this->db->all(
+            'SELECT b.id, b.occurred_on, b.title, b.note, b.event_id, b.created_at, b.voided_at,
+                    u.id AS author_id, u.display_name AS author_name,
+                    e.title AS event_title,
+                    (SELECT COUNT(*) FROM offence_record r
+                      WHERE r.batch_id = b.id AND r.voided_at IS NULL) AS record_count,
+                    (SELECT COALESCE(SUM(r.amount_czk), 0) FROM offence_record r
+                      WHERE r.batch_id = b.id AND r.voided_at IS NULL) AS total_czk,
+                    (SELECT COUNT(DISTINCT r.membership_id) FROM offence_record r
+                      WHERE r.batch_id = b.id AND r.voided_at IS NULL) AS member_count
+               FROM offence_batch b
+               LEFT JOIN `user` u ON u.id = b.created_by
+               LEFT JOIN event e ON e.id = b.event_id
+              WHERE b.season_id = ?
+              ORDER BY b.occurred_on DESC, b.id DESC',
+            [$seasonId],
+        );
+
+        return array_map(static fn (array $row): array => [
+            'id'          => (int) $row['id'],
+            'occurredOn'  => (string) $row['occurred_on'],
+            'title'       => $row['title'] === null ? null : (string) $row['title'],
+            'note'        => $row['note'] === null ? null : (string) $row['note'],
+            'eventId'     => $row['event_id'] === null ? null : (int) $row['event_id'],
+            'eventTitle'  => $row['event_title'] === null ? null : (string) $row['event_title'],
+            'createdBy'   => $row['author_id'] === null ? null : [
+                'id'   => (int) $row['author_id'],
+                'name' => (string) $row['author_name'],
+            ],
+            'createdAt'   => (string) $row['created_at'],
+            'voidedAt'    => $row['voided_at'] === null ? null : (string) $row['voided_at'],
+            'recordCount' => (int) $row['record_count'],
+            'memberCount' => (int) $row['member_count'],
+            'totalCzk'    => (int) $row['total_czk'],
+        ], $rows);
     }
 
     /**

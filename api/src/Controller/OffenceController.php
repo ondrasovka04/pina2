@@ -95,6 +95,13 @@ final class OffenceController
         return Response::created($summary);
     }
 
+    public function batches(Request $request): Response
+    {
+        return Response::ok([
+            'items' => $this->offences->batches($request->identity(), $request->routeId('season')),
+        ]);
+    }
+
     public function showBatch(Request $request): Response
     {
         return Response::ok($this->offences->showBatch($request->identity(), $request->routeId('id')));

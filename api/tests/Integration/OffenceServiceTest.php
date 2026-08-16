@@ -447,6 +447,70 @@ final class OffenceServiceTest extends DatabaseTestCase
         );
     }
 
+    public function testBatchListGivesPinarWhatHeNeedsToVoidAWholeTraining(): void
+    {
+        $this->batch([
+            ['membershipId' => $this->honza, 'offenceTypeId' => $this->lateType, 'count' => 2],
+            ['membershipId' => $this->petr, 'offenceTypeId' => $this->lateType, 'count' => 1],
+        ]);
+
+        $items = $this->service->batches($this->treasurer, $this->season);
+
+        self::assertCount(1, $items);
+        self::assertSame('Trénink 16. 9.', $items[0]['title']);
+        self::assertSame(3, $items[0]['recordCount']);
+        self::assertSame(2, $items[0]['memberCount']);
+        self::assertSame(60, $items[0]['totalCzk']);
+        // Jméno se bere z databáze, ne z tokenu — pínař se mohl mezitím přejmenovat.
+        self::assertSame('pinar', $items[0]['createdBy']['name'] ?? null);
+        self::assertNull($items[0]['voidedAt']);
+    }
+
+    public function testVoidedBatchIsListedButCountsNothing(): void
+    {
+        $summary = $this->batch([
+            ['membershipId' => $this->honza, 'offenceTypeId' => $this->lateType, 'count' => 2],
+        ]);
+
+        $this->service->voidBatch($this->treasurer, $summary['batch']['id']);
+
+        $items = $this->service->batches($this->treasurer, $this->season);
+
+        self::assertNotNull($items[0]['voidedAt']);
+        self::assertSame(0, $items[0]['recordCount']);
+        self::assertSame(0, $items[0]['totalCzk']);
+    }
+
+    public function testBatchListIsNewestFirst(): void
+    {
+        $this->batch(
+            [['membershipId' => $this->honza, 'offenceTypeId' => $this->lateType, 'count' => 1]],
+            'aaaaaaaa-1111-cccc-dddd-eeeeeeeeeeee',
+        );
+
+        $second = $this->service->createBatch($this->treasurer, $this->season, [
+            'clientUuid' => 'aaaaaaaa-2222-cccc-dddd-eeeeeeeeeeee',
+            'occurredOn' => '2026-09-23',
+            'eventId'    => null,
+            'title'      => 'Trénink 23. 9.',
+            'note'       => null,
+            'items'      => [
+                [
+                    'membershipId'      => $this->petr,
+                    'offenceTypeId'     => $this->lateType,
+                    'count'             => 1,
+                    'note'              => null,
+                    'expectedAmountCzk' => null,
+                ],
+            ],
+        ]);
+
+        $items = $this->service->batches($this->treasurer, $this->season);
+
+        // Pínař hledá poslední trénink, ne ten zářijový úplně první.
+        self::assertSame($second['batch']['id'], $items[0]['id']);
+    }
+
     public function testForeignBatchIsNotFound(): void
     {
         $summary = $this->batch([['membershipId' => $this->honza, 'offenceTypeId' => $this->lateType, 'count' => 1]]);
