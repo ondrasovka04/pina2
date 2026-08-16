@@ -6,6 +6,8 @@ api/.env
 export/
 *.sql
 *.sql.gz
+# Migrace jsou naopak jádro projektu — čisté DDL bez dat.
+!api/db/migrations/*.sql
 *.csv
 api/storage/logs/
 api/storage/backups/
