@@ -20,8 +20,19 @@ import {
 	useReorderOffenceTypes,
 	useUpdateOffenceType,
 } from '@/lib/queries'
-import type { OffenceCategory, OffenceType } from '@/lib/types'
-import { categoryLabels, isBonus, offenceCategories, toCategory } from '@/lib/types'
+import type { AutoEventType, AutoRule, OffenceCategory, OffenceType } from '@/lib/types'
+import {
+	autoEventTypeLabels,
+	autoEventTypes,
+	autoRuleLabels,
+	autoRules,
+	categoryLabels,
+	isBonus,
+	offenceCategories,
+	toAutoEventType,
+	toAutoRule,
+	toCategory,
+} from '@/lib/types'
 
 type CategoryKey = OffenceCategory | 'other'
 
@@ -36,6 +47,16 @@ const categoryOptions: Array<{ value: OffenceCategory | ''; label: string }> = [
 	{ value: '', label: 'Bez kategorie' },
 	...offenceCategories.map((key) => ({ value: key, label: categoryLabels[key] })),
 ]
+
+const autoRuleOptions: Array<{ value: AutoRule; label: string }> = autoRules.map((rule) => ({
+	value: rule,
+	label: autoRuleLabels[rule],
+}))
+
+const autoEventTypeOptions: Array<{ value: AutoEventType; label: string }> = autoEventTypes.map((type) => ({
+	value: type,
+	label: autoEventTypeLabels[type],
+}))
 
 function sortTypes(items: OffenceType[]): OffenceType[] {
 	return items.toSorted((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, 'cs'))
@@ -96,6 +117,11 @@ export function OffenceTypesPage() {
 				) : null}
 			</div>
 
+			<p className="text-ink-faint text-sm">
+				Označený prohřešek aplikace po akci sama předvyplní těm, kdo chyběli. Omluvenou absenci pozná podle toho, že
+				hráč předem řekl, že nepřijde. U tréninku a zápasu bývá jiná sazba — proto se u pravidla vybírá i druh akce.
+			</p>
+
 			{canEdit && formOpen ? <CreateOffenceTypeForm seasonId={seasonId} onDone={() => setFormOpen(false)} /> : null}
 
 			{reordering ? (
@@ -126,7 +152,7 @@ export function OffenceTypesPage() {
 						<CardHeader title={categoryLabel(group.key)} />
 						<div className="divide-line/50 divide-y">
 							{group.items.map((item) => (
-								<OffenceTypeRow key={item.id} item={item} seasonId={seasonId} canEdit={canEdit} />
+								<OffenceTypeRow key={item.id} item={item} allItems={active} seasonId={seasonId} canEdit={canEdit} />
 							))}
 						</div>
 					</Card>
@@ -155,16 +181,29 @@ export function OffenceTypesPage() {
 	)
 }
 
-function OffenceTypeRow({ item, seasonId, canEdit }: { item: OffenceType; seasonId: number; canEdit: boolean }) {
+function OffenceTypeRow({
+	item,
+	allItems,
+	seasonId,
+	canEdit,
+}: {
+	item: OffenceType
+	allItems: OffenceType[]
+	seasonId: number
+	canEdit: boolean
+}) {
 	const [editing, setEditing] = useState(false)
 	const [confirmingArchive, setConfirmingArchive] = useState(false)
 	const update = useUpdateOffenceType(seasonId)
 	const archive = useArchiveOffenceType(seasonId)
+	const autoRule = toAutoRule(item.autoRule)
+	const autoEventType = toAutoEventType(item.autoEventType)
 
 	if (editing) {
 		return (
 			<EditOffenceTypeForm
 				item={item}
+				allItems={allItems}
 				saving={update.isPending}
 				error={update.error}
 				onCancel={() => setEditing(false)}
@@ -180,6 +219,12 @@ function OffenceTypeRow({ item, seasonId, canEdit }: { item: OffenceType; season
 			<div className="min-w-0 flex-1">
 				<p className="truncate font-medium">{item.name}</p>
 				{isBonus(item.amountCzk) ? <p className="text-bonus text-xs">bonus</p> : null}
+				{autoRule === 'none' ? null : (
+					<p className="text-accent text-xs">
+						{autoRuleLabels[autoRule]}
+						{autoEventType === 'any' ? '' : ` · ${autoEventTypeLabels[autoEventType].toLowerCase()}`}
+					</p>
+				)}
 			</div>
 
 			<Money czk={item.amountCzk} className="font-semibold" />
@@ -306,16 +351,47 @@ function CreateOffenceTypeForm({ seasonId, onDone }: { seasonId: number; onDone:
 
 interface EditOffenceTypeFormProps {
 	item: OffenceType
+	allItems: OffenceType[]
 	saving: boolean
 	error: unknown
 	onCancel: () => void
-	onSave: (changes: { name: string; amountCzk: number; category: OffenceCategory | null }) => void
+	onSave: (changes: {
+		name: string
+		amountCzk: number
+		category: OffenceCategory | null
+		autoRule: AutoRule
+		autoEventType: AutoEventType
+	}) => void
 }
 
-function EditOffenceTypeForm({ item, saving, error, onCancel, onSave }: EditOffenceTypeFormProps) {
+function EditOffenceTypeForm({ item, allItems, saving, error, onCancel, onSave }: EditOffenceTypeFormProps) {
 	const [name, setName] = useState(item.name)
 	const [amount, setAmount] = useState(String(item.amountCzk))
 	const [category, setCategory] = useState<OffenceCategory | ''>(item.category ?? '')
+	const [autoRule, setAutoRule] = useState<AutoRule>(toAutoRule(item.autoRule))
+	const [autoEventType, setAutoEventType] = useState<AutoEventType>(toAutoEventType(item.autoEventType))
+
+	// Dvě položky se stejným pravidlem a druhem akce si konkurují; konkrétní druh akce má přednost
+	// před „u každé akce". Jen upozorníme, neblokujeme.
+	const conflictingItem =
+		autoRule === 'none'
+			? undefined
+			: allItems.find((other) => {
+					if (other.id === item.id) return false
+					if (toAutoRule(other.autoRule) !== autoRule) return false
+
+					const otherEventType = toAutoEventType(other.autoEventType)
+
+					return otherEventType === autoEventType || otherEventType === 'any' || autoEventType === 'any'
+				})
+
+	const conflictingOtherIsAny =
+		conflictingItem !== undefined && toAutoEventType(conflictingItem.autoEventType) === 'any'
+
+	const conflictIsSoft =
+		conflictingItem !== undefined &&
+		toAutoEventType(conflictingItem.autoEventType) !== autoEventType &&
+		(conflictingOtherIsAny || autoEventType === 'any')
 
 	function submit(event: SubmitEvent<HTMLFormElement>) {
 		event.preventDefault()
@@ -323,7 +399,7 @@ function EditOffenceTypeForm({ item, saving, error, onCancel, onSave }: EditOffe
 		const amountCzk = Number.parseInt(amount, 10)
 		if (Number.isNaN(amountCzk)) return
 
-		onSave({ name: name.trim(), amountCzk, category: category === '' ? null : category })
+		onSave({ name: name.trim(), amountCzk, category: category === '' ? null : category, autoRule, autoEventType })
 	}
 
 	return (
@@ -361,6 +437,47 @@ function EditOffenceTypeForm({ item, saving, error, onCancel, onSave }: EditOffe
 						))}
 					</select>
 				</label>
+
+				<label className="flex flex-col gap-1.5">
+					<span className="text-ink-muted text-sm font-medium">Navrhovat z docházky</span>
+					<select
+						value={autoRule}
+						onChange={(event) => setAutoRule(toAutoRule(event.target.value))}
+						className={selectClassName}
+					>
+						{autoRuleOptions.map((option) => (
+							<option key={option.value} value={option.value}>
+								{option.label}
+							</option>
+						))}
+					</select>
+					{conflictingItem === undefined ? null : (
+						<span className="text-ink-faint text-xs">
+							{conflictIsSoft
+								? conflictingOtherIsAny
+									? `Stejné pravidlo má i „${conflictingItem.name}" pro všechny akce — použije se ta konkrétnější.`
+									: `Stejné pravidlo má i „${conflictingItem.name}" pro konkrétní akci — použije se ta konkrétnější.`
+								: `Stejné pravidlo už má „${conflictingItem.name}" — předvyplní se jen jedna z položek.`}
+						</span>
+					)}
+				</label>
+
+				{autoRule === 'none' ? null : (
+					<label className="flex flex-col gap-1.5">
+						<span className="text-ink-muted text-sm font-medium">U kterých akcí</span>
+						<select
+							value={autoEventType}
+							onChange={(event) => setAutoEventType(toAutoEventType(event.target.value))}
+							className={selectClassName}
+						>
+							{autoEventTypeOptions.map((option) => (
+								<option key={option.value} value={option.value}>
+									{option.label}
+								</option>
+							))}
+						</select>
+					</label>
+				)}
 
 				{generalMessage(error) === undefined ? null : (
 					<p role="alert" className="text-debt text-sm">

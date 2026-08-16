@@ -1,4 +1,4 @@
-import type { BatchInput, MemberBalance, OffenceType } from '@/lib/types'
+import type { BatchInput, EventParticipant, EventType, MemberBalance, OffenceType } from '@/lib/types'
 
 // Rozepsaná dávka jako plochá mapa (ne zanoření) — jeden klíč = jedna změna v Reactu
 export type Draft = Readonly<Record<string, number>>
@@ -31,6 +31,44 @@ export function changeCount(draft: Draft, membershipId: number, offenceTypeId: n
 
 export function isDraftEmpty(draft: Draft): boolean {
 	return Object.keys(draft).length === 0
+}
+
+/** Pravidlo pro konkrétní druh akce má přednost před „u každé akce" — sazby za trénink a zápas se liší zásadně, špatná volba by strhla jinou částku. */
+function ruleFor(types: readonly OffenceType[], rule: string, eventType: EventType): OffenceType | undefined {
+	const usable = types.filter((type) => type.autoRule === rule && type.archivedAt === null)
+
+	return usable.find((type) => type.autoEventType === eventType) ?? usable.find((type) => type.autoEventType === 'any')
+}
+
+/** Předvyplní návrh z docházky — omluvenou absenci pozná podle `rsvp === 'no'`, zraněné a nezjištěné vynechává; pozdní příchod nelze odvodit. */
+export function suggestFromAttendance(
+	participants: readonly EventParticipant[],
+	types: readonly OffenceType[],
+	eventType: EventType,
+): Draft {
+	const excused = ruleFor(types, 'excused_absence', eventType)
+	const unexcused = ruleFor(types, 'unexcused_absence', eventType)
+
+	if (excused === undefined && unexcused === undefined) return emptyDraft
+
+	const draft: Record<string, number> = {}
+
+	for (const participant of participants) {
+		if (participant.attendance !== 'absent') continue
+
+		// Kdo na soupisce není, tomu se nic nenavrhuje — nemá kde chybět.
+		if (!participant.onRoster) continue
+
+		// Chybí-li odpovídající položka sazebníku, nenavrhne se nic — strhnout špatnou absenci jen proto,
+		// že položka chybí, by bylo horší.
+		const type = participant.rsvp === 'no' ? excused : unexcused
+
+		if (type === undefined) continue
+
+		draft[draftKey(participant.membershipId, type.id)] = 1
+	}
+
+	return draft
 }
 
 export interface DraftItem {
@@ -119,7 +157,7 @@ export function summarizeDraft(
 // expectedAmountCzk chrání před tichým snížením, když se sazebník změní
 export function toBatchInput(
 	summary: DraftSummary,
-	options: { clientUuid: string; occurredOn: string; title: string | null },
+	options: { clientUuid: string; occurredOn: string; title: string | null; eventId?: number | null },
 ): BatchInput {
 	const items = summary.members.flatMap((member) =>
 		member.items.map((item) => ({
@@ -134,6 +172,7 @@ export function toBatchInput(
 		clientUuid: options.clientUuid,
 		occurredOn: options.occurredOn,
 		title: options.title,
+		eventId: options.eventId ?? null,
 		items,
 	}
 }

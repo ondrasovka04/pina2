@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useBlocker } from 'react-router'
+import { useBlocker, useSearchParams } from 'react-router'
 
 import { useTeam } from '@/app/team'
 import { NoSeasonState } from '@/components/NoSeasonState'
@@ -10,13 +10,15 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { ChevronDownIcon, ChevronRightIcon, SearchIcon } from '@/components/ui/icons'
 import { Money } from '@/components/ui/Money'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States'
+import { formatEventTime } from '@/features/events/events'
 import { BatchResult, BatchReview } from '@/features/offences/BatchReview'
-import type { Draft } from '@/features/offences/draft'
+import type { Draft, DraftSummary } from '@/features/offences/draft'
 import {
 	changeCount,
 	draftCount,
 	emptyDraft,
 	isDraftEmpty,
+	suggestFromAttendance,
 	summarizeDraft,
 	toBatchInput,
 } from '@/features/offences/draft'
@@ -24,7 +26,8 @@ import { OffencePicker } from '@/features/offences/OffencePicker'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { players, records } from '@/lib/plural'
-import { useBalances, useCreateBatch, useOffenceTypes } from '@/lib/queries'
+import { useBalances, useCreateBatch, useEvent, useEvents, useOffenceTypes } from '@/lib/queries'
+import { useScrollTopOnChange } from '@/lib/scroll'
 import { matches } from '@/lib/text'
 import type { BatchSummary, MemberBalance, OffenceType, PriceChange } from '@/lib/types'
 import { formatCzk, today } from '@/lib/types'
@@ -37,6 +40,14 @@ export function NewBatchPage() {
 	const balances = useBalances(seasonId)
 	const types = useOffenceTypes(seasonId)
 	const createBatch = useCreateBatch(seasonId ?? 0)
+
+	// Akce může přijít z detailu („Zapsat prohřešky") nebo se vybere tady.
+	const [params] = useSearchParams()
+	const [eventId, setEventId] = useState<number | null>(() => {
+		const raw = Number(params.get('akce'))
+
+		return Number.isInteger(raw) && raw > 0 ? raw : null
+	})
 
 	const [draft, setDraft] = useState<Draft>(emptyDraft)
 	const [openMemberId, setOpenMemberId] = useState<number | null>(null)
@@ -67,6 +78,48 @@ export function NewBatchPage() {
 
 	// Rozepsaná dávka jen v paměti — po odeslání je na serveru
 	const hasDraft = !isDraftEmpty(draft) && step !== 'done'
+
+	const events = useEvents(seasonId)
+	const eventDetail = useEvent(eventId)
+
+	// Nabízí se proběhlé akce od nejnovější — zapisuje se po tréninku, ne před ním.
+	const pastEvents = useMemo(
+		() => (events.data ?? []).filter((event) => event.started && event.status !== 'cancelled').toReversed(),
+		[events.data],
+	)
+
+	// Návrh se jen nabídne, nevloží se sám — ceny tréninku a zápasu se liší i o stovky, tiché doplnění by bylo riskantní.
+	const [suggestionUsed, setSuggestionUsed] = useState(false)
+
+	const suggestion = useMemo(() => {
+		const detail = eventDetail.data
+
+		if (detail === undefined || detail.event.id !== eventId) return emptyDraft
+
+		return suggestFromAttendance(detail.participants, activeTypes, detail.event.type)
+	}, [eventDetail.data, eventId, activeTypes])
+
+	const suggestionSummary = useMemo(
+		() => summarizeDraft(suggestion, members, activeTypes),
+		[suggestion, members, activeTypes],
+	)
+
+	function applySuggestion() {
+		setDraft((current) => {
+			const merged = { ...current }
+
+			// Přičítá se k tomu, co už je naklikané — nic se nepřepisuje.
+			for (const [key, count] of Object.entries(suggestion)) {
+				merged[key] = (merged[key] ?? 0) + count
+			}
+
+			return merged
+		})
+		setSuggestionUsed(true)
+	}
+
+	// Souhrn i potvrzení jsou jiná obrazovka, jen beze změny adresy.
+	useScrollTopOnChange(step)
 
 	const blocker = useBlocker(
 		({ currentLocation, nextLocation }) => hasDraft && currentLocation.pathname !== nextLocation.pathname,
@@ -118,8 +171,21 @@ export function NewBatchPage() {
 		setPriceChanges(null)
 		setSubmitError(null)
 		setOccurredOn(today())
+		setEventId(null)
+		setSuggestionUsed(false)
 		clientUuid.current = crypto.randomUUID()
 		setStep('compose')
+	}
+
+	/** Přepnutí akce zahodí předchozí návrh, ať se dva tréninky nesmíchají. */
+	function chooseEvent(next: number | null) {
+		setEventId(next)
+		setSuggestionUsed(false)
+
+		if (next === null) return
+
+		const chosen = pastEvents.find((event) => event.id === next)
+		if (chosen !== undefined) setOccurredOn(chosen.startsAt.slice(0, 10))
 	}
 
 	async function submit() {
@@ -131,6 +197,7 @@ export function NewBatchPage() {
 					clientUuid: clientUuid.current,
 					occurredOn,
 					title: title.trim() === '' ? null : title.trim(),
+					eventId,
 				}),
 			)
 
@@ -194,27 +261,59 @@ export function NewBatchPage() {
 	return (
 		<>
 			<div className="flex flex-col gap-4">
-				<Card className="flex gap-3 p-4">
-					<label className="flex flex-1 flex-col gap-1.5">
-						<span className="text-ink-muted text-sm font-medium">Datum</span>
-						<input
-							type="date"
-							value={occurredOn}
-							onChange={(event) => setOccurredOn(event.target.value)}
-							className="border-line bg-surface-2 text-ink rounded-xl border px-3 py-2.5 text-base"
+				<Card className="flex flex-col gap-3 p-4">
+					{pastEvents.length === 0 ? null : (
+						<label className="flex flex-col gap-1.5">
+							<span className="text-ink-muted text-sm font-medium">Akce (nepovinná)</span>
+							<select
+								value={eventId ?? ''}
+								onChange={(event) => chooseEvent(event.target.value === '' ? null : Number(event.target.value))}
+								className="border-line bg-surface-2 text-ink min-h-11 rounded-xl border px-3 text-base"
+							>
+								<option value="">Bez akce</option>
+								{pastEvents.map((event) => (
+									<option key={event.id} value={event.id}>
+										{formatEventTime(event.startsAt)} — {event.title}
+									</option>
+								))}
+							</select>
+							{eventId === null ? (
+								<span className="text-ink-faint text-xs">Podle vybrané akce nabídneme zápis za ty, kdo chyběli.</span>
+							) : null}
+						</label>
+					)}
+
+					{eventId === null ? null : (
+						<SuggestionPrompt
+							summary={suggestionSummary}
+							used={suggestionUsed}
+							loading={eventDetail.isPending}
+							onApply={applySuggestion}
 						/>
-					</label>
-					<label className="flex flex-2 flex-col gap-1.5">
-						<span className="text-ink-muted text-sm font-medium">Popis (nepovinný)</span>
-						<input
-							type="text"
-							value={title}
-							onChange={(event) => setTitle(event.target.value)}
-							placeholder="Trénink, zápas s Benátkami…"
-							maxLength={120}
-							className="border-line bg-surface-2 text-ink placeholder:text-ink-faint rounded-xl border px-3 py-2.5 text-base"
-						/>
-					</label>
+					)}
+
+					<div className="flex gap-3">
+						<label className="flex flex-1 flex-col gap-1.5">
+							<span className="text-ink-muted text-sm font-medium">Datum</span>
+							<input
+								type="date"
+								value={occurredOn}
+								onChange={(event) => setOccurredOn(event.target.value)}
+								className="border-line bg-surface-2 text-ink rounded-xl border px-3 py-2.5 text-base"
+							/>
+						</label>
+						<label className="flex flex-2 flex-col gap-1.5">
+							<span className="text-ink-muted text-sm font-medium">Popis (nepovinný)</span>
+							<input
+								type="text"
+								value={title}
+								onChange={(event) => setTitle(event.target.value)}
+								placeholder="Trénink, zápas s Benátkami…"
+								maxLength={120}
+								className="border-line bg-surface-2 text-ink placeholder:text-ink-faint rounded-xl border px-3 py-2.5 text-base"
+							/>
+						</label>
+					</div>
 				</Card>
 
 				<div className="flex items-center justify-between gap-3">
@@ -278,6 +377,75 @@ export function NewBatchPage() {
 	)
 }
 
+/** Tlačítko schválně, ne tiché doplnění — rozdíl mezi omluveným tréninkem a zápasem bývá stovky korun, pínař musí vidět, co se chystá. */
+function SuggestionPrompt({
+	summary,
+	used,
+	loading,
+	onApply,
+}: {
+	summary: DraftSummary
+	used: boolean
+	loading: boolean
+	onApply: () => void
+}) {
+	if (loading) {
+		return <p className="text-ink-faint px-1 text-sm">Načítám docházku…</p>
+	}
+
+	if (summary.recordCount === 0) {
+		return (
+			<p className="text-ink-faint px-1 text-sm">
+				Podle docházky není co navrhnout. Buď dorazili všichni, nebo v sazebníku není označené, čím se absence zapisuje.
+			</p>
+		)
+	}
+
+	if (used) {
+		return <p className="text-ink-faint px-1 text-sm">Návrh z docházky je doplněný — dál to upravte, jak chcete.</p>
+	}
+
+	const names = summary.members.map((member) => member.name)
+
+	return (
+		<div className="border-line bg-surface-2 flex flex-col gap-2 rounded-xl border p-3">
+			<p className="text-sm font-medium">Podle docházky chyběli: {names.join(', ')}</p>
+			<ul className="text-ink-muted flex flex-col gap-0.5 text-sm">
+				{groupSuggestion(summary).map((line) => (
+					<li key={line.name}>
+						{line.count}× {line.name} — <Money czk={line.totalCzk} />
+					</li>
+				))}
+			</ul>
+			<div className="flex flex-wrap items-center gap-3">
+				<Button variant="accent" onClick={onApply}>
+					Doplnit do zápisu
+				</Button>
+				<span className="text-ink-faint text-sm">
+					celkem <Money czk={summary.totalCzk} />
+				</span>
+			</div>
+		</div>
+	)
+}
+
+/** Návrh po prohřešcích, ne po lidech — jsou to dvě položky, ne dvacet řádků. */
+function groupSuggestion(summary: DraftSummary): Array<{ name: string; count: number; totalCzk: number }> {
+	const byName = new Map<string, { name: string; count: number; totalCzk: number }>()
+
+	for (const member of summary.members) {
+		for (const item of member.items) {
+			const line = byName.get(item.name) ?? { name: item.name, count: 0, totalCzk: 0 }
+
+			line.count += item.count
+			line.totalCzk += item.totalCzk
+			byName.set(item.name, line)
+		}
+	}
+
+	return [...byName.values()]
+}
+
 interface MemberComposeRowProps {
 	member: MemberBalance
 	types: OffenceType[]
@@ -288,11 +456,7 @@ interface MemberComposeRowProps {
 	onRemove: (offenceTypeId: number) => void
 }
 
-/**
- * Řádek hráče, který se rozbalí do sazebníku. Otevřený je vždycky nejvýš jeden —
- * pínař řeší jednoho člověka a pak jde dál, a dva otevřené seznamy by z obrazovky
- * udělaly nepřehlednou zeď.
- */
+/** Otevřený je vždy nejvýš jeden — dva rozbalené seznamy najednou by byly nepřehledná zeď. */
 function MemberComposeRow({ member, types, draft, open, onToggle, onAdd, onRemove }: MemberComposeRowProps) {
 	const picked = types
 		.map((type) => ({ type, count: draftCount(draft, member.membershipId, type.id) }))
