@@ -255,10 +255,27 @@ archived_at DATETIME NULL
 `auto_rule` — nový koncept: prohřešek, který systém navrhne sám z docházky
 (neomluvená absence → automaticky navržený zápis, který pínař jen potvrdí).
 
-**Kopírování sazebníku:** data ukazují 262 položek, ale jen 171 unikátních kombinací
-tým+název — sazebník se každou sezónu zakládá ručně znovu. Při vytvoření sezóny proto
-nabídnout **převzetí sazebníku z předchozí sezóny téhož týmu** (nebo z jiného družstva)
-s hromadnou úpravou cen. `POST /api/v1/seasons/{s}/offence-types/copy-from/{sourceSeasonId}`.
+**Průvodce „nová sezóna z předchozí".** Data ukazují 262 položek sazebníku, ale jen 171
+unikátních kombinací tým+název — každou sezónu se všechno zakládá ručně znovu. Na konci
+sezóny proto průvodce nabídne převzetí všeho kromě zápisů:
+
+| Co se přenáší | Jak |
+|---|---|
+| Sazebník prohřešků | zaškrtávací pole u položek + hromadná úprava cen |
+| Soupiska hráčů | **zaškrtávací pole: kdo pokračuje**, kdo v týmu končí |
+| Opakované tréninky (série) | převzít s posunutými daty platnosti |
+| Místa | sdílená přes klub, kopírovat netřeba |
+| **Zápisy prohřešků, docházka, platby** | **nepřenášejí se** — nová sezóna začíná na nule |
+
+Nepokračující hráči zůstávají v `membership` (kvůli historii), jen nedostanou
+`roster_entry` v nové sezóně.
+
+```
+POST /api/v1/teams/{team}/seasons/from/{sourceSeasonId}
+     { name, starts_on, ends_on, copy: { offence_types: [...], members: [...], series: bool } }
+```
+
+Implementovat s F2, kdy už budou hotové všechny kopírované části.
 
 **`offence_batch`** — jedna zapisovací seance („prohřešky za trénink 16. 9.").
 Existuje proto, aby šlo zobrazit souhrn před odesláním, poslat **jedno** oznámení

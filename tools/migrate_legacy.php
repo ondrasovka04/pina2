@@ -31,7 +31,9 @@ const CLUB_NAMES = [
 /** Starý „superadmin“ byl natvrdo uživatel s id 1. */
 const LEGACY_PLATFORM_ADMIN_ID = 1;
 
-$dryRun = in_array('--dry-run', $argv, true);
+/** @var list<string> $args */
+$args   = $argv ?? [];
+$dryRun = in_array('--dry-run', $args, true);
 
 $dsn = sprintf('mysql:host=%s;dbname=%s;charset=utf8mb4', env('DB_HOST', 'db'), env('DB_NAME', 'pina'));
 $pdo = new PDO($dsn, env('DB_USER', 'pina'), env('DB_PASSWORD', 'pina'), [
@@ -85,11 +87,14 @@ function migrateClubs(PDO $pdo): array
     return $out;
 }
 
-/** @return array<int,int> Tym.id => team.id */
+/**
+ * @param  array<string,int> $clubs slug => club.id
+ * @return array<int,int>   Tym.id => team.id
+ */
 function migrateTeams(PDO $pdo, string $legacy, array $clubs): array
 {
     $out = [];
-    foreach ($pdo->query("SELECT id, nazev FROM `$legacy`.Tym ORDER BY id") as $row) {
+    foreach (rows($pdo, "SELECT id, nazev FROM `$legacy`.Tym ORDER BY id") as $row) {
         $legacyId = (int) $row['id'];
         $slug     = CLUB_MAP[$legacyId] ?? throw new RuntimeException("Tým $legacyId nemá přiřazený klub v CLUB_MAP");
         $clubId   = $clubs[$slug];
@@ -115,7 +120,7 @@ function migrateUsers(PDO $pdo, string $legacy): array
          ON DUPLICATE KEY UPDATE display_name = VALUES(display_name), id = LAST_INSERT_ID(id)'
     );
 
-    foreach ($pdo->query("SELECT id, jmeno, email FROM `$legacy`.Uzivatel ORDER BY id") as $row) {
+    foreach (rows($pdo, "SELECT id, jmeno, email FROM `$legacy`.Uzivatel ORDER BY id") as $row) {
         $legacyId = (int) $row['id'];
         $email    = trim((string) $row['email']);
         if ($email === '') {
@@ -131,13 +136,14 @@ function migrateUsers(PDO $pdo, string $legacy): array
 }
 
 /**
- * Členství = UzivatelTym. Role se odvozuje z Uzivatel.admin (id spravovaného týmu).
- * @return array<string,int> "legacyUserId:legacyTeamId" => membership.id
+ * @param  array<int,int>    $users
+ * @param  array<int,int>    $teams
+ * @return array<string,int>
  */
 function migrateMemberships(PDO $pdo, string $legacy, array $users, array $teams): array
 {
     $adminOf = [];
-    foreach ($pdo->query("SELECT id, admin FROM `$legacy`.Uzivatel WHERE admin IS NOT NULL") as $row) {
+    foreach (rows($pdo, "SELECT id, admin FROM `$legacy`.Uzivatel WHERE admin IS NOT NULL") as $row) {
         $adminOf[(int) $row['id']] = (int) $row['admin'];
     }
 
@@ -148,7 +154,7 @@ function migrateMemberships(PDO $pdo, string $legacy, array $users, array $teams
          ON DUPLICATE KEY UPDATE role = VALUES(role), status = VALUES(status), id = LAST_INSERT_ID(id)'
     );
 
-    $rows = $pdo->query("SELECT idUzivatel, idTym, pozastaven FROM `$legacy`.UzivatelTym ORDER BY idUzivatel, idTym");
+    $rows = rows($pdo, "SELECT idUzivatel, idTym, pozastaven FROM `$legacy`.UzivatelTym ORDER BY idUzivatel, idTym");
     foreach ($rows as $row) {
         $lu = (int) $row['idUzivatel'];
         $lt = (int) $row['idTym'];
@@ -167,7 +173,7 @@ function migrateMemberships(PDO $pdo, string $legacy, array $users, array $teams
     // Stará DB neměla funkční cizí klíče, takže existují zápisy a soupisky pro dvojice
     // hráč+tým, které v UzivatelTym chybí (hráč byl z týmu odebrán, jeho data zůstala).
     // Aby se historie neztratila, členství se dopočítá a označí jako 'left'.
-    $orphans = $pdo->query(
+    $orphans = rows($pdo,
         "SELECT DISTINCT idUzivatel, idTym FROM (
              SELECT idUzivatel, idTym FROM `$legacy`.Prohresek
              UNION SELECT idUzivatel, idTym FROM `$legacy`.UzivatelSezona
@@ -194,7 +200,10 @@ function migrateMemberships(PDO $pdo, string $legacy, array $users, array $teams
     return $out;
 }
 
-/** @return array<string,int> "legacySezonaId|legacyTymId" => season.id */
+/**
+ * @param  array<int,int>    $teams
+ * @return array<string,int>
+ */
 function migrateSeasons(PDO $pdo, string $legacy, array $teams): array
 {
     $out = [];
@@ -205,7 +214,7 @@ function migrateSeasons(PDO $pdo, string $legacy, array $teams): array
     );
     $today = date('Y-m-d');
 
-    $rows = $pdo->query("SELECT id, idTym, DatumOd, DatumDo FROM `$legacy`.Sezona ORDER BY idTym, DatumOd");
+    $rows = rows($pdo, "SELECT id, idTym, DatumOd, DatumDo FROM `$legacy`.Sezona ORDER BY idTym, DatumOd");
     foreach ($rows as $row) {
         $lt = (int) $row['idTym'];
         if (!isset($teams[$lt])) {
@@ -224,6 +233,10 @@ function migrateSeasons(PDO $pdo, string $legacy, array $teams): array
     return $out;
 }
 
+/**
+ * @param array<string,int> $seasons
+ * @param array<string,int> $memberships
+ */
 function migrateRoster(PDO $pdo, string $legacy, array $seasons, array $memberships): void
 {
     $ins = $pdo->prepare(
@@ -231,7 +244,7 @@ function migrateRoster(PDO $pdo, string $legacy, array $seasons, array $membersh
     );
     $n = $skipped = 0;
 
-    $rows = $pdo->query("SELECT idTym, idUzivatel, idSezona FROM `$legacy`.UzivatelSezona");
+    $rows = rows($pdo, "SELECT idTym, idUzivatel, idSezona FROM `$legacy`.UzivatelSezona");
     foreach ($rows as $row) {
         $seasonId     = $seasons[$row['idSezona'] . '|' . (int) $row['idTym']] ?? null;
         $membershipId = $memberships[(int) $row['idUzivatel'] . ':' . (int) $row['idTym']] ?? null;
@@ -245,7 +258,10 @@ function migrateRoster(PDO $pdo, string $legacy, array $seasons, array $membersh
     info("soupisky: $n" . ($skipped ? " (přeskočeno $skipped osiřelých)" : ''));
 }
 
-/** @return array<int,int> ProhreskySeznam.id => offence_type.id */
+/**
+ * @param  array<string,int> $seasons
+ * @return array<int,int>
+ */
 function migrateOffenceTypes(PDO $pdo, string $legacy, array $seasons): array
 {
     $out = [];
@@ -256,7 +272,7 @@ function migrateOffenceTypes(PDO $pdo, string $legacy, array $seasons): array
     );
     $skipped = 0;
 
-    $rows = $pdo->query("SELECT id, idSezona, idTym, nazev, castka, poradi FROM `$legacy`.ProhreskySeznam ORDER BY id");
+    $rows = rows($pdo, "SELECT id, idSezona, idTym, nazev, castka, poradi FROM `$legacy`.ProhreskySeznam ORDER BY id");
     foreach ($rows as $row) {
         $seasonId = $seasons[$row['idSezona'] . '|' . (int) $row['idTym']] ?? null;
         if ($seasonId === null) {
@@ -280,10 +296,15 @@ function migrateOffenceTypes(PDO $pdo, string $legacy, array $seasons): array
  * Zápisy prohřešků. Částka se bere ze sazebníku TÉŽE sezóny → historicky přesná,
  * protože starý model vedl ceny per sezónu.
  */
+/**
+ * @param array<string,int> $seasons
+ * @param array<string,int> $memberships
+ * @param array<int,int>    $types
+ */
 function migrateOffences(PDO $pdo, string $legacy, array $seasons, array $memberships, array $types): void
 {
     $amounts = [];
-    foreach ($pdo->query('SELECT legacy_id, amount_czk FROM offence_type WHERE legacy_id IS NOT NULL') as $row) {
+    foreach (rows($pdo, 'SELECT legacy_id, amount_czk FROM offence_type WHERE legacy_id IS NOT NULL') as $row) {
         $amounts[(int) $row['legacy_id']] = (int) $row['amount_czk'];
     }
 
@@ -294,11 +315,11 @@ function migrateOffences(PDO $pdo, string $legacy, array $seasons, array $member
          ON DUPLICATE KEY UPDATE amount_czk = VALUES(amount_czk)'
     );
 
-    $total = (int) $pdo->query("SELECT COUNT(*) FROM `$legacy`.Prohresek")->fetchColumn();
+    $total = (int) stmt($pdo, "SELECT COUNT(*) FROM `$legacy`.Prohresek")->fetchColumn();
     $done = $skipped = 0;
 
     for ($offset = 0; $offset < $total; $offset += BATCH) {
-        $rows = $pdo->query(
+        $rows = rows($pdo, 
             "SELECT id, idProhresek, idUzivatel, idTym, idSezona, Datum
              FROM `$legacy`.Prohresek ORDER BY id LIMIT " . BATCH . " OFFSET $offset"
         );
@@ -340,6 +361,27 @@ function paymentReference(int $teamId, int $userId): string
     return $base . ($sum % 11 % 10);
 }
 
+/** @param array<int,scalar> $params */
+/**
+ * PDO s ERRMODE_EXCEPTION nikdy nevrátí false, ale staticky se to ověřit nedá.
+ */
+function stmt(PDO $pdo, string $sql): PDOStatement
+{
+    $statement = $pdo->query($sql);
+    if ($statement === false) {
+        throw new RuntimeException("Dotaz selhal: $sql");
+    }
+
+    return $statement;
+}
+
+/** @return iterable<array<string,mixed>> */
+function rows(PDO $pdo, string $sql): iterable
+{
+    return stmt($pdo, $sql);
+}
+
+/** @param list<scalar> $params */
 function fetchOne(PDO $pdo, string $sql, array $params): ?string
 {
     $st = $pdo->prepare($sql);

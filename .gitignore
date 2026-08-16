@@ -19,7 +19,9 @@ build/
 .vite/
 
 # Nástroje
+.phpunit.cache/
 .phpunit.result.cache
+.php-cs-fixer.cache
 .phpstan/
 coverage/
 

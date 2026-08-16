@@ -36,15 +36,15 @@ $counts = [
 
 echo "POČTY ZÁZNAMŮ\n";
 foreach ($counts as $label => [$oldSql, $newSql]) {
-    $old = (int) $pdo->query($oldSql)->fetchColumn();
-    $cur = (int) $pdo->query($newSql)->fetchColumn();
+    $old = (int) stmt($pdo, $oldSql)->fetchColumn();
+    $cur = (int) stmt($pdo, $newSql)->fetchColumn();
     report($label, $old, $cur, $failed);
 }
 
 // Členství: nová DB má navíc dopočtené bývalé členy, proto se porovnává jen podmnožina.
-$oldMemberships = (int) $pdo->query("SELECT COUNT(*) FROM `$legacy`.UzivatelTym")->fetchColumn();
-$newMemberships = (int) $pdo->query("SELECT COUNT(*) FROM `$new`.membership")->fetchColumn();
-$recovered      = (int) $pdo->query("SELECT COUNT(*) FROM `$new`.membership WHERE status = 'left'")->fetchColumn();
+$oldMemberships = (int) stmt($pdo, "SELECT COUNT(*) FROM `$legacy`.UzivatelTym")->fetchColumn();
+$newMemberships = (int) stmt($pdo, "SELECT COUNT(*) FROM `$new`.membership")->fetchColumn();
+$recovered      = (int) stmt($pdo, "SELECT COUNT(*) FROM `$new`.membership WHERE status = 'left'")->fetchColumn();
 printf("  %-28s %6d → %6d  %s\n", 'členství', $oldMemberships, $newMemberships,
     $newMemberships - $oldMemberships === $recovered ? "OK (+$recovered dopočtených)" : 'NESEDÍ');
 if ($newMemberships - $oldMemberships !== $recovered) {
@@ -55,7 +55,7 @@ if ($newMemberships - $oldMemberships !== $recovered) {
 
 echo "\nSOUČTY ČÁSTEK PO SEZÓNÁCH\n";
 
-$newSums = $pdo->query(
+$newSums = stmt($pdo, 
     "SELECT s.legacy_key AS k, COUNT(*) AS n, SUM(o.amount_czk) AS suma
      FROM `$new`.offence_record o
      JOIN `$new`.season s ON s.id = o.season_id
@@ -68,7 +68,7 @@ foreach ($newSums as $row) {
     $newByKey[$row['k']] = $row;
 }
 
-$oldByKey = $pdo->query(
+$oldByKey = stmt($pdo, 
     "SELECT CONCAT(p.idSezona, '|', p.idTym) AS k, COUNT(*) AS n, SUM(ps.castka) AS suma
      FROM `$legacy`.Prohresek p
      JOIN `$legacy`.ProhreskySeznam ps ON ps.id = p.idProhresek
@@ -90,7 +90,7 @@ foreach ($oldByKey as $row) {
 
 echo "\nSOUČTY PO HRÁČÍCH\n";
 
-$mismatch = $pdo->query(
+$mismatch = stmt($pdo, 
     "SELECT u.legacy_id, u.display_name, o.stary, o.novy
      FROM (
          SELECT m.user_id,
@@ -109,7 +109,7 @@ $mismatch = $pdo->query(
 )->fetchAll();
 
 if ($mismatch === []) {
-    $total = (int) $pdo->query("SELECT SUM(amount_czk) FROM `$new`.offence_record WHERE voided_at IS NULL")->fetchColumn();
+    $total = (int) stmt($pdo, "SELECT SUM(amount_czk) FROM `$new`.offence_record WHERE voided_at IS NULL")->fetchColumn();
     printf("  všichni hráči sedí (celkem %s Kč napříč všemi sezónami)\n", number_format($total, 0, ',', ' '));
 } else {
     foreach ($mismatch as $row) {
@@ -129,7 +129,7 @@ $checks = [
     'sezóny bez týmu'             => "SELECT COUNT(*) FROM `$new`.season s LEFT JOIN `$new`.team t ON t.id = s.team_id WHERE t.id IS NULL",
 ];
 foreach ($checks as $label => $sql) {
-    $n = (int) $pdo->query($sql)->fetchColumn();
+    $n = (int) stmt($pdo, $sql)->fetchColumn();
     printf("  %-28s %s\n", $label, $n === 0 ? 'OK' : "*** $n ***");
     if ($n !== 0) {
         $failed = true;
@@ -138,6 +138,19 @@ foreach ($checks as $label => $sql) {
 
 echo "\n" . ($failed ? "VÝSLEDEK: nalezeny rozdíly\n" : "VÝSLEDEK: vše sedí\n");
 exit($failed ? 1 : 0);
+
+/**
+ * PDO s ERRMODE_EXCEPTION nikdy nevrátí false, ale staticky se to ověřit nedá.
+ */
+function stmt(PDO $pdo, string $sql): PDOStatement
+{
+    $statement = $pdo->query($sql);
+    if ($statement === false) {
+        throw new RuntimeException("Dotaz selhal: $sql");
+    }
+
+    return $statement;
+}
 
 function report(string $label, int $old, int $new, bool &$failed): void
 {

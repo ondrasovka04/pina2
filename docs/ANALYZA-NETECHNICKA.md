@@ -126,6 +126,16 @@ v aplikaci v seznamu oznámení. Každý si sám nastaví, co chce dostávat.
   prohřešek, přepsala se tím i historie a lidem se zpětně změnily dluhy.
 - **Prohřešek se dá navázat na konkrétní akci** — "pozdní příchod na trénink 12. 9."
 
+### Nová sezóna jedním průvodcem
+Když sezóna skončí, nechceš zakládat všechno znovu. Průvodce převezme z minulé sezóny:
+
+- **sazebník** — zaškrtneš, co zůstává, a rovnou upravíš ceny,
+- **soupisku** — u každého hráče zaškrtávací pole „pokračuje / končí",
+- **pravidelné tréninky** (úterý a čtvrtek v 19:00).
+
+**Zapsané prohřešky se nepřenášejí** — nová sezóna začíná všem na nule. Kdo v týmu
+skončil, zůstane v historii, jen už není na soupisce.
+
 ### Přehledy
 - Moje prohřešky: co, kdy, za kolik, kolik celkem dlužím.
 - Tabulka celého týmu: řádky hráči, sloupce prohřešky, součet.
