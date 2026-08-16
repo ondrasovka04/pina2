@@ -434,9 +434,18 @@ id, season_id FK, membership_id FK, event_id FK NULL, occurred_on DATE,
 distance_km SMALLINT, rate_czk_km DECIMAL(5,2),   -- snapshot sazby
 amount_czk INT, passengers TINYINT NULL, settlement_id FK NULL, voided_at
 ```
-`distance_km` se předvyplní z `event.distance_km` (vzdálenost tam a zpět), takže
-řidič jen potvrdí. Sazba se ukládá jako snapshot — pozdější zdražení nepřepíše
-už vyúčtované období.
+
+Pravidla (potvrzená týmem 16. 8. 2026):
+- **Nárok má výhradně řidič** (`event_participant.transport = 'driver'`).
+  Spolujezdci nedostávají nic, `passengers` je jen informativní údaj o tom, koho vezl.
+- **Pouze zápasy.** U tréninků náhrada nevzniká; ruční doplnění zůstává možné
+  pro výjimky (turnaj, soustředění).
+- **Vzdálenost = domácí hala → hala soupeře.** Bere se z `team_settings.home_location_id`
+  a `event.location_id`; `event.distance_km` drží jednosměrnou hodnotu.
+- **Výchozí výpočet:** `amount = distance_km × 2 × rate` (cesta tam i zpět).
+  Přepínač `team_settings.travel_round_trip` umožní počítat jen jeden směr.
+
+Sazba se ukládá jako snapshot — pozdější zdražení nepřepíše už vyúčtované období.
 
 **`settlement` + `settlement_line`** — uzávěrka období (typicky pololetí).
 Sečte prohřešky, bonusy, cesťáky a platby a vyčíslí, kdo komu kolik dluží:
@@ -552,24 +561,33 @@ Pro start může být za schválením platform admina (tebe), aby systém nezapl
 | Vidět svůj přehled prohřešků a dluh | ✓ | ✓ | ✓ | ✓ |
 | Vidět přehled celého týmu | ✓ | ✓ | ✓ | ✓ |
 | Vidět kalendář a detail akce | ✓ | ✓ | ✓ | ✓ |
-| Odpovědět na nominaci (RSVP) | ✓ | ✓ | ✓ | — |
-| Vidět procenta účasti spoluhráčů | ✓* | ✓ | ✓ | ✓ |
+| Zaklikat účast (RSVP) a „jedu autem" | ✓ | ✓ | ✓ | — |
+| Vidět vlastní docházku a účast | ✓ | ✓ | ✓ | ✓ |
+| Vidět docházku spoluhráčů | — | ✓ | ✓ | ✓ |
+| **Vidět procenta účasti a žebříčky** | — | — | ✓ | ✓ |
 | **Zapsat / stornovat prohřešek** | — | ✓ | ✓ | — |
 | **Označit platbu jako přijatou** | — | ✓ | ✓ | — |
-| Zapsat docházku u akce | — | ✓ | ✓ | — |
+| **Uzavřít zúčtovací období** | — | ✓ | ✓ | — |
+| Zadat cestovní náhradu za jiného | — | ✓ | ✓ | — |
+| Opravit docházku u akce | — | ✓ | ✓ | — |
 | Vytvořit / upravit akci, sérii, místo | — | — | ✓ | — |
-| Sestavit nominaci | — | — | ✓ | — |
+| Sestavit nominaci (jen zápasy) | — | — | ✓ | — |
 | Spravovat sazebník prohřešků | — | — | ✓ | — |
 | Spravovat sezóny (založit, uzavřít) | — | — | ✓ | — |
 | Pozvat hráče, měnit role, pozastavit | — | — | ✓ | — |
 | Nastavení klubu, bankovní účet | — | — | ✓ | — |
 | Zakládat a mazat kluby | — | — | — | ✓ |
 
-\* konfigurovatelné v nastavení klubu — někde je veřejná tabulka účasti motivace,
-jinde citlivá věc.
-
 Hierarchie: `admin ⊃ treasurer ⊃ player`. Admin tedy nepotřebuje druhou roli, aby si
 mohl zapsat vlastní prohřešek.
+
+Za povšimnutí stojí nesymetrie u docházky a peněz. **Dluhy jsou veřejné všem**
+(„to je prdel"), zatímco **docházka ostatních je pro hráče neviditelná** a souhrnná
+procenta vidí jen admin. Tohle není technické rozhodnutí, ale explicitní přání týmu —
+pína je legrace, docházka je citlivější věc.
+
+**Zúčtovací období uzavírá pínař**, ne admin. Odpovídá to skutečnosti, že pínař
+je ten, kdo peníze reálně spravuje.
 
 **Vynucení v kódu** — middleware, ne `if` roztroušené po controllerech:
 ```php

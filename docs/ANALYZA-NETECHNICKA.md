@@ -211,12 +211,16 @@ Nově to bude pořádně:
 
 - U zápasu venku hráč zaklikne, že **jede autem** (a kolik má volných míst —
   poslouží to zároveň k domluvě odvozů).
-- Aplikace zná vzdálenost a **sazbu za kilometr**, kterou si tým nastaví sám.
-- Z toho spočítá, kolik komu tým dluží.
+- Aplikace zná vzdálenost od domácí haly k hale soupeře a **sazbu za kilometr**,
+  kterou si tým nastaví sám. Počítá se cesta tam i zpět.
+- Náhradu dostane **jen řidič**. Spolujezdci nic — jestli se mu složí na benzín,
+  je věc dohody v autě, ne aplikace.
+- Platí to **jen pro zápasy**, u tréninků žádný nárok nevzniká.
 
-Na konci období — typicky **po půlce sezóny**, jak to děláte teď — se udělá
-**zúčtování**: sečtou se prohřešky, bonusy, cesťáky i zaplacené částky a vyjde
-jediné číslo. Kdo je v mínusu, doplácí; komu tým dluží za odvozy, tomu se to proplatí.
+Na konci období — typicky **po půlce sezóny**, jak to děláte teď — **pínař uzavře
+zúčtování**: sečtou se prohřešky, bonusy, cesťáky i zaplacené částky a vyjde jediné
+číslo. Kdo je v mínusu, doplácí; komu tým dluží za odvozy, tomu se to proplatí.
+Uzavřené období se pak už nemění, i kdyby se později upravil sazebník.
 
 Z píny se tím stává **obousměrná pokladna** — dosud uměla jen vybírat.
 
@@ -307,17 +311,21 @@ a to, jestli se ke zkoušení přidá MFF nebo Modřany.
 
 ## 9. Na co ještě potřebuju názor
 
-Zbývá dořešit hlavně kolem cesťáků, protože tam je nejvíc variant:
+Cesťáky jsou dořešené, pravidla vypadají takto:
 
-1. **Kdo zadává kilometry?** Aplikace může znát vzdálenost k hale a předvyplnit ji,
-   ale někdo jede oklikou pro spoluhráče. Má řidič vzdálenost upravovat, nebo se
-   drží pevná sazba za zápas?
-2. **Počítá se náhrada na auto, nebo na hráče?** Když jedou tři lidi jedním autem,
-   dostane náhradu jen řidič (a spolujezdci se mu skládají), nebo se to dělí?
-3. **Platí to samé pro tréninky?** Nebo jen pro zápasy venku?
-4. **Kdy se zúčtování uzavírá** a kdo ho spouští — admin, nebo pínař?
-5. **Bonusy** („MVP extraligy", „Vánoce −200") — mají zůstat v jednom seznamu
-   s pokutami, nebo mít vlastní záložku?
+| | |
+|---|---|
+| Kilometry | vzdálenost od domácí haly k hale soupeře, počítá se cesta tam i zpět |
+| Kdo dostane náhradu | **jen řidič**; spolujezdci nic |
+| Kdy vzniká | **pouze u zápasů**, ne u tréninků |
+| Kdo uzavírá zúčtování | **pínař** |
+| Bonusy | zůstávají v jednom seznamu s pokutami, jen barevně odlišené |
+
+Tým si nastaví svou **domácí halu** a **sazbu za kilometr**, zbytek už aplikace
+spočítá sama z toho, kdo u zápasu zaklikl „jedu autem".
+
+Zbývá jediné, a to se stejně nejlíp ukáže až v provozu: jestli má řidič moct
+předvyplněnou vzdálenost ručně upravit, když jede oklikou pro spoluhráče.
 
 ---
 
