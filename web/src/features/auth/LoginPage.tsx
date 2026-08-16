@@ -1,11 +1,13 @@
 import type { SubmitEvent } from 'react'
 import { useState } from 'react'
+import { Link } from 'react-router'
 
 import { useSession } from '@/app/session'
 import { ClubMark } from '@/components/ClubMark'
 import { Button } from '@/components/ui/Button'
 import { Field } from '@/components/ui/Field'
 import { ApiError } from '@/lib/api'
+import { emailError, requiredError } from '@/lib/validation'
 
 export function LoginPage() {
 	const { signIn } = useSession()
@@ -16,14 +18,20 @@ export function LoginPage() {
 
 	async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
 		event.preventDefault()
+
+		const invalid = emailError(email) ?? requiredError(password, 'Vyplňte heslo.')
+		if (invalid !== undefined) {
+			setError(invalid)
+
+			return
+		}
+
 		setError(null)
 		setSubmitting(true)
 
 		try {
 			await signIn(email.trim(), password)
 		} catch (cause) {
-			// Server záměrně nerozlišuje neznámý e-mail od špatného hesla,
-			// takže se jeho hláška jen ukáže tak, jak přišla.
 			setError(
 				cause instanceof ApiError
 					? cause.message
@@ -35,7 +43,6 @@ export function LoginPage() {
 
 	return (
 		<main className="relative grid min-h-dvh place-items-center overflow-hidden px-5 py-10">
-			{/* Modrá záře shora — jinak by byla plocha jen plochý tmavý obdélník. */}
 			<div
 				aria-hidden="true"
 				className="from-brand-500/25 pointer-events-none absolute inset-x-0 top-0 h-80 bg-radial to-transparent to-70%"
@@ -50,7 +57,7 @@ export function LoginPage() {
 					</div>
 				</div>
 
-				<form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-4">
+				<form onSubmit={handleSubmit} noValidate className="mt-8 flex flex-col gap-4">
 					<Field
 						label="E-mail"
 						type="email"
@@ -60,7 +67,6 @@ export function LoginPage() {
 						autoComplete="email"
 						inputMode="email"
 						autoCapitalize="off"
-						required
 					/>
 					<Field
 						label="Heslo"
@@ -69,7 +75,6 @@ export function LoginPage() {
 						value={password}
 						onChange={(event) => setPassword(event.target.value)}
 						autoComplete="current-password"
-						required
 					/>
 
 					{error === null ? null : (
@@ -83,9 +88,13 @@ export function LoginPage() {
 					</Button>
 				</form>
 
-				<p className="text-ink-faint mt-8 text-center text-xs">
-					Přístup zakládá pínař nebo admin týmu. Zapomenuté heslo řeší zatím taky oni.
+				<p className="mt-6 text-center text-sm">
+					<Link to="/zapomenute-heslo" className="text-accent">
+						Zapomenuté heslo?
+					</Link>
 				</p>
+
+				<p className="text-ink-faint mt-8 text-center text-xs">Přístup do aplikace zakládá admin družstva.</p>
 			</div>
 		</main>
 	)

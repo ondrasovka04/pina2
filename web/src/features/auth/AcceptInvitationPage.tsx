@@ -1,23 +1,19 @@
-import type { ReactNode, SubmitEvent } from 'react'
+import type { SubmitEvent } from 'react'
 import { useState } from 'react'
-import { Link, useSearchParams } from 'react-router'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 
 import { useSession } from '@/app/session'
-import { ClubMark } from '@/components/ClubMark'
 import { Button } from '@/components/ui/Button'
 import { Field } from '@/components/ui/Field'
+import { AuthShell } from '@/features/auth/AuthShell'
 import { ApiError } from '@/lib/api'
+import { requiredError } from '@/lib/validation'
 
-/**
- * Přijetí pozvánky i aktivace stávajícího účtu — z pohledu serveru je to tatáž
- * věc, jen jednou už členství existuje a podruhé vznikne. Uživateli je to jedno:
- * vyplní jméno a heslo a je uvnitř.
- *
- * Stránka je veřejná; token nese celé oprávnění, takže se sem chodí bez přihlášení.
- */
+// Pozvánka i aktivace jsou pro server totéž. Stránka je veřejná, oprávnění nese token.
 export function AcceptInvitationPage() {
 	const [params] = useSearchParams()
-	const { acceptInvitation } = useSession()
+	const { acceptInvitation, user } = useSession()
+	const navigate = useNavigate()
 	const token = params.get('token') ?? ''
 
 	const [name, setName] = useState('')
@@ -32,6 +28,22 @@ export function AcceptInvitationPage() {
 		setError(null)
 		setField(undefined)
 
+		const missingName = requiredError(name, 'Vyplňte jméno.')
+		if (missingName !== undefined) {
+			setError(missingName)
+			setField('name')
+
+			return
+		}
+
+		const missingPassword = requiredError(password, 'Vyplňte heslo.')
+		if (missingPassword !== undefined) {
+			setError(missingPassword)
+			setField('password')
+
+			return
+		}
+
 		if (password !== repeat) {
 			setError('Hesla se neshodují.')
 			setField('repeat')
@@ -43,6 +55,8 @@ export function AcceptInvitationPage() {
 
 		try {
 			await acceptInvitation(token, password, name.trim())
+			// Bez přesměrování by formulář visel s točícím se kolečkem
+			await navigate('/dluhy', { replace: true })
 		} catch (cause) {
 			setError(cause instanceof ApiError ? cause.message : 'Pozvánku se nepodařilo přijmout.')
 			setField(cause instanceof ApiError ? cause.field : undefined)
@@ -52,7 +66,7 @@ export function AcceptInvitationPage() {
 
 	if (token === '') {
 		return (
-			<Shell>
+			<AuthShell>
 				<h1 className="text-xl font-semibold">Odkaz není úplný</h1>
 				<p className="text-ink-muted mt-2 text-sm">
 					V adrese chybí kód pozvánky. Zkuste odkaz otevřít znovu celý, nebo si od admina nechte poslat nový.
@@ -60,22 +74,33 @@ export function AcceptInvitationPage() {
 				<Link to="/prihlaseni" className="text-accent mt-6 inline-block text-sm">
 					Zpátky na přihlášení
 				</Link>
-			</Shell>
+			</AuthShell>
 		)
 	}
 
 	return (
-		<Shell>
+		<AuthShell>
 			<h1 className="text-2xl font-semibold tracking-tight">Vítejte v píně</h1>
 			<p className="text-ink-muted mt-1 text-sm">Nastavte si heslo a jste uvnitř.</p>
 
-			<form onSubmit={submit} className="mt-8 flex flex-col gap-4">
+			{/*
+			 * Přijetím se relace přepne na účet, pro který byla pozvánka
+			 * vystavená. Bez upozornění to vypadá jako chyba — člověk se rázem
+			 * kouká na cizí dluhy.
+			 */}
+			{user === null ? null : (
+				<p className="bg-surface-2 text-ink-muted mt-4 rounded-xl px-3 py-2 text-sm">
+					Jste přihlášení jako <span className="text-ink font-medium">{user.name}</span>. Přijetím pozvánky se přepnete
+					na účet, pro který byla vystavená.
+				</p>
+			)}
+
+			<form onSubmit={submit} noValidate className="mt-8 flex flex-col gap-4">
 				<Field
 					label="Jméno"
 					value={name}
 					onChange={(event) => setName(event.target.value)}
 					autoComplete="name"
-					required
 					hint="Pod tímhle jménem vás uvidí zbytek družstva."
 					error={field === 'name' ? (error ?? undefined) : undefined}
 				/>
@@ -85,7 +110,6 @@ export function AcceptInvitationPage() {
 					value={password}
 					onChange={(event) => setPassword(event.target.value)}
 					autoComplete="new-password"
-					required
 					error={field === 'password' ? (error ?? undefined) : undefined}
 				/>
 				<Field
@@ -94,7 +118,6 @@ export function AcceptInvitationPage() {
 					value={repeat}
 					onChange={(event) => setRepeat(event.target.value)}
 					autoComplete="new-password"
-					required
 					error={field === 'repeat' ? (error ?? undefined) : undefined}
 				/>
 
@@ -112,21 +135,6 @@ export function AcceptInvitationPage() {
 			<p className="text-ink-faint mt-8 text-xs">
 				Odkaz platí 72 hodin a jde použít jen jednou. Když už vypršel, požádejte admina o nový.
 			</p>
-		</Shell>
-	)
-}
-
-function Shell({ children }: { children: ReactNode }) {
-	return (
-		<main className="relative grid min-h-dvh place-items-center overflow-hidden px-5 py-10">
-			<div
-				aria-hidden="true"
-				className="from-brand-500/25 pointer-events-none absolute inset-x-0 top-0 h-80 bg-radial to-transparent to-70%"
-			/>
-			<div className="relative w-full max-w-sm">
-				<ClubMark className="mb-6 h-16" />
-				{children}
-			</div>
-		</main>
+		</AuthShell>
 	)
 }

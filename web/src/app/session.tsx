@@ -11,8 +11,9 @@ interface SessionValue {
 	status: SessionStatus
 	user: CurrentUser | null
 	signIn: (email: string, password: string) => Promise<void>
-	/** Přijetí pozvánky rovnou přihlašuje — server v odpovědi vrací tokeny. */
 	acceptInvitation: (token: string, password: string, name: string) => Promise<void>
+	/** Nové heslo z odkazu — server v odpovědi rovnou přihlašuje. */
+	resetPassword: (token: string, password: string) => Promise<void>
 	signOut: () => Promise<void>
 }
 
@@ -25,7 +26,6 @@ export function useSession(): SessionValue {
 	return value
 }
 
-/** Přihlášený uživatel na obrazovkách za bránou — tam už `null` nastat nemůže. */
 export function useCurrentUser(): CurrentUser {
 	const { user } = useSession()
 	if (user === null) throw new Error('useCurrentUser mimo přihlášenou část aplikace')
@@ -63,7 +63,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 		}
 	}, [])
 
-	// Vypršelá relace uprostřed práce: stav se srovná i bez zásahu uživatele.
+	// Relace vypršela — synchronizuj stav bez zásahu uživatele
 	useEffect(() => {
 		setUnauthenticatedHandler(() => {
 			setUser(null)
@@ -88,12 +88,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 		setStatus('authenticated')
 	}, [])
 
+	const resetPassword = useCallback(async (token: string, password: string) => {
+		const result = await api.post<LoginResponse>('/auth/password/reset', { token, password })
+
+		setAccessToken(result.accessToken)
+		setUser(result.user)
+		setStatus('authenticated')
+	}, [])
+
 	const signOut = useCallback(async () => {
 		try {
 			await api.post('/auth/logout')
 		} finally {
-			// I když odhlášení na serveru selže, lokálně relaci zahodíme —
-			// jinak by uživatel zůstal viset přihlášený na cizím telefonu.
+			// Lokální odhlášení i když server selže — pojistka pro cizí telefon
 			setAccessToken(null)
 			setUser(null)
 			setStatus('anonymous')
@@ -102,8 +109,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 	}, [queryClient])
 
 	const value = useMemo<SessionValue>(
-		() => ({ status, user, signIn, acceptInvitation, signOut }),
-		[status, user, signIn, acceptInvitation, signOut],
+		() => ({ status, user, signIn, acceptInvitation, resetPassword, signOut }),
+		[status, user, signIn, acceptInvitation, resetPassword, signOut],
 	)
 
 	return <SessionContext value={value}>{children}</SessionContext>

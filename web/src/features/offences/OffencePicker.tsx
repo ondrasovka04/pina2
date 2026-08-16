@@ -13,16 +13,7 @@ interface OffencePickerProps {
 	onRemove: (offenceTypeId: number) => void
 }
 
-/**
- * Výběr prohřešků pro jednoho hráče.
- *
- * Sazebník mužů má 45 položek a třetina z nich jsou cesťáky se jmény hráčů
- * („Cesťák 1.pol Vánis −2568"). Zapisují se párkrát za sezónu, ale zabíraly
- * horní třetinu obrazovky, protože mají záporné částky a řadí se první.
- * Bonusy proto jdou do sbalené sekce a nahoře zůstane to, co se zapisuje
- * po každém tréninku. Až budou cesťáky vlastní agendou (fáze F4), ze sazebníku
- * zmizí úplně.
- */
+// Bonusy v sbalené sekci — nahoře obvyklé prohřešky po každém tréninku
 export function OffencePicker({ types, countOf, onAdd, onRemove }: OffencePickerProps) {
 	const [search, setSearch] = useState('')
 
@@ -55,7 +46,8 @@ export function OffencePicker({ types, countOf, onAdd, onRemove }: OffencePicker
 				<p className="text-ink-faint py-2 text-sm">Nic takového v sazebníku není.</p>
 			) : null}
 
-			<div className="flex flex-wrap gap-2">
+			{/* Výška omezena — pínař musí vidět zbytek kabiny. Strop v rem a dvh. */}
+			<div className="flex max-h-[min(20rem,42dvh)] flex-wrap gap-2 overflow-y-auto overscroll-contain">
 				{regular.map((type) => (
 					<OffenceChip
 						key={type.id}
@@ -72,7 +64,7 @@ export function OffencePicker({ types, countOf, onAdd, onRemove }: OffencePicker
 					<summary className="text-ink-muted cursor-pointer px-3 py-2 text-sm font-medium select-none">
 						Bonusy a cesťáky ({bonuses.length})
 					</summary>
-					<div className="flex flex-wrap gap-2 px-3 pt-1 pb-3">
+					<div className="flex max-h-[min(16rem,35dvh)] flex-wrap gap-2 overflow-y-auto overscroll-contain px-3 pt-1 pb-3">
 						{bonuses.map((type) => (
 							<OffenceChip
 								key={type.id}
@@ -96,10 +88,7 @@ interface OffenceChipProps {
 	onRemove: () => void
 }
 
-/**
- * Ťuknutí přidá, opakované ťuknutí přidá další. Ubírá se křížkem, který se
- * objeví až když je co ubrat — jinak by u každé položky visela mrtvá ikona.
- */
+// Ťuknutí přidá, křížek se vybere jen když je co ubrat
 function OffenceChip({ type, count, onAdd, onRemove }: OffenceChipProps) {
 	const picked = count > 0
 

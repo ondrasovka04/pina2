@@ -2,27 +2,21 @@ import type { ReactNode } from 'react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { Link } from 'react-router'
 
+import { useCurrentUser } from '@/app/session'
 import { useTeam } from '@/app/team'
 import { CheckIcon, ChevronDownIcon } from '@/components/ui/icons'
 import { cn } from '@/lib/cn'
 import type { Season } from '@/lib/types'
 
-/**
- * Přepínač družstva a sezóny.
- *
- * Nativní `<select>` tu nestačí ze dvou důvodů: potřebujeme přepínat dvě věci
- * naráz (tým a sezónu) a u sezóny ukázat, která je aktuální a která uzavřená.
- * Šipka proto sedí hned za názvem — když byla u pravého okraje, nebylo poznat,
- * že patří k němu.
- */
+// Přepínač týmu a sezóny — select nestačí, potřebujeme přepínat obojí
 export function TeamSwitcher() {
 	const { teams, team, seasons, season, selectTeam, selectSeason, can } = useTeam()
+	const { platformAdmin } = useCurrentUser()
 	const [open, setOpen] = useState(false)
 	const panelId = useId()
 	const containerRef = useRef<HTMLDivElement>(null)
 
-	// Zavření klávesou i kliknutím vedle — panel překrývá obsah a musí jít pryč
-	// bez trefování malého křížku.
+	// Zavření Escapem nebo kliknutím mimo
 	useEffect(() => {
 		if (!open) return
 
@@ -48,13 +42,15 @@ export function TeamSwitcher() {
 
 	if (team === null) return null
 
-	// Admin panel potřebuje i v družstvu s jedinou sezónou — jinak by neměl kudy
-	// založit další.
-	const switchable = teams.length > 1 || seasons.length > 1 || can('admin')
+	// Admin panel i s jedinou sezónou — musí mít kudy ji založit
+	const switchable = teams.length > 1 || seasons.length > 1 || can('admin') || platformAdmin
 
 	if (!switchable) {
+		// `flex-1` tu musí být stejně jako u přepínatelné varianty: bez něj se
+		// hlavička smrskne na šířku textu a navigace se k ní přilepí zleva
+		// místo toho, aby zůstala u pravého okraje.
 		return (
-			<div className="min-w-0">
+			<div className="min-w-0 flex-1">
 				<p className="truncate font-semibold">{team.name}</p>
 				<p className="text-ink-faint truncate text-xs">
 					{team.clubName}
@@ -126,19 +122,14 @@ export function TeamSwitcher() {
 						</Section>
 					) : null}
 
-					{/*
-					 * Vstupy do správy patří sem, kde má člověk družstvo i sezónu zrovna
-					 * na mysli. Odkazy jsou pod sebou — vedle sebe se do panelu nevešly
-					 * a text se lámal.
-					 */}
-					{can('admin') ? (
+					{can('admin') || platformAdmin ? (
 						<div className="border-line/60 flex flex-col border-t p-2">
 							<Link
 								to="/druzstvo"
 								onClick={() => setOpen(false)}
 								className="hover:bg-surface-2 text-ink-muted flex min-h-11 items-center justify-center rounded-lg px-2 text-sm"
 							>
-								Spravovat družstvo
+								Spravovat družstva
 							</Link>
 							<Link
 								to="/sezony"
@@ -147,6 +138,15 @@ export function TeamSwitcher() {
 							>
 								Spravovat sezóny
 							</Link>
+							{platformAdmin ? (
+								<Link
+									to="/sprava"
+									onClick={() => setOpen(false)}
+									className="hover:bg-surface-2 text-ink-faint border-line/60 mt-1 flex min-h-11 items-center justify-center rounded-lg border-t px-2 pt-1 text-sm"
+								>
+									Správa platformy
+								</Link>
+							) : null}
 						</div>
 					) : null}
 				</div>

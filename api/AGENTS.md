@@ -74,6 +74,10 @@ docker compose run --rm php ./vendor/bin/phpunit
 docker compose run --rm php ./vendor/bin/phpstan analyse --memory-limit=512M
 ```
 
+Testy nesmí sáhnout na skutečný SMTP server. `Mail\Mailer` je proto rozhraní
+a v testech se předává `Tests\Support\FakeMailer`, který zprávy jen sbírá —
+databáze obsahuje reálné adresy reálných lidí.
+
 Testy si mažou tabulky, takže běží **výhradně proti `pina_test`**. Pojistka je
 v `tests/Integration/DatabaseTestCase.php` a neobchází se.
 
@@ -100,9 +104,25 @@ v `tests/Integration/DatabaseTestCase.php` a neobchází se.
   ze staré aplikace a za běhu nic neřídí.
 - **Tokeny na jedno použití** (pozvánka, aktivační odkaz) se vrací **jen
   v odpovědi na jejich vytvoření**; v databázi je pouze SHA-256 otisk. Nikam se
-  nelogují a zpětně je nelze zobrazit.
+  nelogují a zpětně je nelze zobrazit. Proto „poslat znovu" vydává **nový**
+  token a ten starý ruší.
+- **Odkaz se vrací i po úspěšném odeslání pošty.** Zpráva může skončit ve spamu
+  a admin musí mít co poslat do chatu. `emailSent` v odpovědi říká pravdu —
+  nikdy netvrďte uživateli, že zpráva odešla, když se jen zapsala do logu.
+- **Selhání pošty nesmí shodit operaci.** Pozvánka vznikne i při výpadku SMTP;
+  volající se z `emailSent = false` dozví, že odkaz musí předat sám. Výjimka je
+  hromadné rozeslání: tam token nikdo nevidí, takže se nedoručená pozvánka zase
+  maže — jinak by adresáta na tři dny vyřadila z dalších pokusů.
+- **`Mail\Allowlist` je poslední pojistka** mezi vývojem a schránkami skutečných
+  lidí. Mimo produkci je prázdný seznam zákaz odesílání.
+- **Členství je `active`, nebo `left`.** Mezistav „pozastaven" byl ze staré verze
+  a nic nerozlišoval — kdo v dané sezóně nehraje, prostě není na její soupisce.
 - **`tokens_valid_from`** u uživatele zneplatní vydané JWT; používá se při změně
   hesla, odhlášení všude a změně role.
+- **Obnova hesla nesmí prozradit, kdo je registrovaný.** `/auth/password/forgot`
+  odpovídá stejně pro známou i neznámou adresu; i překročený limit se mlčí.
+  Odkaz platí hodinu (přepisuje existující heslo) a vydává se jen samoobslužně —
+  admin heslo zrušit nemůže, jinak by šlo převzít cizí účet.
 
 ## Nasazení
 

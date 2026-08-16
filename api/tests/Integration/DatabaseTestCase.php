@@ -8,10 +8,7 @@ use PDO;
 use Pina\Support\Database;
 use PHPUnit\Framework\TestCase;
 
-/**
- * Základ pro testy sahající na skutečnou MySQL. Schéma se vytvoří jednou
- * pro celý běh, data se před každým testem promažou.
- */
+/** Schéma jednou, data se mažou před každým testem. */
 abstract class DatabaseTestCase extends TestCase
 {
     protected Database $db;
@@ -32,11 +29,7 @@ abstract class DatabaseTestCase extends TestCase
         $this->truncateAll();
     }
 
-    /**
-     * Pojistka proti smazání dat. Testy mažou obsah všech tabulek, takže musí
-     * běžet výhradně proti databázi určené k testování — nikdy proti vývojové
-     * ani produkční.
-     */
+    /** Pojistka — testy maží všechno, jen proti test DB. */
     private function guardAgainstWrongDatabase(): void
     {
         $name = (string) (getenv('DB_NAME') ?: '');
@@ -133,8 +126,7 @@ abstract class DatabaseTestCase extends TestCase
     }
 
     /**
-     * Zapíše členy na soupisku sezóny. Přehledy vycházejí ze soupisky, ne
-     * ze seznamu členů družstva, takže bez tohohle kroku je sezóna prázdná.
+     * Soupiska, ne členství — přehledy na ní závisejí.
      *
      * @param list<int> $membershipIds
      */
@@ -146,5 +138,23 @@ abstract class DatabaseTestCase extends TestCase
                 [$seasonId, $membershipId],
             );
         }
+    }
+
+    /** Zápis bez sazebníku a dávky — jen aby byl dluh. */
+    protected function makeRecord(int $seasonId, int $membershipId, int $amountCzk = 50, bool $voided = false): int
+    {
+        $this->db->run(
+            'INSERT INTO offence_type (season_id, name, amount_czk) VALUES (?, ?, ?)',
+            [$seasonId, 'Pozdní příchod ' . $membershipId, $amountCzk],
+        );
+        $typeId = $this->db->lastInsertId();
+
+        $this->db->run(
+            'INSERT INTO offence_record (season_id, membership_id, offence_type_id, amount_czk, occurred_on, voided_at)
+             VALUES (?, ?, ?, ?, ?, ?)',
+            [$seasonId, $membershipId, $typeId, $amountCzk, '2026-09-15', $voided ? '2026-09-16 10:00:00' : null],
+        );
+
+        return $this->db->lastInsertId();
     }
 }

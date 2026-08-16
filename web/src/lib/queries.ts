@@ -2,6 +2,7 @@ import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/rea
 
 import { api } from '@/lib/api'
 import type {
+	ActivationBatch,
 	BalanceList,
 	BatchInput,
 	BatchSummary,
@@ -9,6 +10,7 @@ import type {
 	MemberStatus,
 	OffenceCategory,
 	OffenceType,
+	PlatformClub,
 	RecordList,
 	Role,
 	RosterEntry,
@@ -19,11 +21,7 @@ import type {
 	TeamSummary,
 } from '@/lib/types'
 
-/**
- * Klíče na jednom místě, aby invalidace po zápisu trefila přesně to, co se
- * změnilo. Struktura kopíruje cesty API, takže `['seasons', id]` zneplatní
- * všechno, co k sezóně patří.
- */
+// Klíče na jednom místě — struktura kopíruje API cesty pro přesnou invalidaci
 export const queryKeys = {
 	teams: ['teams'] as const,
 	seasons: (teamId: number) => ['teams', teamId, 'seasons'] as const,
@@ -37,16 +35,11 @@ export const queryKeys = {
 	invitations: (teamId: number) => ['teams', teamId, 'invitations'] as const,
 }
 
-/**
- * Seznamy vrací API zabalené do objektu s jednou položkou (`{ teams: [...] }`),
- * aby šlo časem přidat stránkování bez rozbití klienta. Hooky to rozbalují,
- * takže komponenty dostanou rovnou pole — obálka je věc protokolu, ne UI.
- */
+// Seznamy přijdou zabalené pro budoucí stránkování — hooky je rozbalují
 export function useTeams() {
 	return useQuery({
 		queryKey: queryKeys.teams,
 		queryFn: async ({ signal }) => (await api.get<{ teams: TeamSummary[] }>('/me/teams', signal)).teams,
-		// Zařazení do týmu se mění párkrát za sezónu; není důvod se ptát pořád.
 		staleTime: 5 * 60_000,
 	})
 }
@@ -87,6 +80,25 @@ export function useTeamMembers(teamId: number | null) {
 	})
 }
 
+export function usePlatformClubs(enabled: boolean) {
+	return useQuery({
+		queryKey: ['admin', 'clubs'] as const,
+		queryFn: async ({ signal }) => (await api.get<{ clubs: PlatformClub[] }>('/admin/clubs', signal)).clubs,
+		enabled,
+	})
+}
+
+export function useCreateClub() {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: (name: string) => api.post<{ club: { id: number; name: string; slug: string } }>('/clubs', { name }),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: ['admin', 'clubs'] })
+		},
+	})
+}
+
 export function useTeamDetail(teamId: number | null) {
 	return useQuery({
 		queryKey: ['teams', teamId ?? 0, 'detail'] as const,
@@ -108,7 +120,6 @@ export function useRenameTeam(teamId: number) {
 	})
 }
 
-/** Družstvo zakládá admin jiného družstva téhož klubu a stává se jeho adminem. */
 export function useCreateTeam(clubId: number) {
 	const queryClient = useQueryClient()
 
@@ -117,12 +128,13 @@ export function useCreateTeam(clubId: number) {
 			api.post<TeamDetail>(`/clubs/${clubId}/teams`, color === undefined ? { name } : { name, color }),
 		onSuccess: () => {
 			void queryClient.invalidateQueries({ queryKey: queryKeys.teams })
+			void queryClient.invalidateQueries({ queryKey: ['admin', 'clubs'] })
 		},
 	})
 }
 
-/** Změny členství — posílají se jen pole, která se mění. */
 export interface MembershipChanges {
+	name?: string
 	role?: Role
 	status?: MemberStatus
 	jerseyNumber?: number | null
@@ -136,8 +148,8 @@ export function useUpdateMembership(teamId: number) {
 			api.patch<TeamMember>(`/memberships/${membershipId}`, changes),
 		onSuccess: () => {
 			void queryClient.invalidateQueries({ queryKey: queryKeys.members(teamId) })
-			// Role a odchod mění i to, kdo je na soupisce k výběru, a přehled dluhů.
 			void queryClient.invalidateQueries({ queryKey: queryKeys.teams })
+			void queryClient.invalidateQueries({ queryKey: ['admin', 'clubs'] })
 		},
 	})
 }
@@ -151,16 +163,38 @@ export function useInvitations(teamId: number | null, enabled: boolean) {
 	})
 }
 
-/**
- * Pozvánka nového člena. Token se vrací **jen v této odpovědi** — v databázi je
- * jen jeho otisk, takže ztracený odkaz se řeší novou pozvánkou, ne dohledáním.
- */
+// Token jen v odpovědi — v DB je jen otisk, ztracený odkaz = nová pozvánka
 export function useInviteMember(teamId: number) {
 	const queryClient = useQueryClient()
 
 	return useMutation({
-		mutationFn: ({ email, role }: { email: string; role: Role }) =>
-			api.post<{ invitation: IssuedLink & { id: number } }>(`/teams/${teamId}/members`, { email, role }),
+		mutationFn: ({ email, role, sendEmail }: { email: string; role: Role; sendEmail: boolean }) =>
+			api.post<{ invitation: IssuedLink & { id: number } }>(`/teams/${teamId}/members`, { email, role, sendEmail }),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: queryKeys.invitations(teamId) })
+		},
+	})
+}
+
+// Nový token — stará pozvánka přestává platit
+export function useResendInvitation(teamId: number) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: (invitationId: number) =>
+			api.post<{ invitation: IssuedLink & { id: number } }>(`/invitations/${invitationId}/resend`),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: queryKeys.invitations(teamId) })
+		},
+	})
+}
+
+// Hromadné rozeslání — server posílá dávkami
+export function useSendActivationEmails(teamId: number) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: () => api.post<ActivationBatch>(`/teams/${teamId}/activation-emails`),
 		onSuccess: () => {
 			void queryClient.invalidateQueries({ queryKey: queryKeys.invitations(teamId) })
 		},
@@ -178,10 +212,7 @@ export function useRevokeInvitation(teamId: number) {
 	})
 }
 
-/**
- * Aktivační odkaz pro stávajícího člena bez hesla. Hesla se ze staré aplikace
- * nemigrovala, takže tudy se do aplikace dostane zbytek týmu.
- */
+// Stávající členy bez hesla se přihlásí přes aktivační odkaz
 export function useActivationLink(teamId: number) {
 	const queryClient = useQueryClient()
 
@@ -200,7 +231,6 @@ export interface NewSeasonInput {
 	endsOn: string
 }
 
-/** Server sám zruší příznak aktuální sezóny u ostatních — v družstvu smí být jen jedna. */
 export function useCreateSeason(teamId: number) {
 	const queryClient = useQueryClient()
 
@@ -237,11 +267,6 @@ export function useSaveRoster(teamId: number) {
 	})
 }
 
-/**
- * Převzetí sazebníku z jiné sezóny. Bez `items` se kopíruje celý, s nimi jen
- * vybrané položky a volitelně za jinou cenu — ceny se mezi sezónami mění častěji
- * než samotný seznam prohřešků.
- */
 export interface CopyOffenceTypesInput {
 	targetSeasonId: number
 	sourceSeasonId: number
@@ -266,17 +291,10 @@ export function useCopyOffenceTypes() {
 export interface TeamDebt {
 	teamId: number
 	seasonName: string | null
-	/** `null` znamená, že tým nemá rozjetou sezónu — pak není z čeho dluh počítat. */
 	balanceCzk: number | null
 }
 
-/**
- * Můj dluh v každém družstvu zvlášť. Kdo hraje za muže i za juniory, potřebuje
- * vidět obojí naráz — jinak by musel přepínat tým jen kvůli jednomu číslu.
- *
- * Jde o tolik dotazů, kolik má člověk týmů, ale odpovědi sdílí klíč s přehledem
- * dluhů, takže se z cache většinou vezmou hotové.
- */
+// Má dluh v každém družstvu — různé sezóny se vidí bez přepínání týmu
 export function useMyDebts(teams: TeamSummary[]): { debts: TeamDebt[]; isPending: boolean } {
 	return useQueries({
 		queries: teams.map((team) => ({
@@ -286,8 +304,6 @@ export function useMyDebts(teams: TeamSummary[]): { debts: TeamDebt[]; isPending
 			enabled: team.currentSeason !== null,
 		})),
 		combine: (results) => ({
-			// Vypnuté dotazy zůstávají navždy „pending", takže se počítají jen ty,
-			// které se opravdu ptají.
 			isPending: results.some((result, index) => teams[index]?.currentSeason != null && result.isPending),
 			debts: teams.map((team, index) => {
 				const mine = results[index]?.data?.members.find((member) => member.membershipId === team.membershipId)
@@ -305,8 +321,6 @@ export function useMyDebts(teams: TeamSummary[]): { debts: TeamDebt[]; isPending
 export function useOffenceTypes(seasonId: number | null) {
 	return useQuery({
 		queryKey: queryKeys.offenceTypes(seasonId ?? 0),
-		// Controller balí seznam do `{ items: [...] }` (viz OffenceTypeController::index),
-		// proto se tu rozbaluje — jinak by `data` bylo za běhu objekt, ne pole.
 		queryFn: async ({ signal }) => {
 			const response = await api.get<{ items: OffenceType[] }>(`/seasons/${seasonId}/offence-types`, signal)
 
@@ -317,11 +331,7 @@ export function useOffenceTypes(seasonId: number | null) {
 	})
 }
 
-/**
- * Sazebník včetně archivovaných položek — pro sekci „Archivované" v sazebníku.
- * Běžný přehled dál používá `useOffenceTypes`, tenhle hook slouží jen té
- * jedné sbalené sekci s historií.
- */
+// Sazebník včetně archivů — jen pro jednu sbalovanou sekci
 export function useArchivedOffenceTypes(seasonId: number | null) {
 	return useQuery({
 		queryKey: [...queryKeys.offenceTypes(seasonId ?? 0), 'archived'] as const,
@@ -338,7 +348,6 @@ export function useArchivedOffenceTypes(seasonId: number | null) {
 	})
 }
 
-/** Tělo požadavku na novou položku sazebníku. */
 export interface OffenceTypeInput {
 	name: string
 	amountCzk: number
@@ -356,7 +365,6 @@ export function useCreateOffenceType(seasonId: number) {
 	})
 }
 
-/** Tělo požadavku na úpravu položky — posílají se jen pole, která se mění. */
 export interface OffenceTypeChanges {
 	name?: string
 	amountCzk?: number
@@ -375,13 +383,7 @@ export function useUpdateOffenceType(seasonId: number) {
 	})
 }
 
-/**
- * Nové pořadí sazebníku. V tomhle pořadí se položky nabízejí při zápisu, takže
- * si pínař srovná nahoru to, co zapisuje po každém tréninku.
- *
- * Posílá se celý seznam ID, ne jednotlivé posuny — server je pak uloží v jedné
- * transakci a přerušené přetahování nenechá sazebník v půlce.
- */
+// Nové pořadí sazebníku — celý seznam ID v jedné transakci
 export function useReorderOffenceTypes(seasonId: number) {
 	const queryClient = useQueryClient()
 
@@ -394,7 +396,6 @@ export function useReorderOffenceTypes(seasonId: number) {
 	})
 }
 
-/** DELETE znamená archivaci, ne smazání — položka nese zapsanou historii. */
 export function useArchiveOffenceType(seasonId: number) {
 	const queryClient = useQueryClient()
 
@@ -418,11 +419,7 @@ export function useRecords(seasonId: number | null, membershipId?: number) {
 	})
 }
 
-/**
- * Dávkový zápis. Server je idempotentní přes `clientUuid`, takže opakované
- * odeslání téhož těla (dvojklik, výpadek sítě) nic nezdvojí — proto se smí
- * bez obav zkoušet znovu.
- */
+// Dávkový zápis — idempotentní přes clientUuid
 export function useCreateBatch(seasonId: number) {
 	const queryClient = useQueryClient()
 

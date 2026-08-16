@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pina;
 
 use Pina\Auth\AuthService;
+use Pina\Auth\PasswordResetService;
 use Pina\Auth\PasswordService;
 use Pina\Auth\TeamScope;
 use Pina\Auth\TokenService;
@@ -14,6 +15,9 @@ use Pina\Controller\OffenceTypeController;
 use Pina\Controller\SeasonController;
 use Pina\Controller\TeamController;
 use Pina\Http\Kernel;
+use Pina\Mail\InvitationMail;
+use Pina\Mail\PasswordResetMail;
+use Pina\Mail\SmtpMailer;
 use Pina\Http\RateLimiter;
 use Pina\Http\Router;
 use Pina\Service\OffenceService;
@@ -24,10 +28,7 @@ use Pina\Support\Config;
 use Pina\Support\Database;
 use Pina\Support\Logger;
 
-/**
- * Složení aplikace. Na tenhle rozsah nemá smysl tahat DI kontejner —
- * závislostí je pár a jsou přehledné.
- */
+/** Složení aplikace. Bez DI kontejneru — závislostí je málo a jsou přehledné. */
 final class App
 {
     public readonly Database $db;
@@ -56,13 +57,21 @@ final class App
         $passwords = new PasswordService();
         $limiter   = new RateLimiter($this->db);
         $auth      = new AuthService($this->db, $this->tokens, $passwords, $limiter);
-        $authCtrl  = new AuthController($auth, $this->tokens);
+        $resets    = new PasswordResetService(
+            $this->db,
+            $this->tokens,
+            $passwords,
+            new PasswordResetMail(SmtpMailer::fromConfig($this->logger), Config::get('APP_URL', '')),
+        );
+        $authCtrl  = new AuthController($auth, $this->tokens, $resets);
 
         // Veřejné (auth: false)
         $router->post('/api/v1/auth/login', $authCtrl->login(...), auth: false);
         $router->post('/api/v1/auth/refresh', $authCtrl->refresh(...), auth: false);
         $router->post('/api/v1/auth/logout', $authCtrl->logout(...), auth: false);
         $router->post('/api/v1/invitations/accept', $authCtrl->acceptInvitation(...), auth: false);
+        $router->post('/api/v1/auth/password/forgot', $authCtrl->forgotPassword(...), auth: false);
+        $router->post('/api/v1/auth/password/reset', $authCtrl->resetPassword(...), auth: false);
 
         // Vyžadují přihlášení
         $router->get('/api/v1/me', $authCtrl->me(...));
@@ -78,9 +87,11 @@ final class App
     /** Družstva, členové, sezóny a soupisky. */
     private function teamRoutes(Router $router): void
     {
-        $teamCtrl   = new TeamController(new TeamService($this->db, $this->scope, $this->tokens));
+        $mails      = new InvitationMail(SmtpMailer::fromConfig($this->logger), Config::get('APP_URL', ''));
+        $teamCtrl   = new TeamController(new TeamService($this->db, $this->scope, $this->tokens, $mails));
         $seasonCtrl = new SeasonController(new SeasonService($this->db, $this->scope));
 
+        $router->get('/api/v1/admin/clubs', $teamCtrl->platformOverview(...));
         $router->post('/api/v1/clubs', $teamCtrl->createClub(...));
         $router->post('/api/v1/clubs/{club}/teams', $teamCtrl->createTeam(...));
 
@@ -91,6 +102,8 @@ final class App
         $router->post('/api/v1/teams/{team}/members', $teamCtrl->invite(...));
         $router->get('/api/v1/teams/{team}/invitations', $teamCtrl->invitations(...));
         $router->delete('/api/v1/invitations/{id}', $teamCtrl->revokeInvitation(...));
+        $router->post('/api/v1/invitations/{id}/resend', $teamCtrl->resendInvitation(...));
+        $router->post('/api/v1/teams/{team}/activation-emails', $teamCtrl->sendActivationEmails(...));
         $router->put('/api/v1/teams/{team}/settings', $teamCtrl->saveSettings(...));
         $router->patch('/api/v1/memberships/{id}', $teamCtrl->updateMembership(...));
         $router->post('/api/v1/memberships/{id}/activation', $teamCtrl->activationLink(...));

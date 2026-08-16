@@ -13,8 +13,11 @@ import { AppLayout } from '@/app/AppLayout'
 import { SessionProvider, useSession } from '@/app/session'
 import { TeamProvider } from '@/app/team'
 import { ClubMark } from '@/components/ClubMark'
+import { PlatformPage } from '@/features/admin/PlatformPage'
 import { AcceptInvitationPage } from '@/features/auth/AcceptInvitationPage'
+import { ForgotPasswordPage } from '@/features/auth/ForgotPasswordPage'
 import { LoginPage } from '@/features/auth/LoginPage'
+import { NewPasswordPage } from '@/features/auth/NewPasswordPage'
 import { BalancesPage } from '@/features/balances/BalancesPage'
 import { MemberPage } from '@/features/balances/MemberPage'
 import { NewBatchPage } from '@/features/offences/NewBatchPage'
@@ -29,8 +32,7 @@ const queryClient = new QueryClient({
 	defaultOptions: {
 		queries: {
 			staleTime: 30_000,
-			// V hale bývá slabý signál: opakovat má smysl, ale ne u chyb,
-			// které se opakováním nespraví (neexistuje, nemáte právo).
+			// Slabý signál v hale — opakovat jen chyby, ne 4xx
 			retry: (failureCount, error) => {
 				if (error instanceof ApiError && error.status < 500) return false
 
@@ -41,17 +43,15 @@ const queryClient = new QueryClient({
 	},
 })
 
-/**
- * Datový router (ne `<BrowserRouter>`) je tu kvůli `useBlocker`: jinak by nešlo
- * zachytit odchod ze stránky s rozepsaným zápisem. Data se dál načítají přes
- * TanStack Query, loadery se nepoužívají.
- */
+// Datový router kvůli useBlocker — chrání rozepsaný zápis před odchodem
 const router = createBrowserRouter(
 	createRoutesFromElements(
 		<Route element={<SessionRoot />}>
 			<Route path="/prihlaseni" element={<AnonymousOnly />} />
-			{/* Pozvánka je veřejná — celé oprávnění nese token v adrese. */}
+			{/* Veřejné: celé oprávnění nese token v adrese. */}
 			<Route path="/pozvanka" element={<AcceptInvitationPage />} />
+			<Route path="/zapomenute-heslo" element={<ForgotPasswordPage />} />
+			<Route path="/nove-heslo" element={<NewPasswordPage />} />
 
 			<Route element={<Protected />}>
 				<Route element={<AppLayout />}>
@@ -61,6 +61,7 @@ const router = createBrowserRouter(
 					<Route path="zapsat" element={<NewBatchPage />} />
 					<Route path="sazebnik" element={<OffenceTypesPage />} />
 					<Route path="druzstvo" element={<TeamPage />} />
+					<Route path="sprava" element={<PlatformPage />} />
 					<Route path="sezony" element={<SeasonsPage />} />
 					<Route path="sezony/nova" element={<NewSeasonWizard />} />
 					<Route path="ja" element={<ProfilePage />} />
@@ -89,10 +90,7 @@ function SessionRoot() {
 	)
 }
 
-/**
- * Než doběhne obnovení relace, nesmí se ukázat ani přihlašovací obrazovka —
- * jinak by přihlášenému uživateli po každém načtení bliklo přihlašování.
- */
+// Chvíli načítání relace — bez toho by se zobrazila login obrazovka
 function Splash() {
 	return (
 		<div className="grid min-h-dvh place-items-center">

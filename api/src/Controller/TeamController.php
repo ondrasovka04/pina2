@@ -10,10 +10,7 @@ use Pina\Http\Request;
 use Pina\Http\Response;
 use Pina\Service\TeamService;
 
-/**
- * Družstva, členové a nastavení. Controller jen ověří tvar vstupu a složí
- * odpověď — kdo na co má právo, řeší TeamService přes TeamScope.
- */
+/** Kontrola tvaru vstupu; autorizace v TeamService (TeamScope). */
 final class TeamController
 {
     public function __construct(private readonly TeamService $teams)
@@ -23,6 +20,11 @@ final class TeamController
     public function myTeams(Request $request): Response
     {
         return Response::ok(['teams' => $this->teams->myTeams($request->identity())]);
+    }
+
+    public function platformOverview(Request $request): Response
+    {
+        return Response::ok(['clubs' => $this->teams->platformOverview($request->identity())]);
     }
 
     public function createClub(Request $request): Response
@@ -83,9 +85,22 @@ final class TeamController
             $request->routeId('team'),
             $email,
             $this->role($request, 'role', Role::Player),
+            $request->bool('sendEmail', true),
         );
 
         return Response::created(['invitation' => $invitation]);
+    }
+
+    public function resendInvitation(Request $request): Response
+    {
+        return Response::created([
+            'invitation' => $this->teams->resendInvitation($request->identity(), $request->routeId('id')),
+        ]);
+    }
+
+    public function sendActivationEmails(Request $request): Response
+    {
+        return Response::ok($this->teams->sendActivationEmails($request->identity(), $request->routeId('team')));
     }
 
     public function invitations(Request $request): Response
@@ -105,14 +120,22 @@ final class TeamController
     public function activationLink(Request $request): Response
     {
         return Response::created([
-            'activation' => $this->teams->activationLink($request->identity(), $request->routeId('id')),
+            'activation' => $this->teams->activationLink(
+                $request->identity(),
+                $request->routeId('id'),
+                $request->bool('sendEmail', true),
+            ),
         ]);
     }
 
     public function updateMembership(Request $request): Response
     {
-        /** @var array{role?:Role,jerseyNumber?:int|null,status?:string} $changes */
+        /** @var array{name?:string,role?:Role,jerseyNumber?:int|null,status?:string} $changes */
         $changes = [];
+
+        if (array_key_exists('name', $request->body)) {
+            $changes['name'] = $request->string('name');
+        }
 
         if (array_key_exists('role', $request->body)) {
             $changes['role'] = $this->role($request, 'role', Role::Player);

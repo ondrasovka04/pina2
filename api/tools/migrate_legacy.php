@@ -163,7 +163,10 @@ function migrateMemberships(PDO $pdo, string $legacy, array $users, array $teams
             continue;
         }
         $role   = ($adminOf[$lu] ?? null) === $lt ? 'admin' : 'player';
-        $status = ((int) $row['pozastaven'] === 1) ? 'suspended' : 'active';
+        // Stará verze měla „pozastaven" jako třetí stav. Nové schéma zná jen
+        // aktivní a odešlé; pozastavený hráč se choval jako neaktivní, takže
+        // sedí blíž k 'left'. Vrátit ho do družstva je otázka jednoho kliknutí.
+        $status = ((int) $row['pozastaven'] === 1) ? 'left' : 'active';
 
         $ins->execute([$users[$lu], $teams[$lt], $role, paymentReference($teams[$lt], $users[$lu]), $status]);
         $out["$lu:$lt"] = (int) $pdo->lastInsertId();

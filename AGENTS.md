@@ -43,9 +43,17 @@ té části, které se změna týká.
 1. **Testy běží jen proti databázi `pina_test`.** Před během si mažou tabulky.
    Pojistka v `api/tests/Integration/DatabaseTestCase.php` shodí test, pokud
    název databáze neobsahuje „test" — jednou už kvůli tomu zmizela vývojová data.
-2. **Žádné odesílání e-mailů.** `MAIL_ENABLED=false` zůstává, dokud majitel
-   projektu výslovně neřekne jinak. Účty se smí zakládat, pozvánky se
-   nerozesílají.
+2. **Pošta jde jen na pozvánky a aktivace.** Majitel projektu odesílání povolil
+   16. 8. 2026 (do té doby platil úplný zákaz). Posílá se přes SMTP Zoneru
+   z `pina@pinaprosek.eu` a vypínač `MAIL_ENABLED` zůstává — ve vývoji je
+   **vypnutý**, protože databáze obsahuje reálné adresy reálných lidí a omylem
+   rozeslaná dávka se nedá vzít zpět. Jakákoli další kategorie zpráv
+   (upomínky, souhrny) potřebuje samostatný souhlas.
+
+   Mimo produkci chrání schránky spoluhráčů **`MAIL_ALLOWLIST`**: prázdný seznam
+   tam znamená zákaz, ne povolení. Kdo chce ve vývoji něco odeslat, vypíše svou
+   adresu; na všechny ostatní se jen zapíše řádek do logu. Nikdy tuhle pojistku
+   neobcházejte — vývojová databáze je kopie ostré a je v ní přes sto adres.
 3. **Osobní údaje se necommitují.** Dumpy, `export/`, `*.csv`, `*.sql` a `.env`
    jsou v `.gitignore` a patří tam.
 4. **Necommitovat a nepushovat bez pokynu.** Práce se odevzdává jako diff.
@@ -54,6 +62,12 @@ té části, které se změna týká.
    nikdy `DELETE` — po smazaných penězích zbývá jen dohadování.
 6. **Izolace klubů.** Každý přístup k záznamu jde přes `TeamScope`. Cizí záznam
    vrací 404, ne 403, aby neprozradil, že existuje.
+
+   Příznak správce platformy je **provozní role, ne univerzální klíč**. Otevírá
+   `/sprava`, kde se zakládají kluby a zachraňují družstva bez admina — ale
+   běžné obrazovky se řídí rolí v konkrétním družstvu. Ve družstvu, kde je jeho
+   majitel hráč, ho ten příznak pínařem nedělá a cizí dluhy se do provozní
+   konzole nevydávají.
 
 ## Slovník
 

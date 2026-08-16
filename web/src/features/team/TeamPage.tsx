@@ -9,22 +9,24 @@ import { Field } from '@/components/ui/Field'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States'
 import { InvitationsSection } from '@/features/team/InvitationsSection'
 import { MemberRow } from '@/features/team/MemberRow'
-import { needsActivation, sortMembers } from '@/features/team/members'
+import { describeBatch, needsActivation, sortMembers } from '@/features/team/members'
 import { NewTeamSection } from '@/features/team/NewTeamSection'
 import { OneTimeLinkDialog } from '@/features/team/OneTimeLinkDialog'
 import { ApiError } from '@/lib/api'
 import { plural } from '@/lib/plural'
-import { useActivationLink, useRenameTeam, useTeamMembers, useUpdateMembership } from '@/lib/queries'
-import type { IssuedLink } from '@/lib/types'
+import {
+	useActivationLink,
+	useRenameTeam,
+	useSendActivationEmails,
+	useTeamMembers,
+	useUpdateMembership,
+} from '@/lib/queries'
+import type { ActivationBatch, IssuedLink } from '@/lib/types'
 
 type IssuedKind = 'invitation' | 'activation'
 
 /**
- * Správa družstva: kdo v něm je, jakou má roli a jak se dostane dovnitř.
- *
- * Členství se kvůli historii nikdy nemaže — odchod je jen změna stavu. Proto
- * seznam roste a odešlí padají dolů; bez toho by soupisky za pár let vybíraly
- * ze stovky jmen.
+ * Správa členství. Členství se nemaže, jen mění stav — odešlí padají dolů.
  */
 export function TeamPage() {
 	const { team, can } = useTeam()
@@ -88,10 +90,7 @@ export function TeamPage() {
 				</div>
 
 				{withoutPassword === 0 ? null : (
-					<p className="text-ink-muted mt-2 text-sm">
-						{plural(withoutPassword, 'člen', 'členové', 'členů')} se ještě nikdy nepřihlásil
-						{withoutPassword === 1 ? '' : 'i'}. Rozklikněte je a vytvořte jim aktivační odkaz.
-					</p>
+					<ActivationBanner teamId={team.id} count={withoutPassword} mailEnabled={me.mailEnabled} />
 				)}
 
 				<div className="mt-2">
@@ -136,6 +135,58 @@ export function TeamPage() {
 				}
 				onClose={() => setIssued(null)}
 			/>
+		</div>
+	)
+}
+
+/**
+ * Hromadné rozeslání aktivačních odkázů. Server posílá po dávkách a říká,
+ * kolik lidí ještě zbývá.
+ */
+function ActivationBanner({ teamId, count, mailEnabled }: { teamId: number; count: number; mailEnabled: boolean }) {
+	const send = useSendActivationEmails(teamId)
+	const [result, setResult] = useState<ActivationBatch | null>(null)
+	const [error, setError] = useState<string | null>(null)
+
+	const lidi = plural(count, 'člen', 'členové', 'členů')
+	const jeste = count === 1 ? 'se ještě nikdy nepřihlásil' : 'se ještě nikdy nepřihlásili'
+
+	return (
+		<div className="bg-surface-2 mt-3 flex flex-col gap-2 rounded-xl px-3 py-3">
+			<p className="text-sm">
+				{lidi} {jeste}.{' '}
+				{mailEnabled
+					? 'Pošlete jim odkaz, kterým si nastaví heslo.'
+					: 'Odesílání e-mailů je vypnuté — rozklikněte je a vytvořte jim odkaz jednotlivě.'}
+			</p>
+
+			{mailEnabled ? (
+				<div className="flex flex-wrap items-center gap-3">
+					<Button
+						size="sm"
+						loading={send.isPending}
+						onClick={() => {
+							setError(null)
+							send.mutate(undefined, {
+								onSuccess: setResult,
+								onError: (cause) => {
+									setError(cause instanceof ApiError ? cause.message : 'Rozeslání selhalo.')
+								},
+							})
+						}}
+					>
+						Rozeslat aktivační e-maily
+					</Button>
+
+					{result === null ? null : <p className="text-ink-muted text-sm">{describeBatch(result)}</p>}
+				</div>
+			) : null}
+
+			{error === null ? null : (
+				<p role="alert" className="text-debt text-sm">
+					{error}
+				</p>
+			)}
 		</div>
 	)
 }

@@ -9,15 +9,15 @@ use Pina\Auth\Role;
 use Pina\Auth\TeamScope;
 use Pina\Auth\TokenService;
 use Pina\Http\ApiException;
+use Pina\Mail\InvitationMail;
 use Pina\Service\TeamService;
+use Pina\Tests\Support\FakeMailer;
 
-/**
- * Správa družstev. Těžiště testů je na izolaci klubů a na rolích — přesně tam,
- * kde stará verze neměla žádnou kontrolu.
- */
+/** Izolace klubů a role — hlavní problém staré verze. */
 final class TeamServiceTest extends DatabaseTestCase
 {
     private TeamService $service;
+    private FakeMailer $mailer;
 
     private int $prosekClub;
     private int $prosekTeam;
@@ -32,10 +32,12 @@ final class TeamServiceTest extends DatabaseTestCase
     {
         parent::setUp();
 
+        $this->mailer  = new FakeMailer();
         $this->service = new TeamService(
             $this->db,
             new TeamScope($this->db),
             new TokenService($this->db),
+            new InvitationMail($this->mailer, 'https://pinaprosek.eu'),
         );
 
         [$this->prosekClub, $this->prosekTeam]   = $this->makeTeam('sk-prosek', 'Prosek - muži');
@@ -52,8 +54,7 @@ final class TeamServiceTest extends DatabaseTestCase
 
     public function testMyTeamsListsOnlyOwnMemberships(): void
     {
-        // Admin Prosku je zároveň hráčem Benátek — musí vidět obě družstva a v každém
-        // svou vlastní roli.
+        // Jeden člověk v dvou týmech → dvě membership, v každém jiná role.
         $this->makeMembership($this->admin->userId, $this->benatkyTeam, 'player');
 
         $teams = $this->service->myTeams($this->admin);
@@ -83,7 +84,7 @@ final class TeamServiceTest extends DatabaseTestCase
         self::assertSame($this->prosekClub, $detail['clubId']);
         self::assertSame(2, $detail['memberCount']);
 
-        // Řádek v team_settings ještě neexistuje, platí výchozí hodnoty ze schématu.
+        // Výchozí hodnoty bez řádku v DB.
         self::assertFalse($detail['settings']['travelEnabled']);
         self::assertSame(5.0, $detail['settings']['travelRateCzkKm']);
         self::assertTrue($detail['settings']['balancesVisibleToPlayers']);
@@ -156,8 +157,7 @@ final class TeamServiceTest extends DatabaseTestCase
         self::assertSame(hash('sha256', $invitation['token']), (string) $row['token_hash']);
         self::assertSame($this->prosekTeam, (int) $row['team_id']);
 
-        // Platnost 72 hodin. Počítá se dotazem v databázi, aby výsledek nezávisel
-        // na tom, jakou časovou zónu má nastavené PHP.
+        // Platnost ~72 hodin.
         self::assertGreaterThan(71 * 3600, (int) $row['lifetime']);
         self::assertLessThanOrEqual(72 * 3600, (int) $row['lifetime']);
     }
@@ -185,10 +185,202 @@ final class TeamServiceTest extends DatabaseTestCase
         self::assertSame(0, (int) $this->db->value('SELECT COUNT(*) FROM invitation'));
     }
 
+    public function testInvitationIsSentByEmailButLinkComesBackAnyway(): void
+    {
+        $invitation = $this->service->invite($this->admin, $this->prosekTeam, 'novy@prosek.cz', Role::Player);
+
+        self::assertTrue($invitation['emailSent']);
+        self::assertSame(['novy@prosek.cz'], $this->mailer->recipients());
+
+        // I po úspěšném odeslání — na případ spamu.
+        self::assertStringContainsString(
+            'https://pinaprosek.eu/pozvanka?token=' . $invitation['token'],
+            (string) $this->mailer->last(),
+        );
+    }
+
+    public function testInviteCanSkipTheEmail(): void
+    {
+        $invitation = $this->service->invite(
+            $this->admin,
+            $this->prosekTeam,
+            'novy@prosek.cz',
+            Role::Player,
+            sendEmail: false,
+        );
+
+        self::assertFalse($invitation['emailSent']);
+        self::assertSame([], $this->mailer->sent);
+        self::assertSame(64, strlen($invitation['token']));
+    }
+
+    public function testInviteSurvivesMailOutage(): void
+    {
+        $service = new TeamService(
+            $this->db,
+            new TeamScope($this->db),
+            new TokenService($this->db),
+            new InvitationMail(new FakeMailer(enabled: false), 'https://pinaprosek.eu'),
+        );
+
+        $invitation = $service->invite($this->admin, $this->prosekTeam, 'novy@prosek.cz', Role::Player);
+
+        // Pozvánka vznikne i bez pošty.
+        self::assertFalse($invitation['emailSent']);
+        self::assertSame(1, (int) $this->db->value('SELECT COUNT(*) FROM invitation'));
+    }
+
+    public function testResendReplacesTheOldToken(): void
+    {
+        $first = $this->service->invite($this->admin, $this->prosekTeam, 'novy@prosek.cz', Role::Player);
+        $this->ageInvitation($first['id']);
+
+        $second = $this->service->resendInvitation($this->admin, $first['id']);
+
+        self::assertNotSame($first['token'], $second['token']);
+        self::assertSame('novy@prosek.cz', $second['email']);
+        self::assertSame('player', $second['role']);
+
+        // Starý zneplatněn.
+        self::assertNull($this->db->value(
+            'SELECT id FROM invitation WHERE token_hash = ?',
+            [hash('sha256', $first['token'])],
+        ));
+
+        // Jen jeden aktuální.
+        self::assertSame(1, (int) $this->db->value('SELECT COUNT(*) FROM invitation'));
+    }
+
+    public function testResendIsRateLimited(): void
+    {
+        $invitation = $this->service->invite($this->admin, $this->prosekTeam, 'novy@prosek.cz', Role::Player);
+
+        try {
+            $this->service->resendInvitation($this->admin, $invitation['id']);
+            self::fail('bez čekání');
+        } catch (ApiException $e) {
+            self::assertSame(429, $e->status);
+        }
+
+        self::assertCount(1, $this->mailer->sent);
+    }
+
+    public function testActivationEmailsGoOutInBatches(): void
+    {
+        // Migrace: spousty účtů bez hesla.
+        for ($i = 0; $i < 30; $i++) {
+            $this->makeMembership($this->makeUser("hrac$i@prosek.cz"), $this->prosekTeam, 'player');
+        }
+
+        $this->db->run("UPDATE `user` SET password_hash = 'x' WHERE email = 'admin@prosek.cz'");
+
+        $first = $this->service->sendActivationEmails($this->admin, $this->prosekTeam);
+
+        // 31 bez hesla, dávka po 25.
+        self::assertSame(25, $first['sent']);
+        self::assertSame(6, $first['remaining']);
+        self::assertSame(0, $first['skipped']);
+
+        $second = $this->service->sendActivationEmails($this->admin, $this->prosekTeam);
+
+        self::assertSame(6, $second['sent']);
+        self::assertSame(0, $second['remaining']);
+        self::assertCount(31, $this->mailer->sent);
+
+        // Admin má heslo, žádná zpráva.
+        self::assertNotContains('admin@prosek.cz', $this->mailer->recipients());
+    }
+
+    public function testUndeliveredActivationDoesNotBlockTheNextAttempt(): void
+    {
+        // Neodeslané se vymažou — aby nového pokus neblokovalo.
+        $mailer  = new FakeMailer();
+        $service = new TeamService(
+            $this->db,
+            new TeamScope($this->db),
+            new TokenService($this->db),
+            new InvitationMail($mailer, 'https://pinaprosek.eu'),
+        );
+
+        $this->db->run("UPDATE `user` SET password_hash = 'x' WHERE email = 'admin@prosek.cz'");
+
+        $mailer->refuseAll = true;
+        $first             = $service->sendActivationEmails($this->admin, $this->prosekTeam);
+
+        self::assertSame(0, $first['sent']);
+        self::assertSame(1, $first['failed']);
+        self::assertSame(0, (int) $this->db->value('SELECT COUNT(*) FROM invitation'));
+
+        $mailer->refuseAll = false;
+        $second            = $service->sendActivationEmails($this->admin, $this->prosekTeam);
+
+        self::assertSame(1, $second['sent']);
+        self::assertSame(['hrac@prosek.cz'], $mailer->recipients());
+    }
+
+    public function testActivationEmailGoesOutOncePerPersonNotPerTeam(): void
+    {
+        // Člověk v několika týmech → jedna zpráva, ne vícekrát.
+        [, $juniors] = $this->makeTeam('sk-prosek-junior', 'Prosek - junioři');
+        $this->makeMembership($this->admin->userId, $juniors, 'admin');
+
+        $userId = (int) $this->db->value('SELECT user_id FROM membership WHERE id = ?', [$this->playerMembership]);
+        $this->makeMembership($userId, $juniors, 'player');
+        $this->db->run("UPDATE `user` SET password_hash = 'x' WHERE id = ?", [$this->admin->userId]);
+
+        $first  = $this->service->sendActivationEmails($this->admin, $this->prosekTeam);
+        $second = $this->service->sendActivationEmails($this->admin, $juniors);
+
+        self::assertSame(1, $first['sent']);
+        self::assertSame(0, $second['sent']);
+        self::assertSame(['hrac@prosek.cz'], $this->mailer->recipients());
+    }
+
+    public function testActivationEmailsSkipPlaceholderAddresses(): void
+    {
+        // Zástupné adresy (migrace) se vynechají.
+        $this->makeMembership($this->makeUser('legacy-7@pinaprosek.invalid'), $this->prosekTeam, 'player');
+
+        $result = $this->service->sendActivationEmails($this->admin, $this->prosekTeam);
+
+        self::assertSame(1, $result['skipped']);
+        self::assertNotContains('legacy-7@pinaprosek.invalid', $this->mailer->recipients());
+    }
+
+    public function testBulkActivationRefusedWhenMailIsOff(): void
+    {
+        $service = new TeamService(
+            $this->db,
+            new TeamScope($this->db),
+            new TokenService($this->db),
+            new InvitationMail(new FakeMailer(enabled: false), 'https://pinaprosek.eu'),
+        );
+
+        try {
+            $service->sendActivationEmails($this->admin, $this->prosekTeam);
+            self::fail('bez pošty');
+        } catch (ApiException $e) {
+            self::assertSame('MAIL_DISABLED', $e->errorCode);
+        }
+
+        // Tokeny se nevytvoří.
+        self::assertSame(0, (int) $this->db->value('SELECT COUNT(*) FROM invitation'));
+    }
+
+    public function testActivationEmailUsesMembersCurrentRole(): void
+    {
+        $this->service->updateMembership($this->admin, $this->playerMembership, ['role' => Role::Treasurer]);
+
+        $activation = $this->service->activationLink($this->admin, $this->playerMembership);
+
+        self::assertTrue($activation['emailSent']);
+        self::assertSame('treasurer', $activation['role']);
+        self::assertSame(['hrac@prosek.cz'], $this->mailer->recipients());
+    }
+
     public function testFounderOfTeamBecomesItsAdmin(): void
     {
-        // Odpověď na otázku „kdo vytvoří admina družstva": jeho zakladatel.
-        // Admin mužů takhle založí juniory, aniž by kdokoli sahal do databáze.
+        // Zakladatel je admin nového týmu.
         $team = $this->service->createTeam($this->admin, $this->prosekClub, 'Prosek - junioři', '#062372');
 
         self::assertSame('Prosek - junioři', $team['name']);
@@ -215,8 +407,7 @@ final class TeamServiceTest extends DatabaseTestCase
 
         $this->service->createTeam($this->admin, $this->prosekClub, 'Prosek - kadeti', null);
 
-        // Starý JWT o novém členství neví; bez posunutí razítka by na něj
-        // zakladatel dalších 15 minut neměl práva.
+        // Razítko se posune — stará tokeny padnou.
         self::assertNotSame(
             '2020-01-01 00:00:00',
             (string) $this->db->value('SELECT tokens_valid_from FROM `user` WHERE id = ?', [$this->admin->userId]),
@@ -259,6 +450,54 @@ final class TeamServiceTest extends DatabaseTestCase
         }
     }
 
+    public function testPlatformOverviewShowsHealthOfEveryClub(): void
+    {
+        $this->db->run("UPDATE `user` SET password_hash = 'x' WHERE email = 'admin@prosek.cz'");
+        $season = $this->makeSeason($this->prosekTeam, '26/27');
+        $this->db->run('UPDATE season SET is_current = 1 WHERE id = ?', [$season]);
+
+        $clubs = $this->service->platformOverview($this->platformAdmin());
+
+        self::assertCount(2, $clubs);
+
+        $prosek = array_values(array_filter($clubs, fn (array $c): bool => $c['id'] === $this->prosekClub))[0];
+        self::assertCount(1, $prosek['teams']);
+
+        $team = $prosek['teams'][0];
+        self::assertSame(2, $team['memberCount']);
+        self::assertSame(1, $team['adminCount']);
+        // Jen jeden aktivní.
+        self::assertSame(1, $team['activatedCount']);
+        self::assertSame('26/27', $team['currentSeason']);
+        self::assertSame(1, $team['seasonCount']);
+    }
+
+    public function testPlatformOverviewListsClubWithoutAnyTeam(): void
+    {
+        // Prázdný klub se ukazuje — aby správce věděl, co dál.
+        $platform = $this->platformAdmin();
+        $this->service->createClub($platform, 'Nový klub');
+
+        $novy = array_values(array_filter(
+            $this->service->platformOverview($platform),
+            static fn (array $club): bool => $club['name'] === 'Nový klub',
+        ));
+
+        self::assertCount(1, $novy);
+        self::assertSame([], $novy[0]['teams']);
+    }
+
+    public function testPlatformOverviewIsClosedToTeamAdmins(): void
+    {
+        // Admin týmu není admin platformy.
+        try {
+            $this->service->platformOverview($this->admin);
+            self::fail('není přístup');
+        } catch (ApiException $e) {
+            self::assertSame(403, $e->status);
+        }
+    }
+
     public function testOnlyPlatformAdminFoundsClub(): void
     {
         try {
@@ -281,7 +520,7 @@ final class TeamServiceTest extends DatabaseTestCase
         $first  = $this->service->createClub($platform, 'Sokol Žižkov');
         $second = $this->service->createClub($platform, 'Sokol Žižkov');
 
-        // Slug má unikátní index; bez číslování by druhé založení skončilo chybou databáze.
+        // Číslování místo chyby.
         self::assertSame('sokol-zizkov', $first['slug']);
         self::assertSame('sokol-zizkov-2', $second['slug']);
     }
@@ -439,6 +678,57 @@ final class TeamServiceTest extends DatabaseTestCase
         );
     }
 
+    public function testAdminRenamesPlayerEverywhere(): void
+    {
+        // Jméno na uživateli → změní se všude.
+        [, $juniors] = $this->makeTeam('sk-prosek-junior', 'Prosek - junioři');
+        $userId      = (int) $this->db->value('SELECT user_id FROM membership WHERE id = ?', [$this->playerMembership]);
+        $this->makeMembership($userId, $juniors, 'player');
+
+        $member = $this->service->updateMembership($this->admin, $this->playerMembership, ['name' => '  Petr Novák  ']);
+
+        self::assertSame('Petr Novák', $member['name']);
+        self::assertSame(
+            'Petr Novák',
+            (string) $this->db->value('SELECT display_name FROM `user` WHERE id = ?', [$userId]),
+        );
+    }
+
+    public function testRenameAloneIsEnoughOfAChange(): void
+    {
+        // Jméno na uživateli, ne v membership, ale je to platná změna.
+        $member = $this->service->updateMembership($this->admin, $this->playerMembership, ['name' => 'Petr']);
+
+        self::assertSame('Petr', $member['name']);
+        self::assertSame('player', $member['role']);
+    }
+
+    public function testEmptyNameIsRejected(): void
+    {
+        try {
+            $this->service->updateMembership($this->admin, $this->playerMembership, ['name' => '   ']);
+            self::fail('bez jména');
+        } catch (ApiException $e) {
+            self::assertSame(400, $e->status);
+            self::assertSame('name', $e->details['field'] ?? null);
+        }
+    }
+
+    public function testPlayerCannotRenameAnyone(): void
+    {
+        try {
+            $this->service->updateMembership($this->player, $this->playerMembership, ['name' => 'Kdokoli']);
+            self::fail('bez práv');
+        } catch (ApiException $e) {
+            self::assertSame(403, $e->status);
+        }
+
+        self::assertSame(
+            'hrac',
+            (string) $this->db->value('SELECT display_name FROM `user` WHERE email = ?', ['hrac@prosek.cz']),
+        );
+    }
+
     public function testMembershipMarkedLeftGetsDate(): void
     {
         $member = $this->service->updateMembership($this->admin, $this->playerMembership, ['status' => 'left']);
@@ -487,7 +777,7 @@ final class TeamServiceTest extends DatabaseTestCase
         self::assertTrue($first['travelEnabled']);
         self::assertSame(6.5, $first['travelRateCzkKm']);
 
-        // Druhé uložení jde přes ON DUPLICATE KEY UPDATE — nesmí spadnout ani založit druhý řádek.
+        // Druhé: přepsání bez duplikátu.
         $second = $this->service->saveSettings($this->admin, $this->prosekTeam, $this->settings([
             'travelEnabled'    => false,
             'travelRateCzkKm'  => 8.0,
@@ -520,7 +810,7 @@ final class TeamServiceTest extends DatabaseTestCase
             $this->service->saveSettings($this->admin, $this->prosekTeam, $this->settings([
                 'homeLocationId' => $foreign,
             ]));
-            self::fail('domácí hala z cizího klubu se nesmí uložit');
+            self::fail('cizí hala');
         } catch (ApiException $e) {
             self::assertSame(400, $e->status);
         }
@@ -583,7 +873,16 @@ final class TeamServiceTest extends DatabaseTestCase
         return new Identity($userId, $email, $email, false, [$teamId => $role]);
     }
 
-    /** Správce platformy — nikde není členem, práva má z příznaku u účtu. */
+    /** Do minulosti pro přeslání bez čekání. */
+    private function ageInvitation(int $invitationId): void
+    {
+        $this->db->run(
+            'UPDATE invitation SET created_at = DATE_SUB(NOW(), INTERVAL 10 MINUTE) WHERE id = ?',
+            [$invitationId],
+        );
+    }
+
+    /** Admin bez členství — jen příznak u účtu. */
     private function platformAdmin(): Identity
     {
         $email  = 'spravce@pinaprosek.eu';

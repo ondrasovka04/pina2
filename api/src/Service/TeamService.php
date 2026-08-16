@@ -9,6 +9,7 @@ use Pina\Auth\Role;
 use Pina\Auth\TeamScope;
 use Pina\Auth\TokenService;
 use Pina\Http\ApiException;
+use Pina\Mail\InvitationMail;
 use Pina\Support\Database;
 use Pina\Support\PaymentReference;
 
@@ -55,8 +56,21 @@ final class TeamService
     /** Pozvánka platí tři dny — dost na to, aby si ji hráč všiml, a přitom krátce. */
     private const INVITATION_TTL_HOURS = 72;
 
-    /** @var list<string> */
-    private const MEMBER_STATUSES = ['active', 'suspended', 'left'];
+    /** Nejkratší odstup mezi dvěma zprávami na tutéž adresu. */
+    private const RESEND_COOLDOWN_SECONDS = 60;
+
+    /** Kolik aktivačních e-mailů se rozešle na jedno kliknutí. */
+    private const ACTIVATION_BATCH_SIZE = 25;
+
+    /** Doména, kterou dostaly účty bez e-mailu ze staré databáze. */
+    private const PLACEHOLDER_EMAIL_DOMAIN = '@pinaprosek.invalid';
+
+    /**
+     * Živé ('active') či skončené ('left') — mezistav z migrace byl zbytečný.
+     *
+     * @var list<string>
+     */
+    private const MEMBER_STATUSES = ['active', 'left'];
 
     /** @var list<string> */
     private const SETTLEMENT_PERIODS = ['none', 'half_year', 'season'];
@@ -65,6 +79,7 @@ final class TeamService
         private readonly Database $db,
         private readonly TeamScope $scope,
         private readonly TokenService $tokens,
+        private readonly InvitationMail $mails,
     ) {
     }
 
@@ -114,6 +129,83 @@ final class TeamService
                 'name' => (string) $row['season_name'],
             ],
         ], $rows);
+    }
+
+    /**
+     * Přehled klubů a družstev pro správce. Zdatnost (admini, aktivace, sezóny),
+     * nikoli dluhy či peníze cizích klubů.
+     *
+     * @return list<array{
+     *     id:int,
+     *     name:string,
+     *     slug:string,
+     *     teams:list<array{
+     *         id:int,
+     *         name:string,
+     *         archived:bool,
+     *         memberCount:int,
+     *         adminCount:int,
+     *         activatedCount:int,
+     *         seasonCount:int,
+     *         currentSeason:string|null
+     *     }>
+     * }>
+     */
+    public function platformOverview(Identity $identity): array
+    {
+        if (!$identity->isPlatformAdmin) {
+            throw ApiException::forbidden('Tahle část patří správci platformy.');
+        }
+
+        $rows = $this->db->all(
+            "SELECT c.id AS club_id, c.name AS club_name, c.slug,
+                    t.id AS team_id, t.name AS team_name, t.archived_at,
+                    (SELECT COUNT(*) FROM membership m
+                      WHERE m.team_id = t.id AND m.status <> 'left') AS member_count,
+                    (SELECT COUNT(*) FROM membership m
+                      WHERE m.team_id = t.id AND m.status <> 'left' AND m.role = 'admin') AS admin_count,
+                    (SELECT COUNT(*) FROM membership m
+                       JOIN `user` u ON u.id = m.user_id
+                      WHERE m.team_id = t.id AND m.status <> 'left'
+                        AND u.password_hash IS NOT NULL) AS activated_count,
+                    (SELECT COUNT(*) FROM season s WHERE s.team_id = t.id) AS season_count,
+                    cs.name AS current_season
+               FROM club c
+               LEFT JOIN team t ON t.club_id = c.id
+               LEFT JOIN season cs ON cs.team_id = t.id AND cs.is_current = 1
+              ORDER BY c.name, t.name",
+        );
+
+        $clubs = [];
+
+        foreach ($rows as $row) {
+            $clubId = (int) $row['club_id'];
+
+            $clubs[$clubId] ??= [
+                'id'    => $clubId,
+                'name'  => (string) $row['club_name'],
+                'slug'  => (string) $row['slug'],
+                'teams' => [],
+            ];
+
+            // LEFT JOIN: klub bez jediného družstva vrací řádek s prázdným týmem.
+            if ($row['team_id'] === null) {
+                continue;
+            }
+
+            $clubs[$clubId]['teams'][] = [
+                'id'             => (int) $row['team_id'],
+                'name'           => (string) $row['team_name'],
+                'archived'       => $row['archived_at'] !== null,
+                'memberCount'    => (int) $row['member_count'],
+                'adminCount'     => (int) $row['admin_count'],
+                'activatedCount' => (int) $row['activated_count'],
+                'seasonCount'    => (int) $row['season_count'],
+                'currentSeason'  => $row['current_season'] === null ? null : (string) $row['current_season'],
+            ];
+        }
+
+        return array_values($clubs);
     }
 
     /**
@@ -254,7 +346,7 @@ final class TeamService
                FROM membership m
                JOIN `user` u ON u.id = m.user_id
               WHERE m.team_id = ?
-              ORDER BY FIELD(m.status, \'active\', \'suspended\', \'left\'), u.display_name',
+              ORDER BY FIELD(m.status, \'active\', \'left\'), u.display_name',
             [$teamId],
         );
 
@@ -274,17 +366,14 @@ final class TeamService
     }
 
     /**
-     * Vytvoří pozvánku do týmu.
+     * Vytvoří pozvánku do týmu a volitelně ji pošle e-mailem.
      *
-     * POZOR: e-mail se záměrně NEODESÍLÁ — odesílání pošty je v tomto projektu
-     * vypnuté. Token se proto vrací v odpovědi a admin ho pozvanému předá sám
-     * (odkaz přes chat, osobně). Z téhož důvodu se token nikam neloguje.
-     * V databázi zůstává jen jeho SHA-256 otisk, takže únik tabulky pozvánek
-     * sám o sobě nikomu přístup do týmu nedá.
+     * Token se vrací vždycky, i když pošta odešla — v DB zůstane jen otisk.
+     * Admin má co poslat do chatu, když zpráva skončí ve spamu.
      *
-     * @return array{id:int,email:string,role:string,expiresAt:string,token:string}
+     * @return array{id:int,email:string,role:string,expiresAt:string,token:string,emailSent:bool}
      */
-    public function invite(Identity $identity, int $teamId, string $email, Role $role): array
+    public function invite(Identity $identity, int $teamId, string $email, Role $role, bool $sendEmail = true): array
     {
         $this->scope->team($identity, $teamId, Role::Admin);
 
@@ -306,30 +395,141 @@ final class TeamService
             );
         }
 
-        $token = bin2hex(random_bytes(32));
+        $issued = $this->issueToken($teamId, $email, $role->value, $identity->userId);
 
-        $this->db->run(
-            'INSERT INTO invitation (team_id, email, role, token_hash, expires_at, invited_by)
-             VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? HOUR), ?)',
-            [
-                $teamId,
-                $email,
-                $role->value,
-                hash('sha256', $token),
-                self::INVITATION_TTL_HOURS,
-                $identity->userId,
-            ],
-        );
-
-        $id        = $this->db->lastInsertId();
-        $expiresAt = (string) $this->db->value('SELECT expires_at FROM invitation WHERE id = ?', [$id]);
+        $sent = $sendEmail
+            && $this->mails->sendInvitation($email, $issued['token'], $this->teamName($teamId), $identity->displayName);
 
         return [
-            'id'        => $id,
+            'id'        => $issued['id'],
             'email'     => $email,
             'role'      => $role->value,
-            'expiresAt' => $expiresAt,
-            'token'     => $token,
+            'expiresAt' => $issued['expiresAt'],
+            'token'     => $issued['token'],
+            'emailSent' => $sent,
+        ];
+    }
+
+    /**
+     * Pošle pozvánku znovu — s novým tokenem (původní server nezná).
+     * Stará pozvánka se zneplatní; kdyby první zpráva unikla, je to bezpečné.
+     *
+     * @return array{id:int,email:string,role:string,expiresAt:string,token:string,emailSent:bool}
+     */
+    public function resendInvitation(Identity $identity, int $invitationId): array
+    {
+        $teamId = $this->scope->invitation($identity, $invitationId, Role::Admin);
+
+        $invitation = $this->db->first(
+            'SELECT email, role, accepted_at, TIMESTAMPDIFF(SECOND, created_at, NOW()) AS age
+               FROM invitation WHERE id = ?',
+            [$invitationId],
+        );
+
+        if ($invitation === null) {
+            throw ApiException::notFound();
+        }
+
+        if ($invitation['accepted_at'] !== null) {
+            throw ApiException::conflict(
+                'INVITATION_ACCEPTED',
+                'Pozvánka už byla přijata, posílat ji znovu není proč.',
+                ['invitationId' => $invitationId],
+            );
+        }
+
+        // Ochranu proti rozesílání jedné adrese pořád dokola (dvojklik, spam).
+        $age = (int) $invitation['age'];
+        if ($age < self::RESEND_COOLDOWN_SECONDS) {
+            throw ApiException::tooManyRequests(
+                'Pozvánka odešla teprve před chvílí. Zkuste to za minutu.',
+                self::RESEND_COOLDOWN_SECONDS - $age,
+            );
+        }
+
+        $email  = (string) $invitation['email'];
+        $role   = (string) $invitation['role'];
+        $issued = $this->issueToken($teamId, $email, $role, $identity->userId);
+        $sent   = $this->mails->sendInvitation($email, $issued['token'], $this->teamName($teamId), $identity->displayName);
+
+        return [
+            'id'        => $issued['id'],
+            'email'     => $email,
+            'role'      => $role,
+            'expiresAt' => $issued['expiresAt'],
+            'token'     => $issued['token'],
+            'emailSent' => $sent,
+        ];
+    }
+
+    /**
+     * Hromadné rozeslání e-mailů všem bez hesla. Dávka omezená (25 zpráv)
+     * kvůli timeout a SMTP; odpověď říká, kolik zbývá.
+     *
+     * @return array{sent:int,failed:int,remaining:int,skipped:int}
+     */
+    public function sendActivationEmails(Identity $identity, int $teamId): array
+    {
+        $this->scope->team($identity, $teamId, Role::Admin);
+
+        if (!$this->mails->enabled()) {
+            throw ApiException::conflict(
+                'MAIL_DISABLED',
+                'Odesílání e-mailů je vypnuté. Vytvořte aktivační odkazy jednotlivě a pošlete je ručně.',
+            );
+        }
+
+        $candidates = $this->db->all(
+            "SELECT m.id, m.role, u.display_name, u.email
+               FROM membership m
+               JOIN `user` u ON u.id = m.user_id
+              WHERE m.team_id = ? AND m.status <> 'left' AND u.password_hash IS NULL
+                -- Přeskakovat, kdo již aktivační odkaz má (aby opakované
+                -- kliknutí neobeslalo znovu lidi ze začátku). Hráč si heslo
+                -- nastavuje jednou, takže se družstvo nefiltruje.
+                AND NOT EXISTS (
+                    SELECT 1 FROM invitation i
+                     WHERE i.email = u.email
+                       AND i.accepted_at IS NULL AND i.expires_at > NOW()
+                )
+              ORDER BY u.display_name",
+            [$teamId],
+        );
+
+        // Účty ze staré databáze bez e-mailu dostaly zástupnou adresu; poslat
+        // na ni nejde a admin jim musí adresu nejdřív doplnit.
+        $reachable = array_values(array_filter(
+            $candidates,
+            static fn (array $row): bool => !str_ends_with((string) $row['email'], self::PLACEHOLDER_EMAIL_DOMAIN),
+        ));
+
+        $teamName = $this->teamName($teamId);
+        $batch    = array_slice($reachable, 0, self::ACTIVATION_BATCH_SIZE);
+        $sent     = 0;
+        $failed   = 0;
+
+        foreach ($batch as $row) {
+            $email  = (string) $row['email'];
+            $issued = $this->issueToken($teamId, $email, (string) $row['role'], $identity->userId);
+
+            if ($this->mails->sendActivation($email, (string) $row['display_name'], $issued['token'], $teamName)) {
+                $sent++;
+
+                continue;
+            }
+
+            $failed++;
+
+            // Nedoručenou pozvánku smazat — token nikdo neviděl a její
+            // existence by adresáta na 3 dny vyřadila z dalších pokusů.
+            $this->db->run('DELETE FROM invitation WHERE id = ?', [$issued['id']]);
+        }
+
+        return [
+            'sent'      => $sent,
+            'failed'    => $failed,
+            'remaining' => count($reachable) - count($batch),
+            'skipped'   => count($candidates) - count($reachable),
         ];
     }
 
@@ -382,26 +582,20 @@ final class TeamService
     }
 
     /**
-     * Aktivační odkaz pro člena, který ještě nemá heslo.
+     * Aktivační odkaz pro člena bez hesla. Běžná pozvánka na existující
+     * členství nesedne. Odkaz se vrací i po úspěšném odeslání pošty.
      *
-     * Migrace ze staré aplikace hesla nepřenesla (byly to SHA-256 otisky bez soli),
-     * takže drtivá většina účtů se nemá čím přihlásit. Běžná pozvánka na ně
-     * nesedne — ta existující členství odmítá. Odkaz se tvoří jako pozvánka
-     * se stávající rolí člena, takže ho `acceptInvitation` zpracuje beze změn.
+     * Účtu s heslem se nevydá; `acceptInvitation` heslo přepisuje přes
+     * COALESCE, takže odkazem nejde převzít cizí účet.
      *
-     * Bezpečnostní pojistka je v `acceptInvitation`: heslo se zapisuje přes
-     * COALESCE, takže existující heslo nepřepíše. Odkaz proto nejde zneužít
-     * k převzetí cizího účtu — a pro jistotu ho tahle metoda pro účet s heslem
-     * ani nevydá.
-     *
-     * @return array{email:string,role:string,expiresAt:string,token:string}
+     * @return array{email:string,role:string,expiresAt:string,token:string,emailSent:bool}
      */
-    public function activationLink(Identity $identity, int $membershipId): array
+    public function activationLink(Identity $identity, int $membershipId, bool $sendEmail = true): array
     {
         $teamId = $this->scope->membership($identity, $membershipId, Role::Admin);
 
         $member = $this->db->first(
-            'SELECT m.role, u.email, u.password_hash
+            'SELECT m.role, u.display_name, u.email, u.password_hash
                FROM membership m
                JOIN `user` u ON u.id = m.user_id
               WHERE m.id = ?',
@@ -424,43 +618,34 @@ final class TeamService
 
         // Migrace založila zástupné adresy lidem, kteří v staré databázi e-mail
         // neměli. Na takovou adresu se nelze přihlásit, musí se nejdřív opravit.
-        if (str_ends_with($email, '@pinaprosek.invalid')) {
+        if (str_ends_with($email, self::PLACEHOLDER_EMAIL_DOMAIN)) {
             throw ApiException::validation(
                 'Člen nemá skutečnou e-mailovou adresu, nejdřív ji doplňte.',
                 ['field' => 'email'],
             );
         }
 
-        $token = bin2hex(random_bytes(32));
+        $role   = (string) $member['role'];
+        $issued = $this->issueToken($teamId, $email, $role, $identity->userId);
 
-        $this->db->run(
-            'INSERT INTO invitation (team_id, email, role, token_hash, expires_at, invited_by)
-             VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? HOUR), ?)',
-            [
-                $teamId,
-                $email,
-                (string) $member['role'],
-                hash('sha256', $token),
-                self::INVITATION_TTL_HOURS,
-                $identity->userId,
-            ],
-        );
-
-        $expiresAt = (string) $this->db->value(
-            'SELECT expires_at FROM invitation WHERE id = ?',
-            [$this->db->lastInsertId()],
+        $sent = $sendEmail && $this->mails->sendActivation(
+            $email,
+            (string) $member['display_name'],
+            $issued['token'],
+            $this->teamName($teamId),
         );
 
         return [
             'email'     => $email,
-            'role'      => (string) $member['role'],
-            'expiresAt' => $expiresAt,
-            'token'     => $token,
+            'role'      => $role,
+            'expiresAt' => $issued['expiresAt'],
+            'token'     => $issued['token'],
+            'emailSent' => $sent,
         ];
     }
 
     /**
-     * @param  array{role?:Role,jerseyNumber?:int|null,status?:string} $changes
+     * @param  array{name?:string,role?:Role,jerseyNumber?:int|null,status?:string} $changes
      * @return TeamMember
      */
     public function updateMembership(Identity $identity, int $membershipId, array $changes): array
@@ -480,6 +665,21 @@ final class TeamService
 
         $sets   = [];
         $params = [];
+
+        // Jméno je na uživateli, ne na členství — projeví se všude.
+        // Admin opravuje přezdívky ze staré verze.
+        if (isset($changes['name'])) {
+            $name = trim($changes['name']);
+
+            if ($name === '') {
+                throw ApiException::validation('Jméno nesmí být prázdné.', ['field' => 'name']);
+            }
+
+            $this->db->run(
+                'UPDATE `user` SET display_name = ? WHERE id = ?',
+                [$name, $current['user_id']],
+            );
+        }
 
         if (isset($changes['role'])) {
             $sets[]   = 'role = ?';
@@ -502,13 +702,15 @@ final class TeamService
             $sets[]   = $changes['status'] === 'left' ? 'left_at = NOW()' : 'left_at = NULL';
         }
 
-        if ($sets === []) {
+        if ($sets === [] && !isset($changes['name'])) {
             throw ApiException::validation('Není co upravit — pošlete alespoň jedno pole.');
         }
 
-        // Do dotazu se skládají jen literály vypsané výše, hodnoty jdou parametrem.
-        $params[] = $membershipId;
-        $this->db->run('UPDATE membership SET ' . implode(', ', $sets) . ' WHERE id = ?', $params);
+        if ($sets !== []) {
+            // Do dotazu se skládají jen literály vypsané výše, hodnoty jdou parametrem.
+            $params[] = $membershipId;
+            $this->db->run('UPDATE membership SET ' . implode(', ', $sets) . ' WHERE id = ?', $params);
+        }
 
         $roleChanged   = isset($changes['role']) && $changes['role']->value !== (string) $current['role'];
         $statusChanged = isset($changes['status']) && $changes['status'] !== (string) $current['status'];
@@ -582,12 +784,8 @@ final class TeamService
     }
 
     /**
-     * Družstvo nesmí přijít o posledního admina.
-     *
-     * Bez téhle pojistky by šlo omylem odebrat roli sám sobě a družstvo by
-     * zůstalo bez správce — zvenčí by to spravil jen zásah do databáze, protože
-     * roli uděluje admin téhož družstva. Předání role se dělá obráceně: nejdřív
-     * povýšit nástupce, pak sebe degradovat.
+     * Pojistka: lze odebrat roli či odejít jen pokud zbývá další admin.
+     * Jinak by se družstvo bez správce opravilo jen ručním zásahem do DB.
      *
      * @param array<string,mixed>                                     $current
      * @param array{role?:Role,jerseyNumber?:int|null,status?:string} $changes
@@ -617,6 +815,41 @@ final class TeamService
                 'Družstvo by zůstalo bez admina. Nejdřív jmenujte jiného.',
             );
         }
+    }
+
+    /**
+     * Vydá nový token na jedno použití. Starší pozvánky pro tutéž adresu
+     * v témže družstvu se ruší, aby admin viděl jen poslední.
+     *
+     * @return array{id:int,token:string,expiresAt:string}
+     */
+    private function issueToken(int $teamId, string $email, string $role, int $invitedBy): array
+    {
+        $token = bin2hex(random_bytes(32));
+
+        $this->db->run(
+            'DELETE FROM invitation WHERE team_id = ? AND email = ? AND accepted_at IS NULL',
+            [$teamId, $email],
+        );
+
+        $this->db->run(
+            'INSERT INTO invitation (team_id, email, role, token_hash, expires_at, invited_by)
+             VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? HOUR), ?)',
+            [$teamId, $email, $role, hash('sha256', $token), self::INVITATION_TTL_HOURS, $invitedBy],
+        );
+
+        $id = $this->db->lastInsertId();
+
+        return [
+            'id'        => $id,
+            'token'     => $token,
+            'expiresAt' => (string) $this->db->value('SELECT expires_at FROM invitation WHERE id = ?', [$id]),
+        ];
+    }
+
+    private function teamName(int $teamId): string
+    {
+        return (string) $this->db->value('SELECT name FROM team WHERE id = ?', [$teamId]);
     }
 
     /** Adresa v URL klubu: bez diakritiky, malá písmena, a unikátní. */

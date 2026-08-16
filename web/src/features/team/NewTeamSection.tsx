@@ -8,12 +8,8 @@ import { ApiError } from '@/lib/api'
 import { useCreateTeam } from '@/lib/queries'
 
 /**
- * Založení dalšího družstva ve stejném klubu.
- *
- * Tohle je odpověď na otázku, kdo vytvoří admina nového družstva: jeho
- * zakladatel. Admin mužů takhle založí juniory a je jejich adminem, dokud roli
- * nepředá trenérovi. Nikde k tomu není potřeba pevně zadané ID ani zásah do
- * databáze — server přiděluje roli podle toho, kdo požadavek poslal.
+ * Zakladatel se stane adminem nového družstva.
+ * Server přiděluje roli podle toho, kdo požadavek poslal.
  */
 export function NewTeamSection({ clubId, clubName }: { clubId: number; clubName: string }) {
 	const { selectTeam } = useTeam()
@@ -30,8 +26,7 @@ export function NewTeamSection({ clubId, clubName }: { clubId: number; clubName:
 			const team = await create.mutateAsync({ name: name.trim() })
 			setName('')
 			setOpen(false)
-			// Přepnutí na nové družstvo rovnou — jinak by ho člověk musel hledat
-			// v přepínači a nebylo by poznat, že se něco stalo.
+			// Přepnutí na nové družstvo rovnou.
 			selectTeam(team.id)
 		} catch (cause) {
 			setError(cause instanceof ApiError ? cause.message : 'Družstvo se nepodařilo založit.')

@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/Button'
 import { invitationUrl } from '@/features/team/members'
+import { cn } from '@/lib/cn'
 import type { IssuedLink } from '@/lib/types'
 import { formatDateTime } from '@/lib/types'
 
@@ -13,14 +14,8 @@ interface OneTimeLinkDialogProps {
 }
 
 /**
- * Vydaný odkaz na jedno použití.
- *
- * Token drží server jen jako otisk, takže tohle je **jediná chvíle**, kdy jde
- * odkaz přečíst — po zavření dialogu se už nikde nedohledá a musí se vydat nový.
- * Text to říká nahlas, aby si ho člověk nezavřel omylem.
- *
- * E-maily se z aplikace neposílají (`MAIL_ENABLED=false`), odkaz se předává
- * v týmovém chatu nebo osobně.
+ * Token se zobrazí jen jednou — server si ho pamatuje jen jako otisk.
+ * E-maily se neposílají, odkaz se předává v chatu.
  */
 export function OneTimeLinkDialog({ link, title, description, onClose }: OneTimeLinkDialogProps) {
 	const dialogRef = useRef<HTMLDialogElement>(null)
@@ -72,9 +67,18 @@ export function OneTimeLinkDialog({ link, title, description, onClose }: OneTime
 
 			{link === null ? null : (
 				<>
-					<p className="text-ink-muted mt-4 text-sm">
-						Pro <span className="text-ink font-medium">{link.email}</span>, platí do {formatDateTime(link.expiresAt)}.
+					<p
+						className={cn(
+							'mt-4 rounded-xl px-3 py-2 text-sm',
+							link.emailSent ? 'bg-bonus-500/15 text-ink' : 'bg-surface-2 text-ink-muted',
+						)}
+					>
+						{link.emailSent
+							? `Zpráva odešla na ${link.email}.`
+							: `E-mail neodešel — pošlete odkaz na ${link.email} sami.`}
 					</p>
+
+					<p className="text-ink-muted mt-3 text-sm">Platí do {formatDateTime(link.expiresAt)}.</p>
 
 					{/* Jen pro čtení, ale ne `disabled` — z zakázaného pole nejde označit text. */}
 					<input

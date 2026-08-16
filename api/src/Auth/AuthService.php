@@ -6,12 +6,11 @@ namespace Pina\Auth;
 
 use Pina\Http\ApiException;
 use Pina\Http\RateLimiter;
+use Pina\Support\Config;
 use Pina\Support\Database;
 use Pina\Support\PaymentReference;
 
-/**
- * Přihlášení, pozvánky a reset hesla.
- */
+/** Přihlášení a správa pozvánek. */
 final class AuthService
 {
     public function __construct(
@@ -42,8 +41,7 @@ final class AuthService
         if (!$valid || $user === null) {
             $this->limiter->record($email, $ip, false);
 
-            // Stejná hláška pro neexistující účet i špatné heslo — jinak by API
-            // sloužilo k ověřování, kdo je v systému registrovaný.
+            // Stejná hláška pro neexistující účet i špatné heslo (brání enumeraci).
             throw new ApiException(401, 'INVALID_CREDENTIALS', 'Nesprávný e-mail nebo heslo.');
         }
 
@@ -98,8 +96,7 @@ final class AuthService
                 );
                 $userId = $this->db->lastInsertId();
             } else {
-                // Hráč ve dvou klubech má jeden účet; heslo si nastavuje jen tehdy,
-                // pokud ho ještě nemá.
+                // Hráč v několika klubech — heslo jen pokud nemá.
                 $userId = (int) $userId;
                 $this->db->run(
                     'UPDATE `user`
@@ -141,7 +138,7 @@ final class AuthService
             [$this->passwords->hash($new), $userId],
         );
 
-        // Změna hesla ukončí všechny relace včetně těch na cizích zařízeních.
+        // Změna hesla zneplatní všechny relace na všech zařízeních.
         $this->tokens->revokeAllForUser($userId);
         $this->tokens->invalidateAccessTokens($userId);
     }
@@ -174,6 +171,8 @@ final class AuthService
             'email'         => $user['email'],
             'name'          => $user['display_name'],
             'platformAdmin' => (bool) $user['is_platform_admin'],
+            // Údaj o nasazení, ne o uživateli — musí být stále dostupný.
+            'mailEnabled'   => Config::bool('MAIL_ENABLED') && Config::get('MAIL_PASSWORD', '') !== '',
             'memberships'   => array_map(static fn (array $m): array => [
                 'id'               => (int) $m['id'],
                 'teamId'           => (int) $m['team_id'],

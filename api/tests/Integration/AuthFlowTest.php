@@ -11,9 +11,7 @@ use Pina\Auth\TokenService;
 use Pina\Http\ApiException;
 use Pina\Http\RateLimiter;
 
-/**
- * Celý průchod přihlášením: pozvánka → heslo → login → přístup k datům.
- */
+/** Cesta od pozvánky přes přihlášení k datům. */
 final class AuthFlowTest extends DatabaseTestCase
 {
     private AuthService $auth;
@@ -55,7 +53,7 @@ final class AuthFlowTest extends DatabaseTestCase
 
         self::assertSame($userId, $result['user']['id']);
         self::assertSame('treasurer', $result['user']['memberships'][0]['role']);
-        self::assertNotEmpty($result['user']['memberships'][0]['paymentReference'], 'VS pro platby vzniká hned');
+        self::assertNotEmpty($result['user']['memberships'][0]['paymentReference']);
     }
 
     public function testInvitationCannotBeUsedTwice(): void
@@ -69,7 +67,7 @@ final class AuthFlowTest extends DatabaseTestCase
 
     public function testSamePersonInTwoClubsKeepsOneAccount(): void
     {
-        // Hráč pozvaný do dvou týmů má jeden účet a jedno heslo, ale dvě členství.
+        // Jeden účet, jedno heslo, více členství.
         [, $secondTeam] = $this->makeTeam('vk-benatky', 'VK Benátky');
 
         $first = $this->invite('obojziv@example.cz');
@@ -106,7 +104,7 @@ final class AuthFlowTest extends DatabaseTestCase
             }
         }
 
-        // Kdyby se hlášky lišily, API by prozradilo, kdo je registrovaný.
+        // Stejné hlášky — aby se nezměňoval, kdo je v systému.
         self::assertSame($messages[0], $messages[1]);
     }
 
@@ -127,7 +125,7 @@ final class AuthFlowTest extends DatabaseTestCase
             try {
                 $this->auth->login('obet@prosek.cz', 'spatne' . $i, null, '10.0.0.1');
             } catch (ApiException) {
-                // očekávané
+                // očekávaná chyba
             }
         }
 
@@ -152,12 +150,11 @@ final class AuthFlowTest extends DatabaseTestCase
 
         try {
             $this->tokens->refresh($session['refreshToken'], null, null);
-            self::fail('po změně hesla nesmí refresh token fungovat');
+            self::fail('staré tokeny musí padnout');
         } catch (ApiException $e) {
             self::assertSame(401, $e->status);
         }
 
-        // Nové heslo funguje, staré ne.
         $this->auth->login('menic@prosek.cz', 'zcela-nove-heslo-2026', null, null);
 
         $this->expectException(ApiException::class);
@@ -173,6 +170,6 @@ final class AuthFlowTest extends DatabaseTestCase
         $identity = $this->tokens->verify($pair['accessToken']);
 
         self::assertSame(Role::Admin, $identity->roleInTeam($this->teamId));
-        self::assertTrue($identity->hasRoleInTeam($this->teamId, Role::Treasurer), 'admin zvládne i práci pínaře');
+        self::assertTrue($identity->hasRoleInTeam($this->teamId, Role::Treasurer));
     }
 }

@@ -14,7 +14,8 @@ export const roleLabels: Record<Role, string> = {
 	admin: 'admin',
 }
 
-export type MemberStatus = 'active' | 'suspended' | 'left'
+/** Členství je buď živé, nebo skončené — mezistav se neosvědčil, viz api/AGENTS.md. */
+export type MemberStatus = 'active' | 'left'
 
 export interface Membership {
 	id: number
@@ -31,6 +32,8 @@ export interface CurrentUser {
 	email: string
 	name: string
 	platformAdmin: boolean
+	/** Umí nasazení odesílat poštu? Bez toho se odkazy předávají ručně. */
+	mailEnabled: boolean
 	memberships: Membership[]
 }
 
@@ -95,7 +98,6 @@ export interface TeamMember {
 
 export const memberStatusLabels: Record<MemberStatus, string> = {
 	active: 'aktivní',
-	suspended: 'pozastavený',
 	left: 'odešel',
 }
 
@@ -115,6 +117,42 @@ export interface IssuedLink {
 	role: Role
 	expiresAt: string
 	token: string
+	/** `false` = zpráva neodešla, odkaz je potřeba předat ručně. */
+	emailSent: boolean
+}
+
+/** Výsledek hromadného rozeslání aktivačních e-mailů. */
+export interface ActivationBatch {
+	sent: number
+	failed: number
+	/** Kolik lidí ještě odkaz nemá — dávka je omezená, tlačítko se mačká víckrát. */
+	remaining: number
+	/** Účty bez použitelné e-mailové adresy. */
+	skipped: number
+}
+
+/**
+ * Provozní přehled pro správce platformy. Schválně obsahuje jen čísla o zdraví
+ * klubu — dluhy ani jména cizích hráčů se tudy nevydávají.
+ */
+export interface PlatformClub {
+	id: number
+	name: string
+	slug: string
+	teams: PlatformTeam[]
+}
+
+export interface PlatformTeam {
+	id: number
+	name: string
+	archived: boolean
+	memberCount: number
+	/** Kolik má družstvo adminů. Nula znamená, že se samo nespraví. */
+	adminCount: number
+	/** Kolik členů se už někdy přihlásilo. */
+	activatedCount: number
+	seasonCount: number
+	currentSeason: string | null
 }
 
 export interface TeamDetail {

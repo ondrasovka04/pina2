@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pina\Controller;
 
 use Pina\Auth\AuthService;
+use Pina\Auth\PasswordResetService;
 use Pina\Auth\TokenService;
 use Pina\Http\ApiException;
 use Pina\Http\Request;
@@ -18,6 +19,7 @@ final class AuthController
     public function __construct(
         private readonly AuthService $auth,
         private readonly TokenService $tokens,
+        private readonly PasswordResetService $resets,
     ) {
     }
 
@@ -64,7 +66,7 @@ final class AuthController
         return Response::noContent()->withCookie($this->refreshCookie('', expired: true));
     }
 
-    /** Odhlášení ze všech zařízení — po ztrátě telefonu. */
+    /** Logout všude (ztráta telefonu). */
     public function logoutEverywhere(Request $request): Response
     {
         $userId = $request->identity()->userId;
@@ -92,6 +94,28 @@ final class AuthController
         ])->withCookie($this->refreshCookie($pair['refreshToken']));
     }
 
+    /** Odpověď je vždy stejná — jinak by šlo zjišťovat, kdo je v aplikaci registrovaný. */
+    public function forgotPassword(Request $request): Response
+    {
+        $this->resets->request($request->string('email'), $request->ip);
+
+        return Response::ok(['sent' => true]);
+    }
+
+    /** Nové heslo z odkazu. Rovnou přihlašuje, ať uživatel nepíše heslo dvakrát. */
+    public function resetPassword(Request $request): Response
+    {
+        $userId = $this->resets->complete($request->string('token'), $request->string('password'));
+
+        $pair = $this->tokens->issue($userId, $request->header('user-agent'), $request->ip);
+
+        return Response::ok([
+            'accessToken' => $pair['accessToken'],
+            'expiresIn'   => $pair['expiresIn'],
+            'user'        => $this->auth->userPayload($userId),
+        ])->withCookie($this->refreshCookie($pair['refreshToken']));
+    }
+
     public function changePassword(Request $request): Response
     {
         $this->auth->changePassword(
@@ -108,10 +132,7 @@ final class AuthController
         return Response::ok($this->auth->userPayload($request->identity()->userId));
     }
 
-    /**
-     * Refresh token je v HttpOnly cookie, takže se k němu JavaScript nedostane
-     * ani při XSS. SameSite=Strict brání CSRF.
-     */
+    /** HttpOnly cookie (XSS ochrana) + SameSite=Strict (CSRF ochrana). */
     private function refreshCookie(string $value, bool $expired = false): string
     {
         $parts = [

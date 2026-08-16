@@ -70,6 +70,31 @@ export function MemberRow({ member, members, isMe, busy, onChange, onActivate }:
 
 			{expanded ? (
 				<div className="flex flex-col gap-3 px-1 pt-1 pb-4">
+					<label className="flex flex-col gap-1.5">
+						<span className="text-ink-muted text-sm font-medium">Jméno</span>
+						<input
+							type="text"
+							disabled={busy}
+							defaultValue={member.name}
+							/* Ukládá se při opuštění pole, ne při každém písmenu. */
+							onBlur={(event) => {
+								const next = event.target.value.trim()
+
+								if (next === '' || next === member.name) {
+									event.target.value = member.name
+
+									return
+								}
+
+								onChange({ name: next })
+							}}
+							className="border-line bg-surface-2 text-ink rounded-xl border px-3 py-2 text-base"
+						/>
+						<span className="text-ink-faint text-xs">
+							Platí ve všech družstvech, kde hraje — jeden člověk má v klubu jedno jméno.
+						</span>
+					</label>
+
 					<div className="flex flex-col gap-1.5">
 						<span className="text-ink-muted text-sm font-medium">Role</span>
 						<div className="border-line bg-surface-2 flex rounded-xl border p-1">
@@ -109,11 +134,7 @@ export function MemberRow({ member, members, isMe, busy, onChange, onActivate }:
 							max={99}
 							disabled={busy || left}
 							defaultValue={member.jerseyNumber ?? ''}
-							/*
-							 * Ukládá se až při opuštění pole, ne při každém stisku — jinak by
-							 * dvojciferné číslo poslalo dva požadavky a mezistav („1" místo „12")
-							 * by se stihl uložit.
-							 */
+							// Ukládá se až na onBlur — jinak by číslo „12" poslalo dva požadavky.
 							onBlur={(event) => {
 								const raw = event.target.value.trim()
 								const next = raw === '' ? null : Number(raw)
@@ -132,18 +153,6 @@ export function MemberRow({ member, members, isMe, busy, onChange, onActivate }:
 						{needsActivation(member) ? (
 							<Button size="sm" variant="accent" loading={busy} onClick={onActivate}>
 								Aktivační odkaz
-							</Button>
-						) : null}
-
-						{member.status === 'active' ? (
-							<Button size="sm" variant="ghost" disabled={busy} onClick={() => onChange({ status: 'suspended' })}>
-								Pozastavit
-							</Button>
-						) : null}
-
-						{member.status === 'suspended' ? (
-							<Button size="sm" variant="ghost" disabled={busy} onClick={() => onChange({ status: 'active' })}>
-								Obnovit
 							</Button>
 						) : null}
 

@@ -1,10 +1,7 @@
-import type { Role, TeamMember } from '@/lib/types'
+import type { ActivationBatch, Role, TeamMember } from '@/lib/types'
 
-/**
- * Pořadí ve výpisu členů. Aktivní nahoře, odešlí dole — družstvo si za deset let
- * nasbírá víc bývalých než současných hráčů a admin řeší skoro vždy ty současné.
- */
-const statusOrder = { active: 0, suspended: 1, left: 2 } as const
+// Aktivní nahoře, odešlí dole.
+const statusOrder = { active: 0, left: 1 } as const
 
 export function sortMembers(members: TeamMember[]): TeamMember[] {
 	return members.toSorted((a, b) => {
@@ -14,22 +11,12 @@ export function sortMembers(members: TeamMember[]): TeamMember[] {
 	})
 }
 
-/**
- * Kdo se ještě nikdy nepřihlásil. Hesla se ze staré aplikace nepřenášela
- * (byly to nesolené SHA-256 otisky), takže těmhle lidem musí admin vyrobit
- * aktivační odkaz — jinak se do aplikace nedostanou.
- */
+// Kdo se ještě nikdy nepřihlásil — bez hesla, potřebuje aktivační odkaz.
 export function needsActivation(member: TeamMember): boolean {
 	return !member.hasPassword && member.status !== 'left'
 }
 
-/**
- * Je tenhle člen posledním adminem družstva?
- *
- * Server to hlídá taky (409 `LAST_ADMIN`), tady jde jen o to, aby se akce dala
- * zakázat dopředu — nabídnout tlačítko, které vždycky skončí chybou, je horší
- * než ho neukázat.
- */
+// Posledního admina nemůžeme degradovat — server by vrátil 409 LAST_ADMIN.
 export function isLastAdmin(member: TeamMember, members: TeamMember[]): boolean {
 	if (member.role !== 'admin' || member.status === 'left') return false
 
@@ -38,10 +25,19 @@ export function isLastAdmin(member: TeamMember, members: TeamMember[]): boolean 
 
 export const roleOrder: Role[] = ['player', 'treasurer', 'admin']
 
-/**
- * Absolutní odkaz na přijetí pozvánky. Posílá se do chatu, takže musí obsahovat
- * i doménu — relativní cesta by se v aplikaci pro zprávy neproklikla.
- */
+// Výsledek hromadného rozeslání — musí být upřímný o selhání.
+export function describeBatch(result: ActivationBatch): string {
+	const parts: string[] = [`Odesláno ${result.sent}`]
+
+	if (result.failed > 0) parts.push(`${result.failed} neodešlo`)
+	if (result.skipped > 0) parts.push(`${result.skipped} bez použitelné adresy`)
+
+	const zbyva = result.remaining + result.failed
+
+	return zbyva === 0 ? `${parts.join(', ')}. Hotovo.` : `${parts.join(', ')}. Zbývá ${zbyva} — zmáčkněte znovu.`
+}
+
+// Absolutní odkaz — posílá se do chatu, musí obsahovat doménu.
 export function invitationUrl(token: string, origin: string): string {
 	return `${origin}/pozvanka?token=${encodeURIComponent(token)}`
 }
