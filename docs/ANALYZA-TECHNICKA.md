@@ -589,7 +589,7 @@ Pro start může být za schválením platform admina (tebe), aby systém nezapl
 | Opravit docházku u akce | — | ✓ | ✓ | — |
 | Vytvořit / upravit akci, sérii, místo | — | — | ✓ | — |
 | Sestavit nominaci (jen zápasy) | — | — | ✓ | — |
-| Spravovat sazebník prohřešků | — | — | ✓ | — |
+| **Spravovat sazebník prohřešků** | — | ✓ | ✓ | — |
 | Spravovat sezóny (založit, uzavřít) | — | — | ✓ | — |
 | Pozvat hráče, měnit role, pozastavit | — | — | ✓ | — |
 | Nastavení klubu, bankovní účet | — | — | ✓ | — |
@@ -603,8 +603,9 @@ Za povšimnutí stojí nesymetrie u docházky a peněz. **Dluhy jsou veřejné v
 procenta vidí jen admin. Tohle není technické rozhodnutí, ale explicitní přání týmu —
 pína je legrace, docházka je citlivější věc.
 
-**Zúčtovací období uzavírá pínař**, ne admin. Odpovídá to skutečnosti, že pínař
-je ten, kdo peníze reálně spravuje.
+**Peníze patří pínaři, lidé adminovi.** Pínař tedy nejen zapisuje a uzavírá
+zúčtovací období, ale i spravuje sazebník — je to on, kdo rozhoduje, co a za kolik
+se vybírá. Admin oproti tomu zakládá sezóny, zve hráče a určuje, kdo pínařem je.
 
 **Vynucení v kódu** — middleware, ne `if` roztroušené po controllerech:
 ```php

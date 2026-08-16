@@ -44,16 +44,18 @@ final class OffenceServiceTest extends DatabaseTestCase
         $this->mvpType  = $this->makeOffenceType($this->season, 'MVP extraligy', -20, 20);
 
         $pinarId         = $this->makeUser('pinar@prosek.cz');
-        $this->makeMembership($pinarId, $this->team, 'treasurer');
+        $pinar           = $this->makeMembership($pinarId, $this->team, 'treasurer');
         $this->treasurer = new Identity($pinarId, 'pinar@prosek.cz', 'Pínař', false, [
             $this->team => Role::Treasurer,
         ]);
 
         $hracId       = $this->makeUser('hrac@prosek.cz');
-        $this->makeMembership($hracId, $this->team, 'player');
+        $hrac         = $this->makeMembership($hracId, $this->team, 'player');
         $this->player = new Identity($hracId, 'hrac@prosek.cz', 'Hráč', false, [
             $this->team => Role::Player,
         ]);
+
+        $this->makeRoster($this->season, [$this->honza, $this->petr, $pinar, $hrac]);
     }
 
     private function makeOffenceType(int $seasonId, string $name, int $amount, int $sortOrder = 0): int
@@ -353,6 +355,33 @@ final class OffenceServiceTest extends DatabaseTestCase
         $byId = array_column($balances['members'], null, 'membershipId');
         self::assertSame(40, $byId[$this->honza]['balanceCzk']);
         self::assertSame(-20, $byId[$this->petr]['balanceCzk']);
+    }
+
+    /**
+     * Členství se kvůli historii nemaže, takže družstvo má víc členů než
+     * kolik jich v dané sezóně hrálo. Přehled ukazuje soupisku sezóny.
+     */
+    public function testBalancesFollowSeasonRosterNotTeamMembership(): void
+    {
+        $this->makeMembership($this->makeUser('loni@prosek.cz'), $this->team, 'player');
+
+        $balances = $this->service->balances($this->treasurer, $this->season);
+
+        self::assertCount(4, $balances['members']);
+        self::assertNotContains('loni', array_column($balances['members'], 'name'));
+    }
+
+    /** Odchod z týmu dluh nemaže — kdo má zápis, zůstává v přehledu i mimo soupisku. */
+    public function testBalancesKeepMemberWithRecordsOutsideRoster(): void
+    {
+        $odchozi = $this->makeMembership($this->makeUser('odchozi@prosek.cz'), $this->team, 'player', 'left');
+        $this->batch([['membershipId' => $odchozi, 'offenceTypeId' => $this->lateType, 'count' => 3]]);
+
+        $byId = array_column($this->service->balances($this->treasurer, $this->season)['members'], null, 'membershipId');
+
+        self::assertSame(60, $byId[$odchozi]['balanceCzk']);
+        self::assertFalse($byId[$odchozi]['onRoster']);
+        self::assertTrue($byId[$this->honza]['onRoster']);
     }
 
     public function testListRecordsFiltersByMemberAndDate(): void

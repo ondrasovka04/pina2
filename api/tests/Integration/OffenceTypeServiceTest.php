@@ -23,6 +23,7 @@ final class OffenceTypeServiceTest extends DatabaseTestCase
     private int $lastSeason;
     private Identity $admin;
     private Identity $treasurer;
+    private Identity $player;
 
     protected function setUp(): void
     {
@@ -36,6 +37,7 @@ final class OffenceTypeServiceTest extends DatabaseTestCase
 
         $this->admin     = $this->identity('admin@prosek.cz', Role::Admin);
         $this->treasurer = $this->identity('pinar@prosek.cz', Role::Treasurer);
+        $this->player    = $this->identity('hrac@prosek.cz', Role::Player);
     }
 
     private function identity(string $email, Role $role): Identity
@@ -90,17 +92,73 @@ final class OffenceTypeServiceTest extends DatabaseTestCase
         self::assertSame(-200, $updated['amountCzk']);
     }
 
-    public function testTreasurerCannotEditPriceList(): void
+    /**
+     * Sazebník patří pínaři, ne adminovi. Je to peněžní agenda a spravuje ji
+     * ten, kdo peníze reálně vybírá — stejně jako uzavírání zúčtování.
+     */
+    public function testTreasurerManagesPriceList(): void
+    {
+        $created = $this->service->create($this->treasurer, $this->season, [
+            'name'      => 'Vlastní sazba',
+            'amountCzk' => 50,
+            'sortOrder' => 0,
+            'category'  => null,
+            'autoRule'  => 'none',
+        ]);
+
+        self::assertSame(50, $this->service->update($this->treasurer, $created['id'], ['amountCzk' => 50])['amountCzk']);
+        self::assertNotNull($this->service->archive($this->treasurer, $created['id'])['archivedAt']);
+    }
+
+    /** Pořadí sazebníku určuje, v jakém pořadí se položky nabízejí při zápisu. */
+    public function testReorderSetsDisplayOrder(): void
+    {
+        $late = $this->create(['name' => 'Pozdní příchod', 'sortOrder' => 10]);
+        $card = $this->create(['name' => 'Žlutá karta', 'sortOrder' => 20]);
+        $ball = $this->create(['name' => 'Nezamáčknutý balón', 'sortOrder' => 30]);
+
+        $this->service->reorder($this->treasurer, $this->season, [$ball, $late, $card]);
+
+        $names = array_column($this->service->listForSeason($this->treasurer, $this->season), 'name');
+        self::assertSame(['Nezamáčknutý balón', 'Pozdní příchod', 'Žlutá karta'], $names);
+    }
+
+    public function testReorderRejectsForeignItem(): void
+    {
+        $mine = $this->create();
+        $other = $this->create(seasonId: $this->lastSeason);
+
+        try {
+            $this->service->reorder($this->treasurer, $this->season, [$mine, $other]);
+            self::fail('cizí položka nesmí projít');
+        } catch (ApiException $e) {
+            self::assertSame(400, $e->status);
+        }
+    }
+
+    public function testPlayerCannotReorderPriceList(): void
+    {
+        $id = $this->create();
+
+        try {
+            $this->service->reorder($this->player, $this->season, [$id]);
+            self::fail('hráč nesmí měnit pořadí');
+        } catch (ApiException $e) {
+            self::assertSame(403, $e->status);
+        }
+    }
+
+    public function testPlayerCannotEditPriceList(): void
     {
         try {
-            $this->service->create($this->treasurer, $this->season, [
+            $this->service->create($this->player, $this->season, [
                 'name'      => 'Vlastní sazba',
                 'amountCzk' => 50,
                 'sortOrder' => 0,
                 'category'  => null,
                 'autoRule'  => 'none',
             ]);
-            self::fail('sazebník smí měnit jen admin');
+            self::fail('hráč nesmí měnit sazebník');
         } catch (ApiException $e) {
             self::assertSame(403, $e->status);
         }

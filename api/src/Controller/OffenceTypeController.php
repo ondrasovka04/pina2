@@ -87,6 +87,20 @@ final class OffenceTypeController
         return Response::ok($this->types->update($request->identity(), $request->routeId('id'), $changes));
     }
 
+    /** Nové pořadí sazebníku. Posílá se celý seznam ID, ne jednotlivé posuny. */
+    public function reorder(Request $request): Response
+    {
+        $ids = [];
+
+        foreach ($request->array('offenceTypeIds') as $index => $value) {
+            $ids[] = self::id(['id' => $value], 'id', $index);
+        }
+
+        return Response::ok([
+            'items' => $this->types->reorder($request->identity(), $request->routeId('season'), $ids),
+        ]);
+    }
+
     /** DELETE tu znamená archivaci — na položce visí zapsaná historie. */
     public function archive(Request $request): Response
     {

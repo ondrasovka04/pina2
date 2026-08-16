@@ -105,6 +105,7 @@ final class App
 
         $router->get('/api/v1/seasons/{season}/offence-types', $typeCtrl->index(...));
         $router->post('/api/v1/seasons/{season}/offence-types', $typeCtrl->store(...));
+        $router->put('/api/v1/seasons/{season}/offence-types/order', $typeCtrl->reorder(...));
         $router->post('/api/v1/seasons/{season}/offence-types/copy-from/{source}', $typeCtrl->copyFrom(...));
         $router->patch('/api/v1/offence-types/{id}', $typeCtrl->update(...));
         $router->delete('/api/v1/offence-types/{id}', $typeCtrl->archive(...));

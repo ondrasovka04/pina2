@@ -131,4 +131,20 @@ abstract class DatabaseTestCase extends TestCase
 
         return $this->db->lastInsertId();
     }
+
+    /**
+     * Zapíše členy na soupisku sezóny. Přehledy vycházejí ze soupisky, ne
+     * ze seznamu členů družstva, takže bez tohohle kroku je sezóna prázdná.
+     *
+     * @param list<int> $membershipIds
+     */
+    protected function makeRoster(int $seasonId, array $membershipIds): void
+    {
+        foreach ($membershipIds as $membershipId) {
+            $this->db->run(
+                'INSERT INTO roster_entry (season_id, membership_id) VALUES (?, ?)',
+                [$seasonId, $membershipId],
+            );
+        }
+    }
 }

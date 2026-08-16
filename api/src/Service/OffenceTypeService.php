@@ -21,6 +21,9 @@ use Pina\Support\Database;
  * Položka sazebníku se nemaže, jen archivuje — visí na ní zapsaná historie
  * a cizí klíč offence_record.offence_type_id je RESTRICT.
  *
+ * Sazebník spravuje **pínař**, ne admin. Je to peněžní agenda a rozhoduje o ní
+ * ten, kdo peníze reálně vybírá; admin řeší lidi, role a sezóny.
+ *
  * @phpstan-type OffenceType array{
  *     id: int,
  *     seasonId: int,
@@ -73,7 +76,7 @@ final class OffenceTypeService
      */
     public function create(Identity $identity, int $seasonId, array $input): array
     {
-        $this->scope->writableSeason($identity, $seasonId, Role::Admin);
+        $this->scope->writableSeason($identity, $seasonId, Role::Treasurer);
 
         $this->db->run(
             'INSERT INTO offence_type (season_id, name, amount_czk, sort_order, category, auto_rule)
@@ -100,7 +103,7 @@ final class OffenceTypeService
      */
     public function update(Identity $identity, int $typeId, array $changes): array
     {
-        $this->authorizeType($identity, $typeId, Role::Admin);
+        $this->authorizeType($identity, $typeId, Role::Treasurer);
 
         /** @var array<string,string> $columns název pole v požadavku => sloupec */
         $columns = [
@@ -138,6 +141,54 @@ final class OffenceTypeService
     }
 
     /**
+     * Přeuspořádání sazebníku. Pořadí není kosmetika: v tomhle pořadí se položky
+     * nabízejí při zápisu, takže si pínař dopředu srovná nahoru to, co zapisuje
+     * po každém tréninku.
+     *
+     * Bere se celý seznam naráz, ne položka po položce — jinak by se při výpadku
+     * uprostřed přetahování sazebník rozsypal do nekonzistentního pořadí.
+     *
+     * @param  list<int>          $orderedIds v pořadí, v jakém se mají zobrazovat
+     * @return list<OffenceType>
+     */
+    public function reorder(Identity $identity, int $seasonId, array $orderedIds): array
+    {
+        $this->scope->writableSeason($identity, $seasonId, Role::Treasurer);
+
+        $ids = array_values(array_unique($orderedIds));
+
+        if ($ids === []) {
+            throw ApiException::validation('Pořadí musí obsahovat alespoň jednu položku.', ['field' => 'offenceTypeIds']);
+        }
+
+        // Placeholdery vznikají z počtu prvků, hodnoty jdou parametry.
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+
+        $found = $this->db->all(
+            "SELECT id FROM offence_type WHERE season_id = ? AND id IN ($placeholders)",
+            [$seasonId, ...$ids],
+        );
+
+        if (count($found) !== count($ids)) {
+            throw ApiException::validation(
+                'Pořadí obsahuje položku, která do sazebníku téhle sezóny nepatří.',
+                ['field' => 'offenceTypeIds'],
+            );
+        }
+
+        $this->db->transaction(function () use ($ids, $seasonId): void {
+            foreach ($ids as $position => $id) {
+                $this->db->run(
+                    'UPDATE offence_type SET sort_order = ? WHERE id = ? AND season_id = ?',
+                    [($position + 1) * 10, $id, $seasonId],
+                );
+            }
+        });
+
+        return $this->listForSeason($identity, $seasonId, includeArchived: true);
+    }
+
+    /**
      * Archivace místo smazání: položka zmizí ze sazebníku, ale zapsané prohřešky
      * si dál umí dohledat svůj název.
      *
@@ -145,7 +196,7 @@ final class OffenceTypeService
      */
     public function archive(Identity $identity, int $typeId): array
     {
-        $this->authorizeType($identity, $typeId, Role::Admin);
+        $this->authorizeType($identity, $typeId, Role::Treasurer);
 
         $this->db->run(
             'UPDATE offence_type SET archived_at = COALESCE(archived_at, NOW()) WHERE id = ?',
@@ -177,8 +228,8 @@ final class OffenceTypeService
             throw ApiException::validation('Zdrojová a cílová sezóna nemohou být stejné.');
         }
 
-        $targetTeam = $this->scope->writableSeason($identity, $targetSeasonId, Role::Admin);
-        $sourceTeam = $this->scope->season($identity, $sourceSeasonId, Role::Admin);
+        $targetTeam = $this->scope->writableSeason($identity, $targetSeasonId, Role::Treasurer);
+        $sourceTeam = $this->scope->season($identity, $sourceSeasonId, Role::Treasurer);
 
         // Sazebník se přebírá jen v rámci jednoho družstva. Cizí sezóna se tváří
         // jako neexistující, ať API neprozradí, která ID existují.

@@ -256,28 +256,37 @@ final class OffenceService
      * Kdo kolik dluží. Součet je se znaménkem, takže bonusy dluh snižují
      * a hráč se může dostat i do plusu (tým dluží jemu).
      *
+     * Zdrojem je **soupiska sezóny**, ne seznam členů družstva. Členství se
+     * nemaže kvůli historii, takže u juniorů má tým 48 členů, ale v sezóně
+     * 25/26 hrálo 21 lidí — vypsat všechny by dělalo přehled nečitelným.
+     *
+     * Kdo na soupisce není, ale v té sezóně má zápis, se ukáže taky: odchod
+     * z týmu dluh nemaže. Takový řádek nese `onRoster: false`, aby ho UI umělo
+     * odlišit.
+     *
      * @return array{seasonId:int, totalCzk:int, members: list<array{
      *     membershipId:int, userId:int, name:string, jerseyNumber:int|null,
-     *     status:string, recordCount:int, balanceCzk:int
+     *     status:string, onRoster:bool, recordCount:int, balanceCzk:int
      * }>}
      */
     public function balances(Identity $identity, int $seasonId): array
     {
         $teamId = $this->scope->season($identity, $seasonId, Role::Player);
 
-        // Bývalý člen se v přehledu objeví jen tehdy, když po sobě nechal zápisy —
-        // dluh po odchodu nemizí.
         $rows = $this->db->all(
-            "SELECT m.id AS membership_id, m.user_id, m.jersey_number, m.status, u.display_name,
+            'SELECT m.id AS membership_id, m.user_id, m.jersey_number, m.status, u.display_name,
+                    re.membership_id IS NOT NULL AS on_roster,
                     COALESCE(SUM(CASE WHEN r.voided_at IS NULL THEN r.amount_czk END), 0) AS balance_czk,
                     COUNT(CASE WHEN r.voided_at IS NULL THEN 1 END) AS record_count
                FROM membership m
                JOIN `user` u ON u.id = m.user_id
+               LEFT JOIN roster_entry re
+                      ON re.membership_id = m.id AND re.season_id = ? AND re.active = 1
                LEFT JOIN offence_record r ON r.membership_id = m.id AND r.season_id = ?
-              WHERE m.team_id = ? AND (m.status <> 'left' OR r.id IS NOT NULL)
-              GROUP BY m.id, m.user_id, m.jersey_number, m.status, u.display_name
-              ORDER BY u.display_name",
-            [$seasonId, $teamId],
+              WHERE m.team_id = ? AND (re.membership_id IS NOT NULL OR r.id IS NOT NULL)
+              GROUP BY m.id, m.user_id, m.jersey_number, m.status, u.display_name, re.membership_id
+              ORDER BY u.display_name',
+            [$seasonId, $seasonId, $teamId],
         );
 
         $members = [];
@@ -293,6 +302,7 @@ final class OffenceService
                 'name'         => (string) $row['display_name'],
                 'jerseyNumber' => $row['jersey_number'] === null ? null : (int) $row['jersey_number'],
                 'status'       => (string) $row['status'],
+                'onRoster'     => (bool) $row['on_roster'],
                 'recordCount'  => (int) $row['record_count'],
                 'balanceCzk'   => $balance,
             ];
