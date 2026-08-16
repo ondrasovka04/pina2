@@ -1,0 +1,46 @@
+# Lokální vývojové prostředí — verze se drží produkce na Czechia/Zoner:
+# PHP 8.5 + MySQL 8, časová zóna Europe/Prague.
+services:
+  db:
+    image: mysql:8.4
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_czech_ci
+      --default-time-zone=+02:00
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: pina
+      MYSQL_USER: pina
+      MYSQL_PASSWORD: pina
+    ports:
+      - "13306:3306"
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  php:
+    build: ./docker/php
+    working_dir: /app
+    volumes:
+      - .:/app
+      # dump a CSV leží mimo repo (obsahují osobní údaje), připojují se jen pro migraci
+      - ../export:/legacy:ro
+    environment:
+      DB_HOST: db
+      DB_NAME: pina
+      DB_USER: pina
+      DB_PASSWORD: pina
+      TZ: Europe/Prague
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    command: php -S 0.0.0.0:8080 -t public
+
+volumes:
+  db-data:

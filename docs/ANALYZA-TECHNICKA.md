@@ -751,12 +751,54 @@ např. „Červená karta" 50 → 150 Kč mezi 23/24 a 24/25). Migrace uzavřen�
 
 Prohřešky bez dávky (`batch_id = NULL`) — dávky u historických dat neexistovaly.
 
-### 8.4 Ověření
-Kontrolní skript porovná starou a novou DB: počty řádků po tabulkách, součet částek
-po hráčích a sezónách, počet členství. Rozdíl kdekoli = migrace neproběhla čistě.
-Referenční hodnoty jsou v tabulkách výše.
+### 8.4 Co odhalila reálná data
 
-### 8.5 Ochrana osobních údajů
+Migrace byla spuštěna proti kopii produkce (16. 8. 2026) a vyplavala z ní tři věci,
+které mění návrh:
+
+**1. Záporné částky se používají masivně — a ve dvou různých významech.**
+
+*Bonusy* (odečet z dluhu za dobrý výkon): „Eso po týmu" −20, „MVP extraligy" −20,
+„Vánoce" −200. Sazebník tedy není jen sazebník pokut a UI musí bonus odlišit od
+pokuty (barva, znaménko, samostatný součet). `amount_czk` je proto `INT` se znaménkem.
+
+*Platby obcházené přes sazebník:* tým mužů v sezóně 25/26 má 13 položek typu
+„Cesťák 1. pol David" (−1 056 Kč), „Cesťák Vénis 2.pol" (−1 528 Kč) — **pro každého
+hráče vlastní položku sazebníku**. Protože aplikace neuměla evidovat platby, řeší se
+proplácení cesťáků jako záporné prohřešky. Je to přímý důkaz, že evidence plateb (F4)
+není nadstandard, ale funkce, kterou si uživatelé stejně museli vynutit oklikou.
+Po F4 se tyhle pseudo-položky nahradí záznamy v `payment`.
+
+**2. Stará DB nemá funkční integritu.** Cizí klíče sice existují, ale
+`UzivatelSezona.idSezona` odkazuje na `Sezona(id)`, což při složeném primárním klíči
+`(id, idTym)` není unikátní — MySQL 8.4 takový dump odmítne naimportovat. Důsledkem
+jsou osiřelé záznamy: hráč #74 má 34 zápisů v týmu 1, ale v `UzivatelTym` chybí.
+Migrace proto **dopočítává chybějící členství** se statusem `left`, aby se historie
+neztratila.
+
+**3. Pět položek sazebníku má prázdnou nebo smazanou sezónu** (`idSezona = ''`, resp.
+„21/22"). Nevisí na nich jediný zápis — jde o nedokončené záznamy z UI. Migrace je
+vynechává a vypisuje jmenovitě.
+
+### 8.5 Ověření
+`tools/verify_migration.php` porovná starou a novou DB: počty řádků, součty částek
+po sezónách i po jednotlivých hráčích a integritu nových dat. Návratový kód 1 = rozdíl.
+
+**Výsledek běhu 16. 8. 2026** — vše sedí:
+
+| Sezóna | Zápisů | Částka |
+|---|---:|---:|
+| 22/23 | 795 | 21 110 Kč |
+| 23/24 | 1 094 | 28 680 Kč |
+| Kadeti 23/24 | 657 | 12 068 Kč |
+| 24/25 | 929 | 16 867 Kč |
+| Kadeti 24/25 | 588 | 12 675 Kč |
+| 25/26 junioři | 317 | 10 860 Kč |
+| 25/26 Benátky | 247 | 17 145 Kč |
+| 25/26 muži | 1 489 | 45 603 Kč |
+| **celkem** | **6 116** | **165 008 Kč** |
+
+### 8.6 Ochrana osobních údajů
 `export/Uzivatel.csv` obsahuje sloupec `heslo` s SHA-256 hashi. Soubor nesmí opustit
 lokální stroj a po dokončení migrace se smaže i s archivním dumpem přesunutým
 do offline úložiště.
