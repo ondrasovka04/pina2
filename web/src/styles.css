@@ -1,14 +1,52 @@
 @import 'tailwindcss';
 
-/* Designové proměnné — barvy se doladí podle klubu, tohle je výchozí sada. */
+/*
+ * Barvy vycházejí z klubového znaku SK Prosek Praha: tmavě modrý štít
+ * se zlatým lemem. Modrá nese identitu, zlatá slouží jako akcent —
+ * bílá se záměrně nepoužívá jako plocha, protože aplikace míří primárně
+ * na tmavý režim (používá se večer v hale, na telefonu).
+ */
 @theme {
-	--color-brand-50: oklch(0.97 0.02 250);
-	--color-brand-500: oklch(0.55 0.18 250);
-	--color-brand-600: oklch(0.48 0.18 250);
-	--color-brand-700: oklch(0.41 0.16 250);
+	/* Klubová modř — základ identity */
+	--color-brand-50: oklch(0.97 0.02 260);
+	--color-brand-100: oklch(0.93 0.04 260);
+	--color-brand-200: oklch(0.86 0.08 260);
+	--color-brand-300: oklch(0.75 0.12 260);
+	--color-brand-400: oklch(0.62 0.16 260);
+	--color-brand-500: oklch(0.52 0.19 260);
+	--color-brand-600: oklch(0.44 0.19 262);
+	--color-brand-700: oklch(0.37 0.17 263);
+	--color-brand-800: oklch(0.3 0.14 264);
+	--color-brand-900: oklch(0.24 0.11 265);
+	--color-brand-950: oklch(0.17 0.08 266);
+
+	/* Zlatá ze znaku — akcent, zvýraznění, aktivní stav */
+	--color-gold-300: oklch(0.88 0.13 88);
+	--color-gold-400: oklch(0.82 0.16 85);
+	--color-gold-500: oklch(0.75 0.17 82);
+	--color-gold-600: oklch(0.66 0.15 80);
+
+	/*
+	 * Peníze mají vlastní sémantiku: dluh není chyba a bonus není úspěch,
+	 * ale v přehledech se musí odlišit na první pohled.
+	 */
+	--color-debt-400: oklch(0.7 0.15 25);
+	--color-debt-500: oklch(0.6 0.18 25);
+	--color-bonus-400: oklch(0.75 0.15 155);
+	--color-bonus-500: oklch(0.65 0.16 155);
 }
 
-/* Bezpečné okraje na telefonech s výřezem — aplikace se používá hlavně v hale na mobilu. */
+/* Bezpečné okraje na telefonech s výřezem — aplikace se používá v hale na mobilu. */
 body {
-	padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+	padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+		env(safe-area-inset-left);
+}
+
+/* Ovládá se jednou rukou vestoje: nic klikacího nesmí být menší než palec. */
+@layer base {
+	button,
+	a[role='button'],
+	[role='tab'] {
+		min-height: 2.75rem;
+	}
 }
