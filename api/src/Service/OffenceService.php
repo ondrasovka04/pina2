@@ -277,7 +277,10 @@ final class OffenceService
             'SELECT m.id AS membership_id, m.user_id, m.jersey_number, m.status, u.display_name,
                     re.membership_id IS NOT NULL AS on_roster,
                     COALESCE(SUM(CASE WHEN r.voided_at IS NULL THEN r.amount_czk END), 0) AS balance_czk,
-                    COUNT(CASE WHEN r.voided_at IS NULL THEN 1 END) AS record_count
+                    -- Podmínka na r.id tu být musí: u hráče bez zápisu doplní LEFT JOIN
+                    -- prázdný řádek, ve kterém `voided_at IS NULL` platí, a počet by
+                    -- vyšel 1 místo 0.
+                    SUM(CASE WHEN r.id IS NOT NULL AND r.voided_at IS NULL THEN 1 ELSE 0 END) AS record_count
                FROM membership m
                JOIN `user` u ON u.id = m.user_id
                LEFT JOIN roster_entry re

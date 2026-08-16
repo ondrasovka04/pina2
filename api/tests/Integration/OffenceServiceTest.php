@@ -357,6 +357,30 @@ final class OffenceServiceTest extends DatabaseTestCase
         self::assertSame(-20, $byId[$this->petr]['balanceCzk']);
     }
 
+    /** Hráč bez zápisu musí mít nulu, ne jedničku z prázdného řádku po LEFT JOINu. */
+    public function testBalancesCountZeroRecordsAsZero(): void
+    {
+        $this->batch([['membershipId' => $this->honza, 'offenceTypeId' => $this->lateType, 'count' => 2]]);
+
+        $byId = array_column($this->service->balances($this->treasurer, $this->season)['members'], null, 'membershipId');
+
+        self::assertSame(2, $byId[$this->honza]['recordCount']);
+        self::assertSame(0, $byId[$this->petr]['recordCount']);
+        self::assertSame(0, $byId[$this->petr]['balanceCzk']);
+    }
+
+    /** Stornovaný zápis se nepočítá ani do částky, ani do počtu. */
+    public function testBalancesIgnoreVoidedRecords(): void
+    {
+        $batch = $this->batch([['membershipId' => $this->honza, 'offenceTypeId' => $this->lateType, 'count' => 1]]);
+        $this->service->voidBatch($this->treasurer, (int) $batch['batch']['id']);
+
+        $byId = array_column($this->service->balances($this->treasurer, $this->season)['members'], null, 'membershipId');
+
+        self::assertSame(0, $byId[$this->honza]['recordCount']);
+        self::assertSame(0, $byId[$this->honza]['balanceCzk']);
+    }
+
     /**
      * Členství se kvůli historii nemaže, takže družstvo má víc členů než
      * kolik jich v dané sezóně hrálo. Přehled ukazuje soupisku sezóny.
