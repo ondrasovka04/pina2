@@ -68,6 +68,14 @@
 	--color-debt: oklch(0.52 0.19 25);
 	--color-bonus: oklch(0.47 0.12 155);
 
+	/*
+	 * Druhy akcí. Vědomě mimo červenou a zelenou — ty patří penězům a v kalendáři
+	 * by lhaly. Barva sama informaci nenese: vždycky je vedle ní i název typu.
+	 */
+	--color-event-training: oklch(0.5 0.16 255);
+	--color-event-match: oklch(0.48 0.19 305);
+	--color-event-other: oklch(0.5 0.03 265);
+
 	--font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 
 	/* Vlastní zlom pro „vejde se to do jedné ruky" — pod ním je spodní lišta. */
@@ -99,6 +107,10 @@
 
 		--color-debt: oklch(0.7 0.15 25);
 		--color-bonus: oklch(0.75 0.15 155);
+
+		--color-event-training: oklch(0.78 0.13 255);
+		--color-event-match: oklch(0.79 0.15 305);
+		--color-event-other: oklch(0.7 0.03 265);
 	}
 
 	html {

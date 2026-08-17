@@ -2,6 +2,7 @@ import { Link } from 'react-router'
 
 import { ChevronRightIcon } from '@/components/ui/icons'
 import { formatTime, weekdayLabels, weekdays } from '@/features/events/events'
+import { EventTypeDot } from '@/features/events/EventTypeMark'
 import type { CalendarCell } from '@/features/events/month'
 import { monthGrid, monthTitle, shiftMonth } from '@/features/events/month'
 import { cn } from '@/lib/cn'
@@ -87,11 +88,16 @@ function DayCell({ day }: { day: CalendarCell }) {
 						key={event.id}
 						to={`/akce/${event.id}`}
 						className={cn(
-							'text-ink truncate rounded px-1 text-[0.65rem] leading-tight',
+							'text-ink flex items-center gap-1 truncate rounded px-1 text-[0.65rem] leading-tight',
+							// Zápas je ta výjimečná akce, tak ať v mřížce vystoupí i tvarem, ne jen barvou.
+							event.type === 'match' && 'font-semibold',
 							event.status === 'cancelled' && 'text-ink-faint line-through',
 						)}
 					>
-						{formatTime(event.startsAt)} {event.title}
+						<EventTypeDot type={event.type} />
+						<span className="truncate">
+							{formatTime(event.startsAt)} {event.title}
+						</span>
 					</Link>
 				))}
 				{hiddenCount > 0 ? <span className="text-ink-faint px-1 text-[0.65rem]">+{hiddenCount}</span> : null}

@@ -10,13 +10,20 @@ import { AddToCalendarButton } from '@/features/events/AddToCalendarButton'
 import { canAnswer, formatEventTime, groupByMonth, nextEvent, rsvpSummary } from '@/features/events/events'
 import type { EventMonth } from '@/features/events/events'
 import { EventsNav } from '@/features/events/EventsNav'
+import { EventTypeBadge } from '@/features/events/EventTypeMark'
 import { MonthGrid } from '@/features/events/MonthGrid'
 import { RsvpButtons } from '@/features/events/RsvpButtons'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { useEvents, useSaveRsvp } from '@/lib/queries'
 import { attendanceLabels } from '@/lib/types'
-import type { Rsvp, TeamEvent } from '@/lib/types'
+import type { EventType, Rsvp, TeamEvent } from '@/lib/types'
+
+const stripeClass: Record<EventType, string> = {
+	training: 'bg-event-training',
+	match: 'bg-event-match',
+	other: 'bg-event-other',
+}
 
 export function CalendarPage() {
 	const { team, season, seasonId, isSeasonClosed, can } = useTeam()
@@ -258,9 +265,13 @@ function EventRow({ event }: { event: TeamEvent }) {
 					: 'hover:bg-surface-2 flex items-center gap-3 px-4 py-3 transition-colors first:rounded-t-2xl last:rounded-b-2xl'
 			}
 		>
+			{/* Barevný pruh nese typ akce, štítek vedle času ho pojmenuje. */}
+			<span aria-hidden className={cn('-ml-2 h-10 w-1 shrink-0 rounded-full', stripeClass[event.type])} />
+
 			<div className="min-w-0 flex-1">
 				<div className="flex flex-wrap items-center gap-2">
 					<p className="text-ink-muted tabular text-xs">{formatEventTime(event.startsAt)}</p>
+					<EventTypeBadge type={event.type} />
 					{cancelled ? (
 						<span className="bg-debt-500/10 text-debt rounded-full px-2 py-0.5 text-xs font-medium">Zrušeno</span>
 					) : null}

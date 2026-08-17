@@ -18,6 +18,7 @@ import {
 	rsvpLabels,
 	sortParticipants,
 } from '@/features/events/events'
+import { EventTypeBadge } from '@/features/events/EventTypeMark'
 import { RsvpButtons } from '@/features/events/RsvpButtons'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
@@ -31,7 +32,7 @@ import {
 	useSaveRsvp,
 } from '@/lib/queries'
 import type { Attendance, EventParticipant, MyParticipation, Nomination, Rsvp, TeamEvent, Transport } from '@/lib/types'
-import { attendanceLabels, eventTypeLabels, nominationLabels } from '@/lib/types'
+import { attendanceLabels, nominationLabels } from '@/lib/types'
 
 /** Detail akce. Docházka se po začátku nezapisuje, jen opravuje — proto jsou dvě karty „moje odpověď" podle toho, jestli akce běží, nebo už začala. */
 export function EventPage() {
@@ -192,9 +193,7 @@ function EventHeader({ event, teamName, isAdmin, writable, eventId, seasonId }: 
 				<div className="min-w-0">
 					<div className="flex flex-wrap items-center gap-2">
 						<h1 className="text-lg font-semibold">{event.title}</h1>
-						<span className="bg-surface-2 text-ink-muted rounded-full px-2 py-0.5 text-xs">
-							{eventTypeLabels[event.type]}
-						</span>
+						<EventTypeBadge type={event.type} />
 						{/* Doma / venku rozhoduje o cesťáku, tak ať je to vidět hned v hlavičce. */}
 						{event.isHome === null ? null : (
 							<span className="bg-surface-2 text-ink-muted rounded-full px-2 py-0.5 text-xs">
