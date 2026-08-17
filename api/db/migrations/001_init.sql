@@ -11,9 +11,7 @@ CREATE TABLE club (
   id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   name        VARCHAR(120) NOT NULL,
   slug        VARCHAR(60)  NOT NULL,
-  status      ENUM('active','suspended') NOT NULL DEFAULT 'active',
   bank_account VARCHAR(50) NULL COMMENT 'pro QR platby (IBAN nebo cislo uctu)',
-  settings    JSON NULL COMMENT 'viditelnost dluhu, pravidla dochazky apod.',
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_club_slug (slug)
@@ -82,6 +80,7 @@ CREATE TABLE season (
   name         VARCHAR(60) NOT NULL,
   starts_on    DATE NOT NULL,
   ends_on      DATE NOT NULL,
+  half_year_on DATE NULL COMMENT 'prelom pololeti; NULL = pololeti se neresi. Jen hranice pro cleneni, nic se nezamyka',
   is_current   TINYINT(1) NOT NULL DEFAULT 0,
   closed_at    DATETIME NULL COMMENT 'uzavrena sezona je read-only',
   created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -155,7 +154,6 @@ CREATE TABLE event (
   nomination_deadline  DATETIME NULL,
   status               ENUM('planned','cancelled','done') NOT NULL DEFAULT 'planned',
   overridden           TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'rucne upraveno, pregenerovani serie to neprepise',
-  attendance_locked_at DATETIME NULL,
   created_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY ix_event_season_date (season_id, starts_at),
@@ -189,7 +187,9 @@ CREATE TABLE event_participant (
   attendance_at DATETIME NULL,
 
   -- doprava na akci: zaroven domluva odvozu i podklad pro cestovni nahradu
-  transport     ENUM('none','driver','passenger') NOT NULL DEFAULT 'none',
+  -- Jen dve hodnoty: beru auto, nebo neberu. Puvodni 'passenger' ("svezu se")
+  -- se od 'none' nikde nelisil -- nikdo ho nezobrazoval ani nepocital.
+  transport     ENUM('none','driver') NOT NULL DEFAULT 'none',
   car_seats     TINYINT UNSIGNED NULL COMMENT 'kolik mist ma ridic volnych',
 
   PRIMARY KEY (id),
@@ -279,17 +279,18 @@ CREATE TABLE offence_record (
   CONSTRAINT fk_offence_voider FOREIGN KEY (voided_by) REFERENCES `user` (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_czech_ci;
 
--- ------------------------------------------------ cestovní náhrady a zúčtování
+-- ---------------------------------------------------------- cestovní náhrady
 
--- Nastaveni na urovni tymu. Cestaky i zuctovani jsou volitelne -- tym mladeze
+-- Nastaveni na urovni tymu. Cestaky jsou volitelne -- tym mladeze
 -- je mit nemusi, tym muzu ano.
+-- Pololeti se tady neresi: jeho hranici drzi season.half_year_on, protoze sezony
+-- maji rozdilnou delku a prelom nebyva v jejich polovine.
 CREATE TABLE team_settings (
   team_id             BIGINT UNSIGNED NOT NULL,
   home_location_id    BIGINT UNSIGNED NULL COMMENT 'domaci hala -- od ni se meri vzdalenost k souperi',
   travel_enabled      TINYINT(1) NOT NULL DEFAULT 0,
   travel_rate_czk_km  DECIMAL(5,2) NOT NULL DEFAULT 5.00,
   travel_round_trip   TINYINT(1) NOT NULL DEFAULT 1 COMMENT 'proplaci se cesta tam i zpet (x2)',
-  settlement_period   ENUM('none','half_year','season') NOT NULL DEFAULT 'none',
   attendance_visible_to_players TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'dochazku ostatnich hraci nevidi',
   balances_visible_to_players   TINYINT(1) NOT NULL DEFAULT 1 COMMENT 'dluhy ostatnich hraci vidi',
   PRIMARY KEY (team_id),
@@ -298,9 +299,10 @@ CREATE TABLE team_settings (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_czech_ci;
 
 -- Narok na nahradu za cestu vlastnim autem.
--- Vznika VYHRADNE ridici (event_participant.transport='driver') a jen u zapasu --
--- spolujezdci narok nemaji, sloupec passengers je pouze informativni.
--- Sazba se uklada jako snapshot, aby pozdejsi zmena neprepsala vyuctovane obdobi.
+-- Vznika VYHRADNE ridici (event_participant.transport='driver') a jen u venkovniho
+-- zapasu -- spolujezdci narok nemaji.
+-- Sazba se uklada jako snapshot, aby pozdejsi zmena sazby neprepsala vznikly narok.
+-- Rusi se pres voided_at; zadna uzaverka radky nezamyka.
 CREATE TABLE travel_claim (
   id             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   season_id      BIGINT UNSIGNED NOT NULL,
@@ -310,53 +312,16 @@ CREATE TABLE travel_claim (
   distance_km    SMALLINT UNSIGNED NOT NULL,
   rate_czk_km    DECIMAL(5,2) NOT NULL COMMENT 'snapshot sazby v okamziku vzniku naroku',
   amount_czk     INT NOT NULL COMMENT 'distance_km * rate, zaokrouhleno',
-  passengers     TINYINT UNSIGNED NULL COMMENT 'kolik spolujezdcu vezl',
   note           VARCHAR(255) NULL,
-  settlement_id  BIGINT UNSIGNED NULL,
   created_by     BIGINT UNSIGNED NULL,
   created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   voided_at      DATETIME NULL,
   PRIMARY KEY (id),
   KEY ix_travel_member (season_id, membership_id, voided_at),
-  KEY ix_travel_settlement (settlement_id),
   CONSTRAINT fk_travel_season FOREIGN KEY (season_id) REFERENCES season (id) ON DELETE CASCADE,
   CONSTRAINT fk_travel_membership FOREIGN KEY (membership_id) REFERENCES membership (id) ON DELETE CASCADE,
   CONSTRAINT fk_travel_event FOREIGN KEY (event_id) REFERENCES event (id) ON DELETE SET NULL,
   CONSTRAINT fk_travel_creator FOREIGN KEY (created_by) REFERENCES `user` (id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_czech_ci;
-
--- Uzaverka obdobi (napr. 1. polovina sezony): secte prohresky, bonusy, cestaky
--- a platby -> vysledek je castka k doplaceni nebo k proplaceni hraci.
-CREATE TABLE settlement (
-  id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  season_id   BIGINT UNSIGNED NOT NULL,
-  name        VARCHAR(60) NOT NULL COMMENT 'napr. "1. pololeti"',
-  period_from DATE NOT NULL,
-  period_to   DATE NOT NULL,
-  closed_at   DATETIME NULL COMMENT 'po uzavreni jsou polozky zamcene',
-  closed_by   BIGINT UNSIGNED NULL,
-  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  UNIQUE KEY uq_settlement (season_id, name),
-  CONSTRAINT fk_settlement_season FOREIGN KEY (season_id) REFERENCES season (id) ON DELETE CASCADE,
-  CONSTRAINT fk_settlement_closer FOREIGN KEY (closed_by) REFERENCES `user` (id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_czech_ci;
-
--- Radek zuctovani na hrace -- snapshot, aby uzavrene obdobi zustalo nemenne.
-CREATE TABLE settlement_line (
-  id             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  settlement_id  BIGINT UNSIGNED NOT NULL,
-  membership_id  BIGINT UNSIGNED NOT NULL,
-  offences_czk   INT NOT NULL DEFAULT 0 COMMENT 'soucet pokut (kladne)',
-  bonuses_czk    INT NOT NULL DEFAULT 0 COMMENT 'soucet bonusu (zaporne)',
-  travel_czk     INT NOT NULL DEFAULT 0 COMMENT 'cestovni nahrady (zaporne = tym dluzi hraci)',
-  paid_czk       INT NOT NULL DEFAULT 0,
-  balance_czk    INT NOT NULL COMMENT '>0 hrac dluzi, <0 tym dluzi hraci',
-  settled_at     DATETIME NULL,
-  PRIMARY KEY (id),
-  UNIQUE KEY uq_settlement_line (settlement_id, membership_id),
-  CONSTRAINT fk_line_settlement FOREIGN KEY (settlement_id) REFERENCES settlement (id) ON DELETE CASCADE,
-  CONSTRAINT fk_line_membership FOREIGN KEY (membership_id) REFERENCES membership (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_czech_ci;
 
 -- ---------------------------------------------------------------- platby
