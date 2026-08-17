@@ -72,29 +72,42 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 		})
 	}, [queryClient])
 
-	const signIn = useCallback(async (email: string, password: string) => {
-		const result = await api.post<LoginResponse>('/auth/login', { email, password })
+	/**
+	 * Přihlášení musí zahodit cache stejně jako odhlášení. Klíče dotazů nenesou
+	 * uživatele (`['seasons', 10, 'balances']`), takže po přihlášení jiného účtu
+	 * by se `staleTime` po dobu 30 s obsloužil daty předchozího — a hráč by
+	 * viděl dluhy celého družstva, které mu server posílat odmítá.
+	 */
+	const startSession = useCallback(
+		(result: LoginResponse) => {
+			queryClient.clear()
+			setAccessToken(result.accessToken)
+			setUser(result.user)
+			setStatus('authenticated')
+		},
+		[queryClient],
+	)
 
-		setAccessToken(result.accessToken)
-		setUser(result.user)
-		setStatus('authenticated')
-	}, [])
+	const signIn = useCallback(
+		async (email: string, password: string) => {
+			startSession(await api.post<LoginResponse>('/auth/login', { email, password }))
+		},
+		[startSession],
+	)
 
-	const acceptInvitation = useCallback(async (token: string, password: string, name: string) => {
-		const result = await api.post<LoginResponse>('/invitations/accept', { token, password, name })
+	const acceptInvitation = useCallback(
+		async (token: string, password: string, name: string) => {
+			startSession(await api.post<LoginResponse>('/invitations/accept', { token, password, name }))
+		},
+		[startSession],
+	)
 
-		setAccessToken(result.accessToken)
-		setUser(result.user)
-		setStatus('authenticated')
-	}, [])
-
-	const resetPassword = useCallback(async (token: string, password: string) => {
-		const result = await api.post<LoginResponse>('/auth/password/reset', { token, password })
-
-		setAccessToken(result.accessToken)
-		setUser(result.user)
-		setStatus('authenticated')
-	}, [])
+	const resetPassword = useCallback(
+		async (token: string, password: string) => {
+			startSession(await api.post<LoginResponse>('/auth/password/reset', { token, password }))
+		},
+		[startSession],
+	)
 
 	const signOut = useCallback(async () => {
 		try {
