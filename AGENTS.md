@@ -95,8 +95,9 @@ F1 (auth, role, týmy, sezóny, členové), F2 (prohřešky), F3 (docházka, nom
 opakované akce) i **F4 peníze** jsou hotové na backendu i frontendu: zůstatek skládá
 prohřešky, bonusy, platby a cesťáky, pínař platby i ruční cesťáky zapisuje a stornuje,
 cesťáky se načítají z odehraných venkovních zápasů, hráč platí QR ve formátu SPAYD
-a čísla se dělí na pololetí podle data u sezóny. F5 PWA a F6 párování plateb z banky
-teprve budou. Tabulka fází je v README.
+a čísla se dělí na pololetí podle data u sezóny. **F5** (PWA, Web Push, odběr
+kalendáře přes `webcal://`) a **F6** (párování plateb z banky) teprve budou —
+zadání F5 je v [docs/F5-PREDANI.md](docs/F5-PREDANI.md). Tabulka fází je v README.
 
 **Uzávěrka se nedělá.** Snímek zúčtovacího období (`settlement`, `settlement_line`)
 byl ve schématu od F1, ale tým zamykání odmítl — tabulky jsou proto zrušené.

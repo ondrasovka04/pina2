@@ -18,7 +18,7 @@ api/          PHP 8.5 backend
 web/          React 19 + TypeScript frontend
   src/          app, features, components, lib
   public/       statické soubory kopírované do buildu (.htaccess)
-docs/         analýzy
+docs/         analýzy a zadání fází
 ```
 
 Konvence a pravidla projektu jsou v [AGENTS.md](AGENTS.md), podrobnosti k oběma
@@ -87,10 +87,17 @@ Hosting nemá SSH, deploy jde přes FTP a rozděluje se na dvě místa:
 | F2 | prohřešky — sazebník, dávkový zápis, přehledy | hotovo |
 | F3 | docházka, nominace, opakované akce | hotovo |
 | F4 | dluhy, platby, QR (SPAYD), cesťáky, pololetí | hotovo |
-| F5 | PWA, Web Push | |
+| F5 | PWA, Web Push, odběr kalendáře (`webcal://`) | |
 | F6 | párování plateb z bankovního API (follow-up) | |
 
 Cíl: F1 + F2 na start sezóny 26/27 (září 2026), pak vypnout starou aplikaci.
+
+Zadání F5 se všemi rozhodnutími a pastmi je v [docs/F5-PREDANI.md](docs/F5-PREDANI.md).
+Odběr kalendáře tam přibyl proti původnímu plánu: dnešní export `.ics` je snímek,
+takže po přesunutí tréninku zůstane v telefonu starý čas. Odběr je adresa, kterou
+si kalendář sám občas načte — a protože se kalendář neumí přihlásit, nese celé
+oprávnění sama adresa. Bude to jediná část aplikace dostupná bez přihlášení,
+což je taky důvod, proč nespěchala na spuštění.
 
 ## Kde to stojí
 
@@ -138,7 +145,7 @@ pro trénink a zvlášť pro zápas, protože sazby se liší i o stovky korun.
 **Doma se necestuje.** Domácí zápas se pozná podle domácí haly družstva a nevzniká
 u něj ani vzdálenost, ani domluva odvozů, takže z něj nemůže vzniknout cesťák.
 
-284 testů na backendu, 185 na frontendu, PHPStan level 8 čistý.
+284 testů na backendu, 191 na frontendu, PHPStan level 8 čistý.
 
 **Před spuštěním zbývá:**
 
@@ -153,42 +160,3 @@ u něj ani vzdálenost, ani domluva odvozů, takže z něj nemůže vzniknout ce
 
 VK Benátky jsou v datech cizí živý klub s vlastním adminem. Oddělení od Prosku
 drží role na serveru, ne jen UI — správce platformy vidí jejich zdraví, ne peníze.
-
-## Nápady na později
-
-Věci, které dávají smysl, ale nejsou potřeba ke spuštění. Zapsané schválně
-i s tím, proč zatím počkaly.
-
-### Odběr kalendáře (`webcal://`)
-
-Dneska si jde rozpis stáhnout jako soubor `.ics`. Je to **snímek**: když se
-trénink přesune, v telefonu zůstane starý čas, dokud si člověk soubor nestáhne
-znovu. Odběr je proti tomu adresa, kterou si kalendář sám občas načte, takže se
-změna propíše bez zásahu.
-
-Zádrhel je v tom, že **kalendář v telefonu se neumí přihlásit**. Neposílá token
-ani neprojde přihlašovacím formulářem — sáhne na adresu a čeká `text/calendar`.
-Celé oprávnění tedy musí nést sama adresa, a ta se pak povaluje v nastavení
-telefonu a v zálohách. Je to jediná část aplikace, která by byla veřejně
-dostupná bez přihlášení, a takovou věc je lepší psát v klidu než v týdnu před
-spuštěním.
-
-Co by bylo potřeba:
-
-1. **Tabulka `calendar_feed`** — `user_id`, `team_id`, `season_id`, SHA-256 otisk
-   tokenu, `created_at`, `last_used_at`, `revoked_at`. Token se vydá jednou,
-   v databázi zůstane jen otisk, stejně jako u pozvánek.
-2. **Token na člověka a družstvo**, ne jeden sdílený na tým. Jinak by kalendář
-   četl i ten, kdo z družstva dávno odešel.
-3. **Veřejný endpoint** `GET /api/v1/calendar/{token}.ics` mimo autentizaci, který
-   ověří otisk, odmítne zneplatněný token, **zkontroluje trvající členství**,
-   omezí četnost dotazů (adresa je veřejná a kalendáře se ptají po hodinách)
-   a posílá `ETag`, aby se nepřenášelo osmdesát akcí pokaždé.
-4. **Obsah bez citlivých údajů** — místo, čas, soupeř, sraz. Žádná docházka,
-   dluhy ani jména; tenhle soubor může skončit ve sdíleném rodinném kalendáři.
-5. **Správa v profilu** — odkaz `webcal://`, který na iOS i Androidu otevře rovnou
-   dialog pro přidání, a hlavně možnost odběr **zneplatnit**. Při ztrátě telefonu
-   je to jediná obrana.
-
-Odhad je zhruba den práce. Pořadí: **až za cesťáky** — ty řeší skutečné peníze
-a vyčistí sazebník mužů, kde je dnes třetina položek pojmenovaná po hráčích.
