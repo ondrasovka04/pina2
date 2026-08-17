@@ -11,6 +11,7 @@ use Pina\Auth\TeamScope;
 use Pina\Auth\TokenService;
 use Pina\Controller\AuthController;
 use Pina\Controller\EventController;
+use Pina\Controller\FinanceController;
 use Pina\Controller\LocationController;
 use Pina\Controller\OffenceController;
 use Pina\Controller\OffenceTypeController;
@@ -23,6 +24,7 @@ use Pina\Mail\SmtpMailer;
 use Pina\Http\RateLimiter;
 use Pina\Http\Router;
 use Pina\Service\EventService;
+use Pina\Service\FinanceService;
 use Pina\Service\LocationService;
 use Pina\Service\OffenceService;
 use Pina\Service\OffenceTypeService;
@@ -85,6 +87,7 @@ final class App
         $this->teamRoutes($router);
         $this->offenceRoutes($router);
         $this->eventRoutes($router);
+        $this->financeRoutes($router);
 
         return $router;
     }
@@ -170,5 +173,20 @@ final class App
         $router->post('/api/v1/clubs/{club}/locations', $locationCtrl->store(...));
         $router->patch('/api/v1/locations/{id}', $locationCtrl->update(...));
         $router->delete('/api/v1/locations/{id}', $locationCtrl->delete(...));
+    }
+
+    /** Platby, QR a cesťáky. */
+    private function financeRoutes(Router $router): void
+    {
+        $controller = new FinanceController(new FinanceService($this->db, $this->scope));
+
+        $router->get('/api/v1/seasons/{season}/payments', $controller->payments(...));
+        $router->post('/api/v1/seasons/{season}/payments', $controller->createPayment(...));
+        $router->post('/api/v1/payments/{id}/void', $controller->voidPayment(...));
+        $router->get('/api/v1/seasons/{season}/travel-claims', $controller->travelClaims(...));
+        $router->post('/api/v1/seasons/{season}/travel-claims', $controller->createTravelClaim(...));
+        $router->post('/api/v1/seasons/{season}/travel-claims/sync', $controller->syncTravelClaims(...));
+        $router->post('/api/v1/travel-claims/{id}/void', $controller->voidTravelClaim(...));
+        $router->get('/api/v1/memberships/{id}/payment-qr', $controller->paymentQr(...));
     }
 }
