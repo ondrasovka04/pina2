@@ -248,7 +248,6 @@ export function NewSeasonWizard() {
 						<label className="border-line/60 flex items-center gap-3 border-b px-4 py-3 text-sm">
 							<span className="text-ink-muted">Ze sezóny</span>
 							<Select
-								compact
 								value={sourceSeasonId ?? ''}
 								onChange={(event) => {
 									setSourceSeasonId(event.target.value === '' ? null : Number(event.target.value))
