@@ -30,6 +30,11 @@ import type {
 	TeamInvitation,
 	TeamMember,
 	TeamSettings,
+	Payment,
+	PaymentMethod,
+	PaymentQr,
+	TravelClaim,
+	TravelSyncResult,
 	TeamSummary,
 	Transport,
 } from '@/lib/types'
@@ -40,6 +45,11 @@ export const queryKeys = {
 	seasons: (teamId: number) => ['teams', teamId, 'seasons'] as const,
 	season: (seasonId: number) => ['seasons', seasonId] as const,
 	balances: (seasonId: number) => ['seasons', seasonId, 'balances'] as const,
+	payments: (seasonId: number, membershipId?: number) =>
+		['seasons', seasonId, 'payments', membershipId ?? 'all'] as const,
+	travelClaims: (seasonId: number, membershipId?: number) =>
+		['seasons', seasonId, 'travel-claims', membershipId ?? 'all'] as const,
+	paymentQr: (seasonId: number, membershipId: number) => ['payment-qr', seasonId, membershipId] as const,
 	offenceTypes: (seasonId: number) => ['seasons', seasonId, 'offence-types'] as const,
 	records: (seasonId: number, membershipId?: number) =>
 		['seasons', seasonId, 'records', membershipId ?? 'all'] as const,
@@ -76,6 +86,112 @@ export function useBalances(seasonId: number | null) {
 		queryKey: queryKeys.balances(seasonId ?? 0),
 		queryFn: ({ signal }) => api.get<BalanceList>(`/seasons/${seasonId}/balances`, signal),
 		enabled: seasonId !== null,
+	})
+}
+
+export function usePayments(seasonId: number | null, membershipId?: number) {
+	return useQuery({
+		queryKey: queryKeys.payments(seasonId ?? 0, membershipId),
+		queryFn: async ({ signal }) => {
+			const params = new URLSearchParams({ includeVoided: '1' })
+			if (membershipId !== undefined) params.set('membershipId', String(membershipId))
+
+			return (await api.get<{ items: Payment[] }>(`/seasons/${seasonId}/payments?${params}`, signal)).items
+		},
+		enabled: seasonId !== null,
+	})
+}
+
+export function useCreatePayment(seasonId: number) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: (input: {
+			membershipId: number
+			amountCzk: number
+			paidOn: string
+			method: PaymentMethod
+			note?: string | null
+		}) => api.post<Payment>(`/seasons/${seasonId}/payments`, input),
+		onSuccess: (payment) => {
+			void queryClient.invalidateQueries({ queryKey: queryKeys.balances(seasonId) })
+			void queryClient.invalidateQueries({ queryKey: queryKeys.payments(seasonId, payment.membershipId) })
+			void queryClient.invalidateQueries({ queryKey: queryKeys.paymentQr(seasonId, payment.membershipId) })
+		},
+	})
+}
+
+export function useVoidPayment(seasonId: number) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: (paymentId: number) => api.post<Payment>(`/payments/${paymentId}/void`),
+		onSuccess: (payment) => {
+			void queryClient.invalidateQueries({ queryKey: queryKeys.balances(seasonId) })
+			void queryClient.invalidateQueries({ queryKey: queryKeys.payments(seasonId, payment.membershipId) })
+			void queryClient.invalidateQueries({ queryKey: queryKeys.paymentQr(seasonId, payment.membershipId) })
+		},
+	})
+}
+
+export function useTravelClaims(seasonId: number | null, membershipId?: number) {
+	return useQuery({
+		queryKey: queryKeys.travelClaims(seasonId ?? 0, membershipId),
+		queryFn: async ({ signal }) => {
+			const params = new URLSearchParams({ includeVoided: '1' })
+			if (membershipId !== undefined) params.set('membershipId', String(membershipId))
+
+			return (await api.get<{ items: TravelClaim[] }>(`/seasons/${seasonId}/travel-claims?${params}`, signal)).items
+		},
+		enabled: seasonId !== null,
+	})
+}
+
+export function useSyncTravelClaims(seasonId: number) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: () => api.post<TravelSyncResult>(`/seasons/${seasonId}/travel-claims/sync`),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: queryKeys.balances(seasonId) })
+			void queryClient.invalidateQueries({ queryKey: ['seasons', seasonId, 'travel-claims'] })
+			void queryClient.invalidateQueries({ queryKey: ['payment-qr', seasonId] })
+		},
+	})
+}
+
+export function useCreateTravelClaim(seasonId: number) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: (input: { membershipId: number; occurredOn: string; distanceKm: number; note?: string | null }) =>
+			api.post<TravelClaim>(`/seasons/${seasonId}/travel-claims`, input),
+		onSuccess: (claim) => {
+			void queryClient.invalidateQueries({ queryKey: queryKeys.balances(seasonId) })
+			void queryClient.invalidateQueries({ queryKey: queryKeys.travelClaims(seasonId, claim.membershipId) })
+			void queryClient.invalidateQueries({ queryKey: queryKeys.paymentQr(seasonId, claim.membershipId) })
+		},
+	})
+}
+
+export function useVoidTravelClaim(seasonId: number) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: (claimId: number) => api.post<TravelClaim>(`/travel-claims/${claimId}/void`),
+		onSuccess: (claim) => {
+			void queryClient.invalidateQueries({ queryKey: queryKeys.balances(seasonId) })
+			void queryClient.invalidateQueries({ queryKey: queryKeys.travelClaims(seasonId, claim.membershipId) })
+			void queryClient.invalidateQueries({ queryKey: queryKeys.paymentQr(seasonId, claim.membershipId) })
+		},
+	})
+}
+
+export function usePaymentQr(seasonId: number | null, membershipId: number | null) {
+	return useQuery({
+		queryKey: queryKeys.paymentQr(seasonId ?? 0, membershipId ?? 0),
+		queryFn: ({ signal }) => api.get<PaymentQr>(`/memberships/${membershipId}/payment-qr?seasonId=${seasonId}`, signal),
+		enabled: seasonId !== null && membershipId !== null,
 	})
 }
 
@@ -282,6 +398,24 @@ export function useCloseSeason(teamId: number) {
 		mutationFn: (seasonId: number) => api.post<Season>(`/seasons/${seasonId}/close`),
 		onSuccess: () => {
 			void queryClient.invalidateQueries({ queryKey: queryKeys.seasons(teamId) })
+		},
+	})
+}
+
+/**
+ * Přelom pololetí. Prázdná hodnota ho vypne; `balances` se musí zneplatnit,
+ * protože se podle něj dělí všechna čísla peněz.
+ */
+export function useSetHalfYear(teamId: number) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: ({ seasonId, halfYearOn }: { seasonId: number; halfYearOn: string | null }) =>
+			api.patch<Season>(`/seasons/${seasonId}`, { halfYearOn }),
+		onSuccess: (season) => {
+			void queryClient.invalidateQueries({ queryKey: queryKeys.seasons(teamId) })
+			void queryClient.invalidateQueries({ queryKey: queryKeys.balances(season.id) })
+			void queryClient.invalidateQueries({ queryKey: ['payment-qr', season.id] })
 		},
 	})
 }
@@ -559,6 +693,12 @@ export interface AttendanceChange {
 	membershipId: number
 	/** `null` opravu zruší a vrátí odvození z odpovědi hráče. */
 	attendance: Attendance | null
+	/**
+	 * Zpětná oprava dopravy u venkovního zápasu — kdo zapomněl říct, že jede
+	 * autem. Vynechané pole nechává dopravu být, server ji u tréninku a domácího
+	 * zápasu ignoruje.
+	 */
+	transport?: Transport
 }
 
 export function useSaveAttendance(eventId: number, seasonId: number | null) {
@@ -570,6 +710,8 @@ export function useSaveAttendance(eventId: number, seasonId: number | null) {
 			queryClient.setQueryData(queryKeys.event(eventId), detail)
 			if (seasonId !== null) {
 				void queryClient.invalidateQueries({ queryKey: ['seasons', seasonId, 'attendance'] })
+				// Řidič navíc znamená nový cesťák, jen se ještě musí načíst.
+				void queryClient.invalidateQueries({ queryKey: ['seasons', seasonId, 'travel-claims'] })
 			}
 		},
 	})

@@ -56,6 +56,11 @@ export interface Season {
 	name: string
 	startsOn: string
 	endsOn: string
+	/**
+	 * Datum, kterým se sezóna dělí na pololetí. `null` znamená, že se pololetí
+	 * neřeší. Nic se tím nezamyká, je to jen hranice pro členění čísel.
+	 */
+	halfYearOn: string | null
 	isCurrent: boolean
 	closedAt: string | null
 	rosterCount: number
@@ -149,19 +154,21 @@ export interface PlatformTeam {
 	currentSeason: string | null
 }
 
-export type SettlementPeriod = 'none' | 'half_year' | 'season'
-
-/** Nastavení družstva. Cesťáky i zúčtování jsou volitelné — mládež je řešit nemusí. */
+/**
+ * Nastavení družstva. Cesťáky jsou volitelné — mládež je řešit nemusí.
+ * Pololetí se tady neřeší, jeho hranici drží `Season.halfYearOn`.
+ */
 export interface TeamSettings {
 	travelEnabled: boolean
 	travelRateCzkKm: number
 	/** Proplácí se cesta tam i zpět (× 2). */
 	travelRoundTrip: boolean
-	settlementPeriod: SettlementPeriod
 	/** Domácí hala. Od ní se měří vzdálenost k soupeři a podle ní se pozná domácí zápas. */
 	homeLocationId: number | null
 	attendanceVisibleToPlayers: boolean
 	balancesVisibleToPlayers: boolean
+	/** Společný účet klubu pro QR platby. */
+	bankAccount: string | null
 }
 
 export interface TeamDetail {
@@ -275,13 +282,104 @@ export interface MemberBalance {
 	 */
 	onRoster: boolean
 	recordCount: number
+	offencesCzk: number
+	bonusesCzk: number
+	paidCzk: number
+	travelCzk: number
 	balanceCzk: number
+	/**
+	 * Rozpad na pololetí podle data zápisu, platby a cesťáku. `null`, když sezóna
+	 * přelom nastavený nemá. Ploché hodnoty výše jsou vždycky součet obou polovin.
+	 */
+	halves: { first: BalanceSums; second: BalanceSums } | null
+}
+
+/** Součty za jedno období. `balanceCzk` = prohřešky + bonusy − platby − cesťáky. */
+export interface BalanceSums {
+	offencesCzk: number
+	bonusesCzk: number
+	paidCzk: number
+	travelCzk: number
+	balanceCzk: number
+	recordCount: number
+}
+
+export type PeriodKey = 'all' | 'first' | 'second'
+
+export interface BalancePeriod {
+	key: PeriodKey
+	label: string
+	from: string
+	to: string
 }
 
 export interface BalanceList {
 	seasonId: number
+	visibility: 'own' | 'team'
+	halfYearOn: string | null
+	/** Vždy obsahuje `all`; `first` a `second` jen když je nastavený přelom. */
+	periods: BalancePeriod[]
+	totals: BalanceSums
+	halves: { first: BalanceSums; second: BalanceSums } | null
 	totalCzk: number
+	offencesCzk: number
+	bonusesCzk: number
+	paidCzk: number
+	travelCzk: number
 	members: MemberBalance[]
+}
+
+export type PaymentMethod = 'cash' | 'transfer' | 'qr' | 'gateway'
+
+export interface Payment {
+	id: number
+	seasonId: number
+	membershipId: number
+	memberName: string
+	amountCzk: number
+	paidOn: string
+	method: PaymentMethod
+	variableSymbol: string | null
+	note: string | null
+	confirmedBy: { id: number; name: string } | null
+	createdAt: string
+	voidedAt: string | null
+}
+
+export interface TravelClaim {
+	id: number
+	seasonId: number
+	membershipId: number
+	memberName: string
+	eventId: number | null
+	eventTitle: string | null
+	occurredOn: string
+	distanceKm: number
+	rateCzkKm: number
+	amountCzk: number
+	note: string | null
+	createdAt: string
+	voidedAt: string | null
+}
+
+export interface PaymentQr {
+	membershipId: number
+	amountCzk: number
+	variableSymbol: string
+	bankAccount: string | null
+	spayd: string | null
+	/**
+	 * Popis období, do kterého platba spadá. `half` říká, v jakém pololetí právě
+	 * jsme — částka je ale vždy celý neuhrazený zůstatek sezóny, ne jen ta polovina.
+	 */
+	period: { name: string; from: string; to: string; half: 'first' | 'second' | null }
+}
+
+export interface TravelSyncResult {
+	created: number
+	updated: number
+	voided: number
+	items: TravelClaim[]
 }
 
 // --- dávkový zápis -------------------------------------------------------
@@ -396,7 +494,8 @@ export const nominationLabels: Record<Nomination, string> = {
 	none: '—',
 }
 
-export type Transport = 'none' | 'driver' | 'passenger'
+/** Beru auto, nebo neberu. Nic mezi tím nemá v aplikaci žádný následek. */
+export type Transport = 'none' | 'driver'
 
 export type EventStatus = 'planned' | 'cancelled' | 'done'
 
@@ -520,7 +619,9 @@ export function formatCzk(amountCzk: number): string {
 		style: 'currency',
 		currency: 'CZK',
 		maximumFractionDigits: 0,
-	}).format(amountCzk)
+		// Bez tohohle vypíše Intl „-0 Kč": obrazovky obracejí znaménko (zaplaceno,
+		// cesťáky) a negace nuly je v JS -0, což se od 0 nedá porovnáním poznat.
+	}).format(amountCzk === 0 ? 0 : amountCzk)
 }
 
 /** „2026-08-16" → „16. 8. 2026". Na vstupu je vždy datum bez času z MySQL. */
@@ -556,8 +657,4 @@ export function atLeast(role: Role | undefined, required: Role): boolean {
 	if (role === undefined) return false
 
 	return roleLevel[role] >= roleLevel[required]
-}
-
-export function hasRole(membership: Membership | undefined, required: Role): boolean {
-	return atLeast(membership?.role, required)
 }
