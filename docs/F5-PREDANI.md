@@ -210,7 +210,7 @@ cd web && npm run typecheck && npm run lint && npm run format && npm test -- --r
 ```
 
 Před odevzdáním musí projít testy i statická analýza té části, které se změna
-týká. Výchozí stav: **284 testů na backendu, 191 na frontendu, PHPStan level 8
+týká. Výchozí stav: **284 testů na backendu, 197 na frontendu, PHPStan level 8
 bez chyb.**
 
 ## Co nedělat
