@@ -21,6 +21,7 @@ import { LoginPage } from '@/features/auth/LoginPage'
 import { NewPasswordPage } from '@/features/auth/NewPasswordPage'
 import { BalancesPage } from '@/features/balances/BalancesPage'
 import { MemberPage } from '@/features/balances/MemberPage'
+import { PaymentsPage } from '@/features/balances/PaymentsPage'
 import { AttendancePage } from '@/features/events/AttendancePage'
 import { CalendarPage } from '@/features/events/CalendarPage'
 import { EditEventPage } from '@/features/events/EditEventPage'
@@ -66,6 +67,7 @@ const router = createBrowserRouter(
 				<Route element={<AppLayout />}>
 					<Route index element={<Navigate to="/kalendar" replace />} />
 					<Route path="dluhy" element={<BalancesPage />} />
+					<Route path="platby" element={<PaymentsPage />} />
 					<Route path="hraci/:membershipId" element={<MemberPage />} />
 					<Route path="kalendar" element={<CalendarPage />} />
 					<Route path="akce/nova" element={<NewEventPage />} />
