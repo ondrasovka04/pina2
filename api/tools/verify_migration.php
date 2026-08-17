@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 /**
@@ -45,8 +46,13 @@ foreach ($counts as $label => [$oldSql, $newSql]) {
 $oldMemberships = (int) stmt($pdo, "SELECT COUNT(*) FROM `$legacy`.UzivatelTym")->fetchColumn();
 $newMemberships = (int) stmt($pdo, "SELECT COUNT(*) FROM `$new`.membership")->fetchColumn();
 $recovered      = (int) stmt($pdo, "SELECT COUNT(*) FROM `$new`.membership WHERE status = 'left'")->fetchColumn();
-printf("  %-28s %6d → %6d  %s\n", 'členství', $oldMemberships, $newMemberships,
-    $newMemberships - $oldMemberships === $recovered ? "OK (+$recovered dopočtených)" : 'NESEDÍ');
+printf(
+    "  %-28s %6d → %6d  %s\n",
+    'členství',
+    $oldMemberships,
+    $newMemberships,
+    $newMemberships - $oldMemberships === $recovered ? "OK (+$recovered dopočtených)" : 'NESEDÍ',
+);
 if ($newMemberships - $oldMemberships !== $recovered) {
     $failed = true;
 }
@@ -55,12 +61,13 @@ if ($newMemberships - $oldMemberships !== $recovered) {
 
 echo "\nSOUČTY ČÁSTEK PO SEZÓNÁCH\n";
 
-$newSums = stmt($pdo, 
+$newSums = stmt(
+    $pdo,
     "SELECT s.legacy_key AS k, COUNT(*) AS n, SUM(o.amount_czk) AS suma
      FROM `$new`.offence_record o
      JOIN `$new`.season s ON s.id = o.season_id
      WHERE o.voided_at IS NULL
-     GROUP BY s.legacy_key"
+     GROUP BY s.legacy_key",
 )->fetchAll();
 
 $newByKey = [];
@@ -68,19 +75,27 @@ foreach ($newSums as $row) {
     $newByKey[$row['k']] = $row;
 }
 
-$oldByKey = stmt($pdo, 
+$oldByKey = stmt(
+    $pdo,
     "SELECT CONCAT(p.idSezona, '|', p.idTym) AS k, COUNT(*) AS n, SUM(ps.castka) AS suma
      FROM `$legacy`.Prohresek p
      JOIN `$legacy`.ProhreskySeznam ps ON ps.id = p.idProhresek
-     GROUP BY k"
+     GROUP BY k",
 )->fetchAll();
 
 foreach ($oldByKey as $row) {
     $key = $row['k'];
     $cur = $newByKey[$key] ?? ['n' => 0, 'suma' => 0];
     $ok  = (int) $row['n'] === (int) $cur['n'] && (int) $row['suma'] === (int) $cur['suma'];
-    printf("  %-28s %4d zápisů / %8d Kč → %4d / %8d Kč  %s\n",
-        $key, $row['n'], $row['suma'], $cur['n'], $cur['suma'], $ok ? 'OK' : '*** NESEDÍ ***');
+    printf(
+        "  %-28s %4d zápisů / %8d Kč → %4d / %8d Kč  %s\n",
+        $key,
+        $row['n'],
+        $row['suma'],
+        $cur['n'],
+        $cur['suma'],
+        $ok ? 'OK' : '*** NESEDÍ ***',
+    );
     if (!$ok) {
         $failed = true;
     }
@@ -90,7 +105,8 @@ foreach ($oldByKey as $row) {
 
 echo "\nSOUČTY PO HRÁČÍCH\n";
 
-$mismatch = stmt($pdo, 
+$mismatch = stmt(
+    $pdo,
     "SELECT u.legacy_id, u.display_name, o.stary, o.novy
      FROM (
          SELECT m.user_id,
@@ -105,7 +121,7 @@ $mismatch = stmt($pdo,
           GROUP BY m.user_id
      ) o
      JOIN `$new`.`user` u ON u.id = o.user_id
-     WHERE o.stary <> o.novy"
+     WHERE o.stary <> o.novy",
 )->fetchAll();
 
 if ($mismatch === []) {
@@ -113,8 +129,13 @@ if ($mismatch === []) {
     printf("  všichni hráči sedí (celkem %s Kč napříč všemi sezónami)\n", number_format($total, 0, ',', ' '));
 } else {
     foreach ($mismatch as $row) {
-        printf("  *** %s (legacy #%d): staré %d Kč vs nové %d Kč\n",
-            $row['display_name'], $row['legacy_id'], $row['stary'], $row['novy']);
+        printf(
+            "  *** %s (legacy #%d): staré %d Kč vs nové %d Kč\n",
+            $row['display_name'],
+            $row['legacy_id'],
+            $row['stary'],
+            $row['novy'],
+        );
     }
     $failed = true;
 }
@@ -123,10 +144,10 @@ if ($mismatch === []) {
 
 echo "\nINTEGRITA NOVÝCH DAT\n";
 $checks = [
-    'prohřešky bez členství'      => "SELECT COUNT(*) FROM `$new`.offence_record o LEFT JOIN `$new`.membership m ON m.id = o.membership_id WHERE m.id IS NULL",
-    'prohřešky mimo svou sezónu'  => "SELECT COUNT(*) FROM `$new`.offence_record o JOIN `$new`.offence_type t ON t.id = o.offence_type_id WHERE t.season_id <> o.season_id",
-    'členství s duplicitním VS'   => "SELECT COUNT(*) - COUNT(DISTINCT payment_reference) FROM `$new`.membership",
-    'sezóny bez týmu'             => "SELECT COUNT(*) FROM `$new`.season s LEFT JOIN `$new`.team t ON t.id = s.team_id WHERE t.id IS NULL",
+    'prohřešky bez členství'     => "SELECT COUNT(*) FROM `$new`.offence_record o LEFT JOIN `$new`.membership m ON m.id = o.membership_id WHERE m.id IS NULL",
+    'prohřešky mimo svou sezónu' => "SELECT COUNT(*) FROM `$new`.offence_record o JOIN `$new`.offence_type t ON t.id = o.offence_type_id WHERE t.season_id <> o.season_id",
+    'členství s duplicitním VS'  => "SELECT COUNT(*) - COUNT(DISTINCT payment_reference) FROM `$new`.membership",
+    'sezóny bez týmu'            => "SELECT COUNT(*) FROM `$new`.season s LEFT JOIN `$new`.team t ON t.id = s.team_id WHERE t.id IS NULL",
 ];
 foreach ($checks as $label => $sql) {
     $n = (int) stmt($pdo, $sql)->fetchColumn();

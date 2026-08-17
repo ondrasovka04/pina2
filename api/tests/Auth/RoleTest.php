@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Pina\Tests\Auth;
 
-use Pina\Auth\Identity;
-use Pina\Auth\Role;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Pina\Auth\Identity;
+use Pina\Auth\Role;
 
 final class RoleTest extends TestCase
 {

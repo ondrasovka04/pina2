@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Pina\Tests\Support;
 
-use Pina\Http\ApiException;
-use Pina\Support\Recurrence;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Pina\Http\ApiException;
+use Pina\Support\Recurrence;
 
 final class RecurrenceTest extends TestCase
 {
@@ -125,20 +125,20 @@ final class RecurrenceTest extends TestCase
     public static function invalidInputProvider(): array
     {
         return [
-            'chybí FREQ'                          => ['BYDAY=MO', '2026-01-01', '2026-01-31'],
-            'neznámá FREQ'                         => ['FREQ=MONTHLY', '2026-01-01', '2026-01-31'],
-            'prázdné BYDAY'                        => ['FREQ=WEEKLY;BYDAY=', '2026-01-01', '2026-01-31'],
-            'neznámý den v BYDAY'                  => ['FREQ=WEEKLY;BYDAY=XX', '2026-01-01', '2026-01-31'],
-            'BYDAY nejde s DAILY'                  => ['FREQ=DAILY;BYDAY=MO', '2026-01-01', '2026-01-31'],
-            'INTERVAL nula'                        => ['FREQ=WEEKLY;INTERVAL=0', '2026-01-01', '2026-01-31'],
-            'INTERVAL záporný'                     => ['FREQ=WEEKLY;INTERVAL=-1', '2026-01-01', '2026-01-31'],
-            'INTERVAL není číslo'                  => ['FREQ=WEEKLY;INTERVAL=abc', '2026-01-01', '2026-01-31'],
-            'COUNT nula'                           => ['FREQ=WEEKLY;COUNT=0', '2026-01-01', '2026-01-31'],
-            'neplatné UNTIL'                       => ['FREQ=DAILY;UNTIL=not-a-date', '2026-01-01', '2026-01-31'],
-            'nepodporovaný klíč'                   => ['FREQ=DAILY;FOO=BAR', '2026-01-01', '2026-01-31'],
-            '$from po $to'                         => ['FREQ=DAILY', '2026-01-31', '2026-01-01'],
-            'neplatné kalendářní datum $from'      => ['FREQ=DAILY', '2026-02-30', '2026-03-01'],
-            'neplatné kalendářní datum $to'        => ['FREQ=DAILY', '2026-01-01', '2026-02-30'],
+            'chybí FREQ'                      => ['BYDAY=MO', '2026-01-01', '2026-01-31'],
+            'neznámá FREQ'                    => ['FREQ=MONTHLY', '2026-01-01', '2026-01-31'],
+            'prázdné BYDAY'                   => ['FREQ=WEEKLY;BYDAY=', '2026-01-01', '2026-01-31'],
+            'neznámý den v BYDAY'             => ['FREQ=WEEKLY;BYDAY=XX', '2026-01-01', '2026-01-31'],
+            'BYDAY nejde s DAILY'             => ['FREQ=DAILY;BYDAY=MO', '2026-01-01', '2026-01-31'],
+            'INTERVAL nula'                   => ['FREQ=WEEKLY;INTERVAL=0', '2026-01-01', '2026-01-31'],
+            'INTERVAL záporný'                => ['FREQ=WEEKLY;INTERVAL=-1', '2026-01-01', '2026-01-31'],
+            'INTERVAL není číslo'             => ['FREQ=WEEKLY;INTERVAL=abc', '2026-01-01', '2026-01-31'],
+            'COUNT nula'                      => ['FREQ=WEEKLY;COUNT=0', '2026-01-01', '2026-01-31'],
+            'neplatné UNTIL'                  => ['FREQ=DAILY;UNTIL=not-a-date', '2026-01-01', '2026-01-31'],
+            'nepodporovaný klíč'              => ['FREQ=DAILY;FOO=BAR', '2026-01-01', '2026-01-31'],
+            '$from po $to'                    => ['FREQ=DAILY', '2026-01-31', '2026-01-01'],
+            'neplatné kalendářní datum $from' => ['FREQ=DAILY', '2026-02-30', '2026-03-01'],
+            'neplatné kalendářní datum $to'   => ['FREQ=DAILY', '2026-01-01', '2026-02-30'],
         ];
     }
 

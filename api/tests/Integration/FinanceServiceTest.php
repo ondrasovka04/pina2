@@ -27,29 +27,29 @@ final class FinanceServiceTest extends DatabaseTestCase
     {
         parent::setUp();
 
-        $scope = new TeamScope($this->db);
+        $scope          = new TeamScope($this->db);
         $this->service  = new FinanceService($this->db, $scope);
         $this->offences = new OffenceService($this->db, $scope);
 
         [$this->club, $this->team] = $this->makeTeam('finance', 'Muži A');
-        $this->season = $this->makeSeason($this->team, '2026');
+        $this->season              = $this->makeSeason($this->team, '2026');
         $this->db->run(
             'UPDATE season SET starts_on = \'2026-01-01\', ends_on = \'2026-12-31\' WHERE id = ?',
             [$this->season],
         );
 
-        $playerId = $this->makeUser('player@finance.cz');
+        $playerId               = $this->makeUser('player@finance.cz');
         $this->playerMembership = $this->makeMembership($playerId, $this->team, 'player');
-        $this->player = new Identity($playerId, 'player@finance.cz', 'Hráč', false, [
+        $this->player           = new Identity($playerId, 'player@finance.cz', 'Hráč', false, [
             $this->team => Role::Player,
         ]);
 
-        $otherId = $this->makeUser('other@finance.cz');
+        $otherId               = $this->makeUser('other@finance.cz');
         $this->otherMembership = $this->makeMembership($otherId, $this->team, 'player');
 
-        $treasurerId = $this->makeUser('treasurer@finance.cz');
+        $treasurerId         = $this->makeUser('treasurer@finance.cz');
         $treasurerMembership = $this->makeMembership($treasurerId, $this->team, 'treasurer');
-        $this->treasurer = new Identity($treasurerId, 'treasurer@finance.cz', 'Pínař', false, [
+        $this->treasurer     = new Identity($treasurerId, 'treasurer@finance.cz', 'Pínař', false, [
             $this->team => Role::Treasurer,
         ]);
 

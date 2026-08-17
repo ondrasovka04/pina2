@@ -360,7 +360,7 @@ final class TeamService
             'paymentReference' => (string) $row['payment_reference'],
             'joinedAt'         => (string) $row['joined_at'],
             // Kdo heslo nemá, ještě se nikdy nepřihlásil — admin mu vyrobí aktivační odkaz.
-            'hasPassword'      => (bool) $row['has_password'],
+            'hasPassword' => (bool) $row['has_password'],
         ], $rows);
     }
 
@@ -698,7 +698,7 @@ final class TeamService
             $sets[]   = 'status = ?';
             $params[] = $changes['status'];
             // Odchod z družstva se datuje, návrat zpět datum ruší.
-            $sets[]   = $changes['status'] === 'left' ? 'left_at = NOW()' : 'left_at = NULL';
+            $sets[] = $changes['status'] === 'left' ? 'left_at = NOW()' : 'left_at = NULL';
         }
 
         if ($sets === [] && !isset($changes['name'])) {
@@ -804,8 +804,8 @@ final class TeamService
             return;
         }
 
-        $losesRole   = isset($changes['role']) && $changes['role'] !== Role::Admin;
-        $leavesTeam  = ($changes['status'] ?? null) === 'left';
+        $losesRole  = isset($changes['role']) && $changes['role'] !== Role::Admin;
+        $leavesTeam = ($changes['status'] ?? null) === 'left';
 
         if (!$losesRole && !$leavesTeam) {
             return;

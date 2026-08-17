@@ -18,11 +18,11 @@ use Pina\Controller\OffenceTypeController;
 use Pina\Controller\SeasonController;
 use Pina\Controller\TeamController;
 use Pina\Http\Kernel;
+use Pina\Http\RateLimiter;
+use Pina\Http\Router;
 use Pina\Mail\InvitationMail;
 use Pina\Mail\PasswordResetMail;
 use Pina\Mail\SmtpMailer;
-use Pina\Http\RateLimiter;
-use Pina\Http\Router;
 use Pina\Service\EventService;
 use Pina\Service\FinanceService;
 use Pina\Service\LocationService;
@@ -69,7 +69,7 @@ final class App
             $passwords,
             new PasswordResetMail(SmtpMailer::fromConfig($this->logger), Config::get('APP_URL', '')),
         );
-        $authCtrl  = new AuthController($auth, $this->tokens, $resets);
+        $authCtrl = new AuthController($auth, $this->tokens, $resets);
 
         // Veřejné (auth: false)
         $router->post('/api/v1/auth/login', $authCtrl->login(...), auth: false);

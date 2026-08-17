@@ -180,7 +180,7 @@ final class Recurrence
                 throw ApiException::validation("Neplatná část pravidla: {$chunk}.", ['field' => 'rrule']);
             }
 
-            [$key, $value] = explode('=', $chunk, 2);
+            [$key, $value]                 = explode('=', $chunk, 2);
             $parts[strtoupper(trim($key))] = trim($value);
         }
 

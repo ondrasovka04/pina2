@@ -102,7 +102,7 @@ final class LocationService
             throw ApiException::validation('Není co upravit — pošlete alespoň jedno pole.');
         }
 
-        $name    = array_key_exists('name', $changes) && is_string($changes['name'])
+        $name = array_key_exists('name', $changes) && is_string($changes['name'])
             ? $changes['name']
             : (string) $current['name'];
         $address = $this->pickNullableString($changes, 'address', $current['address']);

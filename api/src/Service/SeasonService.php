@@ -161,9 +161,9 @@ final class SeasonService
             throw ApiException::notFound();
         }
 
-        $name     = $changes['name']     ?? (string) $current['name'];
+        $name     = $changes['name'] ?? (string) $current['name'];
         $startsOn = $changes['startsOn'] ?? (string) $current['starts_on'];
-        $endsOn   = $changes['endsOn']   ?? (string) $current['ends_on'];
+        $endsOn   = $changes['endsOn'] ?? (string) $current['ends_on'];
 
         $stored     = $current['half_year_on'] === null ? null : (string) $current['half_year_on'];
         $halfYearOn = array_key_exists('halfYearOn', $changes) ? $changes['halfYearOn'] : $stored;

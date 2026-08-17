@@ -829,7 +829,7 @@ final class TeamServiceTest extends DatabaseTestCase
             self::assertSame(400, $e->status);
         }
 
-        $own     = $this->makeLocation($this->prosekClub, 'Hala Prosek');
+        $own      = $this->makeLocation($this->prosekClub, 'Hala Prosek');
         $settings = $this->service->saveSettings($this->admin, $this->prosekTeam, $this->settings([
             'homeLocationId' => $own,
         ]));

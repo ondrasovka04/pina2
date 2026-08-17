@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Pina\Tests\Integration;
 
 use PDO;
-use Pina\Support\Database;
 use PHPUnit\Framework\TestCase;
+use Pina\Support\Database;
 
 /** Schéma jednou, data se mažou před každým testem. */
 abstract class DatabaseTestCase extends TestCase

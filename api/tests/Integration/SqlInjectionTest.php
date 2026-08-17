@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Pina\Tests\Integration;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use Pina\Auth\AuthService;
 use Pina\Auth\PasswordService;
 use Pina\Auth\TokenService;
 use Pina\Http\ApiException;
 use Pina\Http\RateLimiter;
-use PHPUnit\Framework\Attributes\DataProvider;
 
 /** Ověření, že prepared statements (bez emulace) opravdu hlídají vstup. */
 final class SqlInjectionTest extends DatabaseTestCase

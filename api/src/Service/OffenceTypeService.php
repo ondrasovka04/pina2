@@ -116,11 +116,11 @@ final class OffenceTypeService
 
         /** @var array<string,string> $columns název pole v požadavku => sloupec */
         $columns = [
-            'name'       => 'name',
-            'amountCzk'  => 'amount_czk',
-            'sortOrder'  => 'sort_order',
-            'category'   => 'category',
-            'autoRule'   => 'auto_rule',
+            'name'          => 'name',
+            'amountCzk'     => 'amount_czk',
+            'sortOrder'     => 'sort_order',
+            'category'      => 'category',
+            'autoRule'      => 'auto_rule',
             'autoEventType' => 'auto_event_type',
         ];
 
@@ -347,15 +347,15 @@ final class OffenceTypeService
     private function toPayload(array $row): array
     {
         return [
-            'id'         => (int) $row['id'],
-            'seasonId'   => (int) $row['season_id'],
-            'name'       => (string) $row['name'],
-            'amountCzk'  => (int) $row['amount_czk'],
-            'sortOrder'  => (int) $row['sort_order'],
-            'category'   => $row['category'] === null ? null : (string) $row['category'],
-            'autoRule'   => (string) $row['auto_rule'],
+            'id'            => (int) $row['id'],
+            'seasonId'      => (int) $row['season_id'],
+            'name'          => (string) $row['name'],
+            'amountCzk'     => (int) $row['amount_czk'],
+            'sortOrder'     => (int) $row['sort_order'],
+            'category'      => $row['category'] === null ? null : (string) $row['category'],
+            'autoRule'      => (string) $row['auto_rule'],
             'autoEventType' => (string) $row['auto_event_type'],
-            'archivedAt' => $row['archived_at'] === null ? null : (string) $row['archived_at'],
+            'archivedAt'    => $row['archived_at'] === null ? null : (string) $row['archived_at'],
         ];
     }
 }

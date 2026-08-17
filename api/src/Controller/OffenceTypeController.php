@@ -34,11 +34,11 @@ final class OffenceTypeController
     public function store(Request $request): Response
     {
         $type = $this->types->create($request->identity(), $request->routeId('season'), [
-            'name'      => $this->name($request->string('name')),
-            'amountCzk' => $request->signedInt('amountCzk'),
-            'sortOrder' => $request->optionalSignedInt('sortOrder') ?? 0,
-            'category'  => self::enum($request->optionalString('category'), OffenceTypeService::CATEGORIES, 'category'),
-            'autoRule'  => self::enum($request->optionalString('autoRule'), OffenceTypeService::AUTO_RULES, 'autoRule') ?? 'none',
+            'name'          => $this->name($request->string('name')),
+            'amountCzk'     => $request->signedInt('amountCzk'),
+            'sortOrder'     => $request->optionalSignedInt('sortOrder') ?? 0,
+            'category'      => self::enum($request->optionalString('category'), OffenceTypeService::CATEGORIES, 'category'),
+            'autoRule'      => self::enum($request->optionalString('autoRule'), OffenceTypeService::AUTO_RULES, 'autoRule') ?? 'none',
             'autoEventType' => self::enum(
                 $request->optionalString('autoEventType'),
                 OffenceTypeService::AUTO_EVENT_TYPES,

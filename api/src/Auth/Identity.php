@@ -48,11 +48,11 @@ final class Identity
         }
 
         return [
-            'id'             => $this->userId,
-            'email'          => $this->email,
-            'name'           => $this->displayName,
-            'platformAdmin'  => $this->isPlatformAdmin,
-            'memberships'    => $memberships,
+            'id'            => $this->userId,
+            'email'         => $this->email,
+            'name'          => $this->displayName,
+            'platformAdmin' => $this->isPlatformAdmin,
+            'memberships'   => $memberships,
         ];
     }
 

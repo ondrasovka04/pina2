@@ -42,9 +42,9 @@ final class CzechBankAccount
             throw new InvalidArgumentException('Číslo účtu nelze převést na IBAN.');
         }
 
-        $bban       = $matches[3] . str_pad($matches[1], 6, '0', STR_PAD_LEFT)
+        $bban = $matches[3] . str_pad($matches[1], 6, '0', STR_PAD_LEFT)
                     . str_pad($matches[2], 10, '0', STR_PAD_LEFT);
-        $check      = 98 - self::mod97($bban . '123500');
+        $check = 98 - self::mod97($bban . '123500');
 
         return 'CZ' . str_pad((string) $check, 2, '0', STR_PAD_LEFT) . $bban;
     }

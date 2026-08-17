@@ -1161,19 +1161,19 @@ final class EventService
             'nominationDeadline' => $row['nomination_deadline'] === null
                 ? null
                 : (string) $row['nomination_deadline'],
-            'status'             => (string) $row['status'],
-            'isHome'             => $isHome,
+            'status' => (string) $row['status'],
+            'isHome' => $isHome,
             // Ručně upravený termín hromadná změna série přeskočí.
-            'overridden'         => (bool) $row['overridden'],
-            'started'            => $started,
-            'rosterCount'        => $rosterCount,
-            'counts'             => [
-                'yes'     => $yes,
-                'no'      => $no,
+            'overridden'  => (bool) $row['overridden'],
+            'started'     => $started,
+            'rosterCount' => $rosterCount,
+            'counts'      => [
+                'yes' => $yes,
+                'no'  => $no,
                 // Kdo neodpověděl. Nemůže být záporné, i když odpoví někdo mimo soupisku.
                 'unknown' => max(0, $rosterCount - $yes - $no),
             ],
-            'me'                 => $row['my_membership_id'] === null ? null : [
+            'me' => $row['my_membership_id'] === null ? null : [
                 'membershipId' => (int) $row['my_membership_id'],
                 'rsvp'         => $row['my_rsvp'] === null ? 'unknown' : (string) $row['my_rsvp'],
                 'rsvpNote'     => $row['my_rsvp_note'] === null ? null : (string) $row['my_rsvp_note'],

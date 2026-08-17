@@ -303,9 +303,9 @@ final class SeasonServiceTest extends DatabaseTestCase
 
     public function testRosterIsReplacedNotAppended(): void
     {
-        $season   = $this->makeSeason($this->prosekTeam, '26/27');
-        $otherId  = $this->makeUser('druhy@prosek.cz');
-        $otherM   = $this->makeMembership($otherId, $this->prosekTeam, 'player');
+        $season  = $this->makeSeason($this->prosekTeam, '26/27');
+        $otherId = $this->makeUser('druhy@prosek.cz');
+        $otherM  = $this->makeMembership($otherId, $this->prosekTeam, 'player');
 
         $this->service->setRoster($this->admin, $season, [$this->playerMembership, $otherM]);
         self::assertCount(2, $this->service->roster($this->player, $season));

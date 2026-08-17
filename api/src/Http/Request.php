@@ -34,7 +34,7 @@ final class Request
         $headers = [];
         foreach ($_SERVER as $key => $value) {
             if (str_starts_with((string) $key, 'HTTP_')) {
-                $name = strtolower(str_replace('_', '-', substr((string) $key, 5)));
+                $name           = strtolower(str_replace('_', '-', substr((string) $key, 5)));
                 $headers[$name] = (string) $value;
             }
         }

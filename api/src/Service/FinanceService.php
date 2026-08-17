@@ -34,7 +34,7 @@ final class FinanceService
         ?int $membershipId = null,
         bool $includeVoided = false,
     ): array {
-        $teamId = $this->scope->season($identity, $seasonId, Role::Player);
+        $teamId       = $this->scope->season($identity, $seasonId, Role::Player);
         $membershipId = $this->visibleMembership($identity, $teamId, $membershipId);
 
         $where  = ['p.season_id = ?'];
@@ -120,7 +120,7 @@ final class FinanceService
         ?int $membershipId = null,
         bool $includeVoided = false,
     ): array {
-        $teamId = $this->scope->season($identity, $seasonId, Role::Player);
+        $teamId       = $this->scope->season($identity, $seasonId, Role::Player);
         $membershipId = $this->visibleMembership($identity, $teamId, $membershipId);
 
         $where  = ['tc.season_id = ?'];
@@ -155,7 +155,7 @@ final class FinanceService
      */
     public function syncTravelClaims(Identity $identity, int $seasonId): array
     {
-        $teamId = $this->scope->writableSeason($identity, $seasonId, Role::Treasurer);
+        $teamId   = $this->scope->writableSeason($identity, $seasonId, Role::Treasurer);
         $settings = $this->travelSettings($teamId);
 
         if (!$settings['enabled']) {
@@ -200,17 +200,17 @@ final class FinanceService
             $seasonId,
             $identity,
         ): array {
-            $created = 0;
-            $updated = 0;
+            $created    = 0;
+            $updated    = 0;
             $activeKeys = [];
 
             foreach ($drivers as $driver) {
-                $eventId      = (int) $driver['event_id'];
-                $membershipId = (int) $driver['membership_id'];
-                $key          = $eventId . ':' . $membershipId;
+                $eventId          = (int) $driver['event_id'];
+                $membershipId     = (int) $driver['membership_id'];
+                $key              = $eventId . ':' . $membershipId;
                 $activeKeys[$key] = true;
-                $distance = (int) $driver['distance_km'] * ($settings['roundTrip'] ? 2 : 1);
-                $current  = $existing[$key] ?? null;
+                $distance         = (int) $driver['distance_km'] * ($settings['roundTrip'] ? 2 : 1);
+                $current          = $existing[$key] ?? null;
 
                 if ($current === null) {
                     $amount = (int) round($distance * $settings['rate']);
@@ -270,7 +270,7 @@ final class FinanceService
      */
     public function createTravelClaim(Identity $identity, int $seasonId, array $input): array
     {
-        $teamId = $this->scope->writableSeason($identity, $seasonId, Role::Treasurer);
+        $teamId   = $this->scope->writableSeason($identity, $seasonId, Role::Treasurer);
         $settings = $this->travelSettings($teamId);
         if (!$settings['enabled']) {
             throw ApiException::conflict('TRAVEL_DISABLED', 'Cesťáky nejsou pro družstvo zapnuté.');
@@ -350,13 +350,13 @@ final class FinanceService
         // koruny stejné číslo, jaké hráč vidí na kontě, jinak si po zaplacení nebude
         // vědět rady. Období určuje jen název platby a rytmus zúčtování; datum zápisu
         // se nefiltruje, protože klidně padne mimo rozsah sezóny (turnaj před startem).
-        $amount = $this->seasonBalance($seasonId, $membershipId);
+        $amount  = $this->seasonBalance($seasonId, $membershipId);
         $account = $row['bank_account'] === null ? null : (string) $row['bank_account'];
-        $spayd = null;
+        $spayd   = null;
 
         if ($account !== null && $amount > 0) {
             $message = $this->spaydText('Pina ' . (string) $row['team_name'] . ' ' . $period['name']);
-            $spayd = sprintf(
+            $spayd   = sprintf(
                 'SPD*1.0*ACC:%s*AM:%d.00*CC:CZK*X-VS:%s*MSG:%s',
                 CzechBankAccount::iban($account),
                 $amount,
@@ -366,12 +366,12 @@ final class FinanceService
         }
 
         return [
-            'membershipId'    => $membershipId,
-            'amountCzk'       => max(0, $amount),
-            'variableSymbol'  => (string) $row['payment_reference'],
-            'bankAccount'     => $account,
-            'spayd'           => $spayd,
-            'period'          => $period,
+            'membershipId'   => $membershipId,
+            'amountCzk'      => max(0, $amount),
+            'variableSymbol' => (string) $row['payment_reference'],
+            'bankAccount'    => $account,
+            'spayd'          => $spayd,
+            'period'         => $period,
         ];
     }
 
@@ -467,8 +467,8 @@ final class FinanceService
                 'id'   => (int) $row['confirmed_by'],
                 'name' => (string) $row['confirmer_name'],
             ],
-            'createdAt'      => (string) $row['created_at'],
-            'voidedAt'       => $row['voided_at'] === null ? null : (string) $row['voided_at'],
+            'createdAt' => (string) $row['created_at'],
+            'voidedAt'  => $row['voided_at'] === null ? null : (string) $row['voided_at'],
         ];
     }
 
@@ -499,19 +499,19 @@ final class FinanceService
     private function travelPayload(array $row): array
     {
         return [
-            'id'            => (int) $row['id'],
-            'seasonId'      => (int) $row['season_id'],
-            'membershipId'  => (int) $row['membership_id'],
-            'memberName'    => (string) $row['member_name'],
-            'eventId'       => $row['event_id'] === null ? null : (int) $row['event_id'],
-            'eventTitle'    => $row['event_title'] === null ? null : (string) $row['event_title'],
-            'occurredOn'    => (string) $row['occurred_on'],
-            'distanceKm'    => (int) $row['distance_km'],
-            'rateCzkKm'     => (float) $row['rate_czk_km'],
-            'amountCzk'     => (int) $row['amount_czk'],
-            'note'          => $row['note'] === null ? null : (string) $row['note'],
-            'createdAt'     => (string) $row['created_at'],
-            'voidedAt'      => $row['voided_at'] === null ? null : (string) $row['voided_at'],
+            'id'           => (int) $row['id'],
+            'seasonId'     => (int) $row['season_id'],
+            'membershipId' => (int) $row['membership_id'],
+            'memberName'   => (string) $row['member_name'],
+            'eventId'      => $row['event_id'] === null ? null : (int) $row['event_id'],
+            'eventTitle'   => $row['event_title'] === null ? null : (string) $row['event_title'],
+            'occurredOn'   => (string) $row['occurred_on'],
+            'distanceKm'   => (int) $row['distance_km'],
+            'rateCzkKm'    => (float) $row['rate_czk_km'],
+            'amountCzk'    => (int) $row['amount_czk'],
+            'note'         => $row['note'] === null ? null : (string) $row['note'],
+            'createdAt'    => (string) $row['created_at'],
+            'voidedAt'     => $row['voided_at'] === null ? null : (string) $row['voided_at'],
         ];
     }
 

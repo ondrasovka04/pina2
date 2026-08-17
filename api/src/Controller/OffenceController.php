@@ -14,12 +14,12 @@ use Pina\Service\OffenceService;
 final class OffenceController
 {
     /** Limity: jeden požadavek ≠ desetitisíce řádků. */
-    private const MAX_ITEMS       = 500;
-    private const MAX_COUNT       = 99;
-    private const MAX_TITLE       = 120;
-    private const MAX_NOTE        = 255;
-    private const DEFAULT_LIMIT   = 200;
-    private const MAX_LIMIT       = 500;
+    private const MAX_ITEMS     = 500;
+    private const MAX_COUNT     = 99;
+    private const MAX_TITLE     = 120;
+    private const MAX_NOTE      = 255;
+    private const DEFAULT_LIMIT = 200;
+    private const MAX_LIMIT     = 500;
 
     public function __construct(private readonly OffenceService $offences)
     {

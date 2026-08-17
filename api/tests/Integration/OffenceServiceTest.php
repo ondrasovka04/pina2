@@ -47,10 +47,10 @@ final class OffenceServiceTest extends DatabaseTestCase
             $this->team => Role::Treasurer,
         ]);
 
-        $hracId       = $this->makeUser('hrac@prosek.cz');
-        $hrac         = $this->makeMembership($hracId, $this->team, 'player');
+        $hracId                 = $this->makeUser('hrac@prosek.cz');
+        $hrac                   = $this->makeMembership($hracId, $this->team, 'player');
         $this->playerMembership = $hrac;
-        $this->player = new Identity($hracId, 'hrac@prosek.cz', 'Hráč', false, [
+        $this->player           = new Identity($hracId, 'hrac@prosek.cz', 'Hráč', false, [
             $this->team => Role::Player,
         ]);
 
@@ -456,7 +456,7 @@ final class OffenceServiceTest extends DatabaseTestCase
             [$this->team],
         );
         $foreign = $this->batch([['membershipId' => $this->honza, 'offenceTypeId' => $this->lateType, 'count' => 1]]);
-        $own = $this->batch(
+        $own     = $this->batch(
             [['membershipId' => $this->playerMembership, 'offenceTypeId' => $this->lateType, 'count' => 2]],
             '99999999-9999-9999-9999-999999999999',
         );

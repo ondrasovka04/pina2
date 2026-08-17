@@ -174,10 +174,10 @@ final class EventController
             $items[] = [
                 'membershipId' => $this->membershipId($raw),
                 // null = oprava se ruší a platí zase odvození z odpovědi hráče
-                'attendance'   => is_string($raw['attendance'] ?? null) ? (string) $raw['attendance'] : null,
+                'attendance' => is_string($raw['attendance'] ?? null) ? (string) $raw['attendance'] : null,
                 // Chybějící `transport` nechává dopravu být; posílá se jen při její opravě.
-                'transport'    => is_string($raw['transport'] ?? null) ? (string) $raw['transport'] : null,
-                'carSeats'     => is_int($raw['carSeats'] ?? null) ? (int) $raw['carSeats'] : null,
+                'transport' => is_string($raw['transport'] ?? null) ? (string) $raw['transport'] : null,
+                'carSeats'  => is_int($raw['carSeats'] ?? null) ? (int) $raw['carSeats'] : null,
             ];
         }
 

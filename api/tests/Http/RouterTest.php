@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Pina\Tests\Http;
 
+use PHPUnit\Framework\TestCase;
 use Pina\Http\ApiException;
 use Pina\Http\Request;
 use Pina\Http\Response;
 use Pina\Http\Router;
-use PHPUnit\Framework\TestCase;
 
 final class RouterTest extends TestCase
 {

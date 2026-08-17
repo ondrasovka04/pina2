@@ -172,8 +172,8 @@ final class AuthService
             'name'          => $user['display_name'],
             'platformAdmin' => (bool) $user['is_platform_admin'],
             // Údaj o nasazení, ne o uživateli — musí být stále dostupný.
-            'mailEnabled'   => Config::bool('MAIL_ENABLED') && Config::get('MAIL_PASSWORD', '') !== '',
-            'memberships'   => array_map(static fn (array $m): array => [
+            'mailEnabled' => Config::bool('MAIL_ENABLED') && Config::get('MAIL_PASSWORD', '') !== '',
+            'memberships' => array_map(static fn (array $m): array => [
                 'id'               => (int) $m['id'],
                 'teamId'           => (int) $m['team_id'],
                 'teamName'         => $m['team_name'],

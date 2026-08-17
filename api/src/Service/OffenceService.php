@@ -130,7 +130,7 @@ final class OffenceService
      */
     public function batches(Identity $identity, int $seasonId): array
     {
-        $teamId = $this->scope->season($identity, $seasonId, Role::Player);
+        $teamId                 = $this->scope->season($identity, $seasonId, Role::Player);
         $restrictedMembershipId = $this->financialAccess->restrictedToMembership($identity, $teamId);
 
         $rows = $this->db->all(
@@ -164,13 +164,13 @@ final class OffenceService
         }
 
         return array_map(static fn (array $row): array => [
-            'id'          => (int) $row['id'],
-            'occurredOn'  => (string) $row['occurred_on'],
-            'title'       => $row['title'] === null ? null : (string) $row['title'],
-            'note'        => $row['note'] === null ? null : (string) $row['note'],
-            'eventId'     => $row['event_id'] === null ? null : (int) $row['event_id'],
-            'eventTitle'  => $row['event_title'] === null ? null : (string) $row['event_title'],
-            'createdBy'   => $row['author_id'] === null ? null : [
+            'id'         => (int) $row['id'],
+            'occurredOn' => (string) $row['occurred_on'],
+            'title'      => $row['title'] === null ? null : (string) $row['title'],
+            'note'       => $row['note'] === null ? null : (string) $row['note'],
+            'eventId'    => $row['event_id'] === null ? null : (int) $row['event_id'],
+            'eventTitle' => $row['event_title'] === null ? null : (string) $row['event_title'],
+            'createdBy'  => $row['author_id'] === null ? null : [
                 'id'   => (int) $row['author_id'],
                 'name' => (string) $row['author_name'],
             ],
@@ -189,8 +189,8 @@ final class OffenceService
      */
     public function showBatch(Identity $identity, int $batchId): array
     {
-        $seasonId = $this->batchSeasonId($batchId);
-        $teamId = $this->scope->season($identity, $seasonId, Role::Player);
+        $seasonId               = $this->batchSeasonId($batchId);
+        $teamId                 = $this->scope->season($identity, $seasonId, Role::Player);
         $restrictedMembershipId = $this->financialAccess->restrictedToMembership($identity, $teamId);
 
         $summary = $this->batchSummary($batchId, $restrictedMembershipId);
@@ -351,7 +351,7 @@ final class OffenceService
      */
     public function balances(Identity $identity, int $seasonId): array
     {
-        $teamId = $this->scope->season($identity, $seasonId, Role::Player);
+        $teamId                 = $this->scope->season($identity, $seasonId, Role::Player);
         $restrictedMembershipId = $this->financialAccess->restrictedToMembership($identity, $teamId);
 
         $season = $this->db->first('SELECT starts_on, ends_on, half_year_on FROM season WHERE id = ?', [$seasonId]);
@@ -388,9 +388,9 @@ final class OffenceService
 
         foreach ($rows as $row) {
             $membershipId = (int) $row['membership_id'];
-            $first  = $buckets['first'][$membershipId]  ?? $this->emptySums();
-            $second = $buckets['second'][$membershipId] ?? $this->emptySums();
-            $all    = $this->addSums($first, $second);
+            $first        = $buckets['first'][$membershipId] ?? $this->emptySums();
+            $second       = $buckets['second'][$membershipId] ?? $this->emptySums();
+            $all          = $this->addSums($first, $second);
 
             $totals = $this->addSums($totals, $all);
             $halves = [
@@ -407,23 +407,23 @@ final class OffenceService
                 'onRoster'     => (bool) $row['on_roster'],
                 // Ploché hodnoty jsou celá sezóna; pololetí visí zvlášť, aby
                 // obrazovky, které členění neřeší, nemusely nic přepisovat.
-                'recordCount'  => $all['recordCount'],
-                'offencesCzk'  => $all['offencesCzk'],
-                'bonusesCzk'   => $all['bonusesCzk'],
-                'paidCzk'      => $all['paidCzk'],
-                'travelCzk'    => $all['travelCzk'],
-                'balanceCzk'   => $all['balanceCzk'],
-                'halves'       => $boundary === null ? null : ['first' => $first, 'second' => $second],
+                'recordCount' => $all['recordCount'],
+                'offencesCzk' => $all['offencesCzk'],
+                'bonusesCzk'  => $all['bonusesCzk'],
+                'paidCzk'     => $all['paidCzk'],
+                'travelCzk'   => $all['travelCzk'],
+                'balanceCzk'  => $all['balanceCzk'],
+                'halves'      => $boundary === null ? null : ['first' => $first, 'second' => $second],
             ];
         }
 
         return [
-            'seasonId'    => $seasonId,
-            'visibility'  => $restrictedMembershipId === null ? 'team' : 'own',
-            'halfYearOn'  => $boundary,
-            'periods'     => $this->periods($boundary, (string) $season['starts_on'], (string) $season['ends_on']),
-            'totals'      => $totals,
-            'halves'      => $boundary === null ? null : $halves,
+            'seasonId'   => $seasonId,
+            'visibility' => $restrictedMembershipId === null ? 'team' : 'own',
+            'halfYearOn' => $boundary,
+            'periods'    => $this->periods($boundary, (string) $season['starts_on'], (string) $season['ends_on']),
+            'totals'     => $totals,
+            'halves'     => $boundary === null ? null : $halves,
             // Ponecháno kvůli obrazovkám, které členění nepotřebují.
             'totalCzk'    => $totals['balanceCzk'],
             'offencesCzk' => $totals['offencesCzk'],
@@ -472,7 +472,7 @@ final class OffenceService
 
                 if ($kind === 'offence') {
                     $sums['offencesCzk'] += (int) $row['positive_czk'];
-                    $sums['bonusesCzk']  += (int) $row['negative_czk'];
+                    $sums['bonusesCzk'] += (int) $row['negative_czk'];
                     $sums['recordCount'] += (int) $row['row_count'];
                 } elseif ($kind === 'payment') {
                     $sums['paidCzk'] += (int) $row['positive_czk'] + (int) $row['negative_czk'];
@@ -783,10 +783,10 @@ final class OffenceService
         );
 
         /** @var array<int,array{membershipId:int,userId:int,name:string,recordCount:int,voidedCount:int,totalCzk:int,balanceCzk:int,items:list<array{offenceTypeId:int,name:string,amountCzk:int,count:int,voidedCount:int,totalCzk:int}>}> $members */
-        $members         = [];
-        $total           = 0;
-        $activeRecords   = 0;
-        $voidedRecords   = 0;
+        $members       = [];
+        $total         = 0;
+        $activeRecords = 0;
+        $voidedRecords = 0;
 
         foreach ($rows as $row) {
             $membershipId = (int) $row['membership_id'];
@@ -808,18 +808,18 @@ final class OffenceService
 
             $members[$membershipId]['recordCount'] += $count - $voided;
             $members[$membershipId]['voidedCount'] += $voided;
-            $members[$membershipId]['totalCzk']    += $itemTotal;
-            $members[$membershipId]['items'][]      = [
+            $members[$membershipId]['totalCzk'] += $itemTotal;
+            $members[$membershipId]['items'][] = [
                 'offenceTypeId' => (int) $row['offence_type_id'],
                 'name'          => (string) $row['type_name'],
                 'amountCzk'     => $amount,
                 'count'         => $count,
                 'voidedCount'   => $voided,
                 // Stornované řádky se do částky nepočítají.
-                'totalCzk'      => $itemTotal,
+                'totalCzk' => $itemTotal,
             ];
 
-            $total         += $itemTotal;
+            $total += $itemTotal;
             $activeRecords += $count - $voided;
             $voidedRecords += $voided;
         }
@@ -844,9 +844,9 @@ final class OffenceService
                     'id'   => (int) $batch['created_by'],
                     'name' => (string) $batch['created_by_name'],
                 ],
-                'createdAt'  => (string) $batch['created_at'],
-                'voidedAt'   => $batch['voided_at'] === null ? null : (string) $batch['voided_at'],
-                'voidedBy'   => $batch['voided_by'] === null ? null : (int) $batch['voided_by'],
+                'createdAt' => (string) $batch['created_at'],
+                'voidedAt'  => $batch['voided_at'] === null ? null : (string) $batch['voided_at'],
+                'voidedBy'  => $batch['voided_by'] === null ? null : (int) $batch['voided_by'],
             ],
             'totalCzk'          => $total,
             'recordCount'       => $activeRecords,
@@ -919,7 +919,7 @@ final class OffenceService
         }
 
         $placeholders = $this->placeholders(count($membershipIds));
-        $rows = $this->db->all(
+        $rows         = $this->db->all(
             'SELECT m.id AS membership_id,
                     COALESCE((SELECT SUM(r.amount_czk) FROM offence_record r
                                WHERE r.season_id = ? AND r.membership_id = m.id AND r.voided_at IS NULL), 0)

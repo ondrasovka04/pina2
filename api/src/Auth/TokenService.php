@@ -151,8 +151,8 @@ final class TokenService
 
     private function createRefreshToken(int $userId, ?string $userAgent, ?string $ip): string
     {
-        $token     = bin2hex(random_bytes(32));
-        $packedIp  = $ip === null ? false : @inet_pton($ip);
+        $token    = bin2hex(random_bytes(32));
+        $packedIp = $ip === null ? false : @inet_pton($ip);
 
         $this->db->run(
             'INSERT INTO refresh_token (user_id, token_hash, expires_at, user_agent, ip)

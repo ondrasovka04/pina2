@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 /**
@@ -43,7 +44,7 @@ $pdo = new PDO($dsn, env('DB_USER', 'pina'), env('DB_PASSWORD', 'pina'), [
 ]);
 $legacyDb = env('LEGACY_DB', 'legacy');
 
-info("Migrace ze schématu `$legacyDb` do `" . env('DB_NAME', 'pina') . "`" . ($dryRun ? ' [DRY RUN]' : ''));
+info("Migrace ze schématu `$legacyDb` do `" . env('DB_NAME', 'pina') . '`' . ($dryRun ? ' [DRY RUN]' : ''));
 
 $pdo->beginTransaction();
 try {
@@ -53,7 +54,7 @@ try {
     $memberships = migrateMemberships($pdo, $legacyDb, $users, $teams);
     $seasons     = migrateSeasons($pdo, $legacyDb, $teams);
     migrateRoster($pdo, $legacyDb, $seasons, $memberships);
-    $types       = migrateOffenceTypes($pdo, $legacyDb, $seasons);
+    $types = migrateOffenceTypes($pdo, $legacyDb, $seasons);
     migrateOffences($pdo, $legacyDb, $seasons, $memberships, $types);
 
     if ($dryRun) {
@@ -117,7 +118,7 @@ function migrateUsers(PDO $pdo, string $legacy): array
     $ins = $pdo->prepare(
         'INSERT INTO `user` (email, display_name, password_hash, is_platform_admin, legacy_id)
          VALUES (?, ?, NULL, ?, ?)
-         ON DUPLICATE KEY UPDATE display_name = VALUES(display_name), id = LAST_INSERT_ID(id)'
+         ON DUPLICATE KEY UPDATE display_name = VALUES(display_name), id = LAST_INSERT_ID(id)',
     );
 
     foreach (rows($pdo, "SELECT id, jmeno, email FROM `$legacy`.Uzivatel ORDER BY id") as $row) {
@@ -151,7 +152,7 @@ function migrateMemberships(PDO $pdo, string $legacy, array $users, array $teams
     $ins = $pdo->prepare(
         'INSERT INTO membership (user_id, team_id, role, payment_reference, status)
          VALUES (?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE role = VALUES(role), status = VALUES(status), id = LAST_INSERT_ID(id)'
+         ON DUPLICATE KEY UPDATE role = VALUES(role), status = VALUES(status), id = LAST_INSERT_ID(id)',
     );
 
     $rows = rows($pdo, "SELECT idUzivatel, idTym, pozastaven FROM `$legacy`.UzivatelTym ORDER BY idUzivatel, idTym");
@@ -162,7 +163,7 @@ function migrateMemberships(PDO $pdo, string $legacy, array $users, array $teams
             warn("členství $lu/$lt odkazuje na neexistující záznam, přeskakuji");
             continue;
         }
-        $role   = ($adminOf[$lu] ?? null) === $lt ? 'admin' : 'player';
+        $role = ($adminOf[$lu] ?? null) === $lt ? 'admin' : 'player';
         // Stará verze měla „pozastaven" jako třetí stav. Nové schéma zná jen
         // aktivní a odešlé; pozastavený hráč se choval jako neaktivní, takže
         // sedí blíž k 'left'. Vrátit ho do družstva je otázka jednoho kliknutí.
@@ -176,7 +177,8 @@ function migrateMemberships(PDO $pdo, string $legacy, array $users, array $teams
     // Stará DB neměla funkční cizí klíče, takže existují zápisy a soupisky pro dvojice
     // hráč+tým, které v UzivatelTym chybí (hráč byl z týmu odebrán, jeho data zůstala).
     // Aby se historie neztratila, členství se dopočítá a označí jako 'left'.
-    $orphans = rows($pdo,
+    $orphans = rows(
+        $pdo,
         "SELECT DISTINCT idUzivatel, idTym FROM (
              SELECT idUzivatel, idTym FROM `$legacy`.Prohresek
              UNION SELECT idUzivatel, idTym FROM `$legacy`.UzivatelSezona
@@ -184,7 +186,7 @@ function migrateMemberships(PDO $pdo, string $legacy, array $users, array $teams
          WHERE NOT EXISTS (
              SELECT 1 FROM `$legacy`.UzivatelTym ut
              WHERE ut.idUzivatel = x.idUzivatel AND ut.idTym = x.idTym
-         )"
+         )",
     );
     $recovered = 0;
     foreach ($orphans as $row) {
@@ -213,7 +215,7 @@ function migrateSeasons(PDO $pdo, string $legacy, array $teams): array
     $ins = $pdo->prepare(
         'INSERT INTO season (team_id, name, starts_on, ends_on, is_current, closed_at, legacy_key)
          VALUES (?, ?, ?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE starts_on = VALUES(starts_on), ends_on = VALUES(ends_on), id = LAST_INSERT_ID(id)'
+         ON DUPLICATE KEY UPDATE starts_on = VALUES(starts_on), ends_on = VALUES(ends_on), id = LAST_INSERT_ID(id)',
     );
     $today = date('Y-m-d');
 
@@ -227,7 +229,7 @@ function migrateSeasons(PDO $pdo, string $legacy, array $teams): array
         $key       = $row['id'] . '|' . $lt;
         $isCurrent = ($row['DatumOd'] <= $today && $today <= $row['DatumDo']) ? 1 : 0;
         // Skončené sezóny se rovnou uzavírají — zpětný zápis do nich nedává smysl.
-        $closedAt  = $row['DatumDo'] < $today ? $row['DatumDo'] . ' 23:59:59' : null;
+        $closedAt = $row['DatumDo'] < $today ? $row['DatumDo'] . ' 23:59:59' : null;
 
         $ins->execute([$teams[$lt], $row['id'], $row['DatumOd'], $row['DatumDo'], $isCurrent, $closedAt, $key]);
         $out[$key] = (int) $pdo->lastInsertId();
@@ -243,7 +245,7 @@ function migrateSeasons(PDO $pdo, string $legacy, array $teams): array
 function migrateRoster(PDO $pdo, string $legacy, array $seasons, array $memberships): void
 {
     $ins = $pdo->prepare(
-        'INSERT IGNORE INTO roster_entry (season_id, membership_id) VALUES (?, ?)'
+        'INSERT IGNORE INTO roster_entry (season_id, membership_id) VALUES (?, ?)',
     );
     $n = $skipped = 0;
 
@@ -271,7 +273,7 @@ function migrateOffenceTypes(PDO $pdo, string $legacy, array $seasons): array
     $ins = $pdo->prepare(
         'INSERT INTO offence_type (season_id, name, amount_czk, sort_order, legacy_id)
          VALUES (?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE name = VALUES(name), amount_czk = VALUES(amount_czk), id = LAST_INSERT_ID(id)'
+         ON DUPLICATE KEY UPDATE name = VALUES(name), amount_czk = VALUES(amount_czk), id = LAST_INSERT_ID(id)',
     );
     $skipped = 0;
 
@@ -284,7 +286,10 @@ function migrateOffenceTypes(PDO $pdo, string $legacy, array $seasons): array
             $skipped++;
             warn(sprintf(
                 'sazebník #%d "%s" (tým %d, sezóna "%s") nemá platnou sezónu → vynecháno',
-                $row['id'], $row['nazev'], $row['idTym'], $row['idSezona']
+                $row['id'],
+                $row['nazev'],
+                $row['idTym'],
+                $row['idSezona'],
             ));
             continue;
         }
@@ -315,16 +320,17 @@ function migrateOffences(PDO $pdo, string $legacy, array $seasons, array $member
         'INSERT INTO offence_record
             (season_id, membership_id, offence_type_id, amount_czk, occurred_on, created_at, legacy_id)
          VALUES (?, ?, ?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE amount_czk = VALUES(amount_czk)'
+         ON DUPLICATE KEY UPDATE amount_czk = VALUES(amount_czk)',
     );
 
     $total = (int) stmt($pdo, "SELECT COUNT(*) FROM `$legacy`.Prohresek")->fetchColumn();
-    $done = $skipped = 0;
+    $done  = $skipped = 0;
 
     for ($offset = 0; $offset < $total; $offset += BATCH) {
-        $rows = rows($pdo, 
+        $rows = rows(
+            $pdo,
             "SELECT id, idProhresek, idUzivatel, idTym, idSezona, Datum
-             FROM `$legacy`.Prohresek ORDER BY id LIMIT " . BATCH . " OFFSET $offset"
+             FROM `$legacy`.Prohresek ORDER BY id LIMIT " . BATCH . " OFFSET $offset",
         );
         foreach ($rows as $row) {
             $seasonId     = $seasons[$row['idSezona'] . '|' . (int) $row['idTym']] ?? null;

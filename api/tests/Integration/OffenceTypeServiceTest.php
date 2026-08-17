@@ -49,11 +49,11 @@ final class OffenceTypeServiceTest extends DatabaseTestCase
     private function create(array $overrides = [], ?int $seasonId = null): int
     {
         $input = [
-            'name'      => 'Pozdní příchod',
-            'amountCzk' => 20,
-            'sortOrder' => 0,
-            'category'  => 'discipline',
-            'autoRule'  => 'none',
+            'name'          => 'Pozdní příchod',
+            'amountCzk'     => 20,
+            'sortOrder'     => 0,
+            'category'      => 'discipline',
+            'autoRule'      => 'none',
             'autoEventType' => 'any',
             ...$overrides,
         ];
@@ -99,11 +99,11 @@ final class OffenceTypeServiceTest extends DatabaseTestCase
     public function testTreasurerManagesPriceList(): void
     {
         $created = $this->service->create($this->treasurer, $this->season, [
-            'name'      => 'Vlastní sazba',
-            'amountCzk' => 50,
-            'sortOrder' => 0,
-            'category'  => null,
-            'autoRule'  => 'none',
+            'name'          => 'Vlastní sazba',
+            'amountCzk'     => 50,
+            'sortOrder'     => 0,
+            'category'      => null,
+            'autoRule'      => 'none',
             'autoEventType' => 'any',
         ]);
 
@@ -146,7 +146,7 @@ final class OffenceTypeServiceTest extends DatabaseTestCase
 
     public function testReorderRejectsForeignItem(): void
     {
-        $mine = $this->create();
+        $mine  = $this->create();
         $other = $this->create(seasonId: $this->lastSeason);
 
         try {

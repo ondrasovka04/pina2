@@ -147,10 +147,10 @@ final class TeamScopeTest extends DatabaseTestCase
 
     public function testPlayerEditsOwnRecordButNotOthers(): void
     {
-        $ownId    = $this->makeUser('ja@prosek.cz');
-        $otherId  = $this->makeUser('kolega@prosek.cz');
-        $ownM     = $this->makeMembership($ownId, $this->prosekTeam, 'player');
-        $otherM   = $this->makeMembership($otherId, $this->prosekTeam, 'player');
+        $ownId   = $this->makeUser('ja@prosek.cz');
+        $otherId = $this->makeUser('kolega@prosek.cz');
+        $ownM    = $this->makeMembership($ownId, $this->prosekTeam, 'player');
+        $otherM  = $this->makeMembership($otherId, $this->prosekTeam, 'player');
 
         $player = new Identity($ownId, 'ja@prosek.cz', 'Já', false, [
             $this->prosekTeam => Role::Player,
