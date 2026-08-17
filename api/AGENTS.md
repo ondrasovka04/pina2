@@ -63,6 +63,17 @@ Jen `Http\ApiException` a jeho tovární metody (`validation`, `forbidden`,
 - Komentář má vysvětlovat **proč**, ne co kód dělá. Zvlášť u míst, kde se řešil
   konkrétní problém staré verze — ty poznámky jsou tam schválně.
 - Statická analýza běží na **level 8** a musí být čistá.
+- **Formátování neřešte ručně.** PHP-CS-Fixer podle `.php-cs-fixer.dist.php`
+  (PSR-12 + zarovnané `=>` a `=`, seřazené importy, poslední čárka):
+
+  ```bash
+  docker compose run --rm php ./vendor/bin/php-cs-fixer fix --dry-run --diff   # kontrola
+  docker compose run --rm php ./vendor/bin/php-cs-fixer fix                    # oprava
+  ```
+
+  Zarovnávání je zapnuté schválně, i když ho PSR-12 nežádá: kód se tak psal od
+  začátku a strojové zrušení by přepsalo 43 z 62 souborů bez užitku. Migrační
+  ani `risky` sady se nepoužívají — formátovač má měnit mezery, ne chování.
 
 ## Testy
 
