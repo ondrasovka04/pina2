@@ -42,8 +42,10 @@ export function TeamSwitcher() {
 
 	if (team === null) return null
 
-	// Admin panel i s jedinou sezónou — musí mít kudy ji založit
-	const switchable = teams.length > 1 || seasons.length > 1 || can('admin') || platformAdmin
+	// Panel se otevírá i s jediným družstvem a sezónou — pínař i admin musí mít
+	// kudy na sezóny, série a místa, i když není co přepínat.
+	const canManage = can('treasurer')
+	const switchable = teams.length > 1 || seasons.length > 1 || canManage || platformAdmin
 
 	if (!switchable) {
 		// `flex-1` tu musí být stejně jako u přepínatelné varianty: bez něj se
@@ -122,21 +124,24 @@ export function TeamSwitcher() {
 						</Section>
 					) : null}
 
-					{can('admin') || platformAdmin ? (
+					{canManage || platformAdmin ? (
 						<div className="border-line/60 flex flex-col border-t p-2">
-							<Link
-								to="/druzstvo"
-								onClick={() => setOpen(false)}
-								className="hover:bg-surface-2 text-ink-muted flex min-h-11 items-center justify-center rounded-lg px-2 text-sm"
-							>
-								Spravovat družstva
-							</Link>
+							{/* Členové a role jsou správa účtů, ta zůstává adminovi. */}
+							{can('admin') ? (
+								<Link
+									to="/druzstvo"
+									onClick={() => setOpen(false)}
+									className="hover:bg-surface-2 text-ink-muted flex min-h-11 items-center justify-center rounded-lg px-2 text-sm"
+								>
+									Spravovat družstva
+								</Link>
+							) : null}
 							<Link
 								to="/sezony"
 								onClick={() => setOpen(false)}
 								className="hover:bg-surface-2 text-ink-muted flex min-h-11 items-center justify-center rounded-lg px-2 text-sm"
 							>
-								Spravovat sezóny
+								Sezóny a soupiska
 							</Link>
 							<Link
 								to="/serie"

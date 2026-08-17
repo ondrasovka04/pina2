@@ -38,7 +38,8 @@ export function CalendarPage() {
 	if (error !== null) return <ErrorState error={error} onRetry={() => void refetch()} />
 
 	const events = data ?? []
-	const isAdmin = can('admin')
+	// Zakládat akce smí pínař — kalendář je provoz družstva, ne správa účtů.
+	const canPlan = can('treasurer')
 	const highlighted = nextEvent(events)
 
 	// Zvýrazněná nejbližší akce se v seznamu níž neopakuje.
@@ -55,7 +56,7 @@ export function CalendarPage() {
 			{/* Dva řádky: na šířku telefonu se vše do jedné řady nevejde a „Nová akce" se lámala. */}
 			<div className="flex items-center justify-between gap-3">
 				<EventsNav />
-				{isAdmin ? (
+				{canPlan ? (
 					<Link
 						to="/akce/nova"
 						role="button"
@@ -87,14 +88,14 @@ export function CalendarPage() {
 
 			{events.length === 0 ? (
 				<EmptyState
-					title={isAdmin ? 'Zatím žádné akce' : 'Zatím nic naplánované'}
+					title={canPlan ? 'Zatím žádné akce' : 'Zatím nic naplánované'}
 					description={
-						isAdmin
+						canPlan
 							? 'Založte první trénink nebo zápas sezóny.'
 							: 'Jakmile pínař nebo admin naplánuje akci, objeví se tady.'
 					}
 					action={
-						isAdmin ? (
+						canPlan ? (
 							<Link
 								to="/akce/nova"
 								role="button"
