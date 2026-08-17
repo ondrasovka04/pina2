@@ -39,7 +39,7 @@ final class SeasonController
 
     public function update(Request $request): Response
     {
-        /** @var array{name?:string,startsOn?:string,endsOn?:string} $changes */
+        /** @var array{name?:string,startsOn?:string,endsOn?:string,halfYearOn?:string|null} $changes */
         $changes = [];
 
         if (array_key_exists('name', $request->body)) {
@@ -52,6 +52,13 @@ final class SeasonController
 
         if (array_key_exists('endsOn', $request->body)) {
             $changes['endsOn'] = $this->date($request, 'endsOn');
+        }
+
+        // Prázdná hodnota pololetí vypíná, chybějící pole nechává, jak bylo.
+        if (array_key_exists('halfYearOn', $request->body)) {
+            $changes['halfYearOn'] = $request->optionalString('halfYearOn') === null
+                ? null
+                : $this->date($request, 'halfYearOn');
         }
 
         return Response::ok($this->seasons->update($request->identity(), $request->routeId('id'), $changes));

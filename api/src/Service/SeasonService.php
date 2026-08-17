@@ -22,6 +22,7 @@ use Pina\Support\Database;
  *     name:string,
  *     startsOn:string,
  *     endsOn:string,
+ *     halfYearOn:string|null,
  *     isCurrent:bool,
  *     closedAt:string|null,
  *     rosterCount:int
@@ -55,7 +56,7 @@ final class SeasonService
         $this->scope->team($identity, $teamId, Role::Player);
 
         $rows = $this->db->all(
-            'SELECT s.id, s.team_id, s.name, s.starts_on, s.ends_on, s.is_current, s.closed_at,
+            'SELECT s.id, s.team_id, s.name, s.starts_on, s.ends_on, s.half_year_on, s.is_current, s.closed_at,
                     (SELECT COUNT(*) FROM roster_entry r WHERE r.season_id = s.id AND r.active = 1) AS roster_count
                FROM season s
               WHERE s.team_id = ?
@@ -119,15 +120,17 @@ final class SeasonService
             );
         }
 
-        $seasonId = $this->db->transaction(function () use ($teamId, $name, $startsOn, $endsOn): int {
+        $halfYearOn = self::defaultHalfYear($startsOn, $endsOn);
+
+        $seasonId = $this->db->transaction(function () use ($teamId, $name, $startsOn, $endsOn, $halfYearOn): int {
             // Aktuální sezóna smí být v družstvu jen jedna, jinak by aplikace
             // nevěděla, do které zapisovat prohřešky.
             $this->db->run('UPDATE season SET is_current = 0 WHERE team_id = ?', [$teamId]);
 
             $this->db->run(
-                'INSERT INTO season (team_id, name, starts_on, ends_on, is_current)
-                 VALUES (?, ?, ?, ?, 1)',
-                [$teamId, $name, $startsOn, $endsOn],
+                'INSERT INTO season (team_id, name, starts_on, ends_on, half_year_on, is_current)
+                 VALUES (?, ?, ?, ?, ?, 1)',
+                [$teamId, $name, $startsOn, $endsOn, $halfYearOn],
             );
 
             return $this->db->lastInsertId();
@@ -137,7 +140,7 @@ final class SeasonService
     }
 
     /**
-     * @param  array{name?:string,startsOn?:string,endsOn?:string} $changes
+     * @param  array{name?:string,startsOn?:string,endsOn?:string,halfYearOn?:string|null} $changes
      * @return SeasonPayload
      */
     public function update(Identity $identity, int $seasonId, array $changes): array
@@ -150,7 +153,7 @@ final class SeasonService
         }
 
         $current = $this->db->first(
-            'SELECT name, starts_on, ends_on FROM season WHERE id = ?',
+            'SELECT name, starts_on, ends_on, half_year_on FROM season WHERE id = ?',
             [$seasonId],
         );
 
@@ -162,7 +165,11 @@ final class SeasonService
         $startsOn = $changes['startsOn'] ?? (string) $current['starts_on'];
         $endsOn   = $changes['endsOn']   ?? (string) $current['ends_on'];
 
+        $stored     = $current['half_year_on'] === null ? null : (string) $current['half_year_on'];
+        $halfYearOn = array_key_exists('halfYearOn', $changes) ? $changes['halfYearOn'] : $stored;
+
         $this->assertPeriod($startsOn, $endsOn);
+        $this->assertHalfYear($halfYearOn, $startsOn, $endsOn);
 
         if ($name !== (string) $current['name']) {
             $duplicate = $this->db->value(
@@ -180,8 +187,8 @@ final class SeasonService
         }
 
         $this->db->run(
-            'UPDATE season SET name = ?, starts_on = ?, ends_on = ? WHERE id = ?',
-            [$name, $startsOn, $endsOn, $seasonId],
+            'UPDATE season SET name = ?, starts_on = ?, ends_on = ?, half_year_on = ? WHERE id = ?',
+            [$name, $startsOn, $endsOn, $halfYearOn, $seasonId],
         );
 
         return $this->detail($seasonId);
@@ -263,7 +270,7 @@ final class SeasonService
     private function detail(int $seasonId): array
     {
         $row = $this->db->first(
-            'SELECT s.id, s.team_id, s.name, s.starts_on, s.ends_on, s.is_current, s.closed_at,
+            'SELECT s.id, s.team_id, s.name, s.starts_on, s.ends_on, s.half_year_on, s.is_current, s.closed_at,
                     (SELECT COUNT(*) FROM roster_entry r WHERE r.season_id = s.id AND r.active = 1) AS roster_count
                FROM season s
               WHERE s.id = ?',
@@ -289,6 +296,7 @@ final class SeasonService
             'name'        => (string) $row['name'],
             'startsOn'    => (string) $row['starts_on'],
             'endsOn'      => (string) $row['ends_on'],
+            'halfYearOn'  => $row['half_year_on'] === null ? null : (string) $row['half_year_on'],
             'isCurrent'   => (bool) $row['is_current'],
             'closedAt'    => $row['closed_at'] === null ? null : (string) $row['closed_at'],
             'rosterCount' => (int) $row['roster_count'],
@@ -330,5 +338,43 @@ final class SeasonService
                 ['field' => 'startsOn'],
             );
         }
+    }
+
+    /**
+     * Přelom pololetí musí ležet uvnitř sezóny — na jejím okraji by jedna
+     * polovina zůstala prázdná a členění by nic neříkalo.
+     */
+    private function assertHalfYear(?string $halfYearOn, string $startsOn, string $endsOn): void
+    {
+        if ($halfYearOn === null) {
+            return;
+        }
+
+        if ($halfYearOn <= $startsOn || $halfYearOn > $endsOn) {
+            throw ApiException::validation(
+                'Přelom pololetí musí padnout do sezóny, ne na její začátek ani za konec.',
+                ['field' => 'halfYearOn'],
+            );
+        }
+    }
+
+    /**
+     * Volejbalová sezóna běží přes Nový rok, takže přelom pololetí je skoro
+     * vždycky 1. ledna. Předvyplní se sám a pínař ho může přepsat; když sezóna
+     * žádný Nový rok neobsahuje, pololetí se neřeší.
+     */
+    public static function defaultHalfYear(string $startsOn, string $endsOn): ?string
+    {
+        $year      = (int) substr($startsOn, 0, 4);
+        $candidate = sprintf('%04d-01-01', $year + 1);
+
+        if ($candidate > $startsOn && $candidate <= $endsOn) {
+            return $candidate;
+        }
+
+        // Sezóna začínající v lednu má Nový rok až ten příští, ale jen když dosáhne.
+        $sameYear = sprintf('%04d-01-01', $year);
+
+        return $sameYear > $startsOn && $sameYear <= $endsOn ? $sameYear : null;
     }
 }

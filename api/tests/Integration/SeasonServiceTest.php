@@ -227,6 +227,51 @@ final class SeasonServiceTest extends DatabaseTestCase
         }
     }
 
+    public function testNewSeasonGetsNewYearAsHalfYearBoundary(): void
+    {
+        $season = $this->service->create($this->admin, $this->prosekTeam, '27/28', '2027-09-01', '2028-06-30');
+
+        self::assertSame('2028-01-01', $season['halfYearOn']);
+    }
+
+    /** Letní turnajová sezóna žádný Nový rok neobsahuje, takže pololetí nemá. */
+    public function testSeasonWithoutNewYearHasNoHalfYearBoundary(): void
+    {
+        $season = $this->service->create($this->admin, $this->prosekTeam, 'Léto 27', '2027-05-01', '2027-08-31');
+
+        self::assertNull($season['halfYearOn']);
+    }
+
+    public function testHalfYearBoundaryCanBeMovedAndCleared(): void
+    {
+        $season = $this->makeSeason($this->prosekTeam, '26/27');
+
+        $moved = $this->service->update($this->admin, $season, ['halfYearOn' => '2027-02-01']);
+        self::assertSame('2027-02-01', $moved['halfYearOn']);
+
+        // Nesouvisející úprava hranici nesmí přepsat.
+        $renamed = $this->service->update($this->admin, $season, ['name' => '2026/2027']);
+        self::assertSame('2027-02-01', $renamed['halfYearOn']);
+
+        $cleared = $this->service->update($this->admin, $season, ['halfYearOn' => null]);
+        self::assertNull($cleared['halfYearOn']);
+    }
+
+    public function testHalfYearBoundaryMustFallInsideTheSeason(): void
+    {
+        $season = $this->makeSeason($this->prosekTeam, '26/27');
+
+        foreach (['2026-09-01', '2026-08-31', '2027-07-01'] as $outside) {
+            try {
+                $this->service->update($this->admin, $season, ['halfYearOn' => $outside]);
+                self::fail("hranice $outside leží mimo sezónu a měla spadnout na validaci");
+            } catch (ApiException $e) {
+                self::assertSame(400, $e->status);
+                self::assertSame('halfYearOn', $e->details['field'] ?? null);
+            }
+        }
+    }
+
     public function testCloseStampsSeasonAndCannotBeRepeated(): void
     {
         $season = $this->makeSeason($this->prosekTeam, '26/27');
