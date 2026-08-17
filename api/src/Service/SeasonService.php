@@ -226,7 +226,7 @@ final class SeasonService
      */
     public function setRoster(Identity $identity, int $seasonId, array $membershipIds): array
     {
-        $teamId = $this->scope->writableSeason($identity, $seasonId, Role::Admin);
+        $teamId = $this->scope->writableSeason($identity, $seasonId, Role::Treasurer);
 
         $ids = array_values(array_unique($membershipIds));
 

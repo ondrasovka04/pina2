@@ -216,7 +216,7 @@ final class EventService
      */
     public function create(Identity $identity, int $seasonId, array $input): array
     {
-        $teamId = $this->scope->writableSeason($identity, $seasonId, Role::Admin);
+        $teamId = $this->scope->writableSeason($identity, $seasonId, Role::Treasurer);
 
         $this->assertType($input['type']);
         $this->assertLocation($input['locationId'], $teamId);
@@ -254,7 +254,7 @@ final class EventService
      */
     public function update(Identity $identity, int $eventId, array $changes): array
     {
-        $teamId = $this->scope->event($identity, $eventId, Role::Admin);
+        $teamId = $this->scope->event($identity, $eventId, Role::Treasurer);
         $this->assertOpenSeason($eventId);
 
         if ($changes === []) {
@@ -325,7 +325,7 @@ final class EventService
      */
     public function cancel(Identity $identity, int $eventId): array
     {
-        $this->scope->event($identity, $eventId, Role::Admin);
+        $this->scope->event($identity, $eventId, Role::Treasurer);
         $this->assertOpenSeason($eventId);
 
         $this->db->run("UPDATE event SET status = 'cancelled' WHERE id = ?", [$eventId]);
@@ -338,7 +338,7 @@ final class EventService
      */
     public function restore(Identity $identity, int $eventId): array
     {
-        $this->scope->event($identity, $eventId, Role::Admin);
+        $this->scope->event($identity, $eventId, Role::Treasurer);
         $this->assertOpenSeason($eventId);
 
         $this->db->run("UPDATE event SET status = 'planned' WHERE id = ?", [$eventId]);
@@ -353,7 +353,7 @@ final class EventService
      */
     public function delete(Identity $identity, int $eventId): void
     {
-        $this->scope->event($identity, $eventId, Role::Admin);
+        $this->scope->event($identity, $eventId, Role::Treasurer);
         $this->assertOpenSeason($eventId);
 
         $this->db->run('DELETE FROM event WHERE id = ?', [$eventId]);
@@ -401,7 +401,7 @@ final class EventService
      */
     public function createSeries(Identity $identity, int $seasonId, array $input): array
     {
-        $teamId = $this->scope->writableSeason($identity, $seasonId, Role::Admin);
+        $teamId = $this->scope->writableSeason($identity, $seasonId, Role::Treasurer);
 
         $this->assertType($input['type']);
         $this->assertLocation($input['locationId'], $teamId);
@@ -560,7 +560,7 @@ final class EventService
         ?int $fromEventId,
     ): array {
         $series = $this->seriesRow($seriesId);
-        $teamId = $this->scope->writableSeason($identity, (int) $series['season_id'], Role::Admin);
+        $teamId = $this->scope->writableSeason($identity, (int) $series['season_id'], Role::Treasurer);
 
         $this->assertScope($scope);
         $this->assertType($input['type']);
@@ -738,7 +738,7 @@ final class EventService
     public function deleteSeries(Identity $identity, int $seriesId, string $scope, ?int $fromEventId): array
     {
         $series = $this->seriesRow($seriesId);
-        $this->scope->writableSeason($identity, (int) $series['season_id'], Role::Admin);
+        $this->scope->writableSeason($identity, (int) $series['season_id'], Role::Treasurer);
 
         $this->assertScope($scope);
 
@@ -1042,7 +1042,7 @@ final class EventService
             $this->assertType($type);
         }
 
-        $everyone       = $this->managesTeam($identity, $teamId, Role::Admin);
+        $everyone       = $this->managesTeam($identity, $teamId, Role::Treasurer);
         $myMembershipId = $this->membershipOf($identity, $teamId);
 
         if (!$everyone && $myMembershipId === null) {

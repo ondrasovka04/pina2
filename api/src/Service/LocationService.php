@@ -58,7 +58,7 @@ final class LocationService
      */
     public function create(Identity $identity, int $clubId, array $input): array
     {
-        $this->scope->club($identity, $clubId, Role::Admin);
+        $this->scope->club($identity, $clubId, Role::Treasurer);
 
         $this->assertCoordinates($input['lat'], $input['lng']);
 
@@ -96,7 +96,7 @@ final class LocationService
         }
 
         $clubId = (int) $current['club_id'];
-        $this->scope->club($identity, $clubId, Role::Admin);
+        $this->scope->club($identity, $clubId, Role::Treasurer);
 
         if ($changes === []) {
             throw ApiException::validation('Není co upravit — pošlete alespoň jedno pole.');
@@ -144,7 +144,7 @@ final class LocationService
             throw ApiException::notFound();
         }
 
-        $this->scope->club($identity, (int) $clubId, Role::Admin);
+        $this->scope->club($identity, (int) $clubId, Role::Treasurer);
 
         $used = (int) $this->db->value(
             'SELECT COUNT(*) FROM event WHERE location_id = ?',

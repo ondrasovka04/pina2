@@ -355,6 +355,46 @@ final class EventServiceTest extends DatabaseTestCase
         self::assertSame('none', $this->participant($detail, $this->playerMembership)['transport']);
     }
 
+    /**
+     * Kalendář plánuje ten, kdo chodí na tréninky — tedy i pínař, ne jen admin.
+     * Nominace zůstává adminovi, ta je o sestavě, ne o provozu.
+     */
+    public function testTreasurerPlansTheCalendar(): void
+    {
+        $treasurer = $this->identity($this->treasurerId, Role::Treasurer);
+
+        $eventId = $this->service->create($treasurer, $this->seasonId, $this->eventInput())['id'];
+
+        $this->service->update($treasurer, $eventId, ['title' => 'Přesunutý trénink']);
+        $this->service->cancel($treasurer, $eventId);
+        $this->service->restore($treasurer, $eventId);
+
+        $series = $this->service->createSeries($treasurer, $this->seasonId, $this->seriesInput());
+        $this->service->deleteSeries($treasurer, $series['series']['id'], 'all', null);
+
+        $this->service->delete($treasurer, $eventId);
+
+        self::assertNull($this->db->value('SELECT id FROM event WHERE id = ?', [$eventId]));
+    }
+
+    public function testPlayerStillCannotPlanTheCalendar(): void
+    {
+        $player = $this->identity($this->playerId, Role::Player);
+
+        $this->expectStatus(403, fn () => $this->service->create($player, $this->seasonId, $this->eventInput()));
+    }
+
+    public function testNominationStaysWithAdmin(): void
+    {
+        $eventId = $this->makeEvent(2 * self::HOUR, 'match');
+
+        $this->expectStatus(403, fn () => $this->service->saveNominations(
+            $this->identity($this->treasurerId, Role::Treasurer),
+            $eventId,
+            [['membershipId' => $this->playerMembership, 'nomination' => 'substitute']],
+        ));
+    }
+
     public function testPlayerCannotCorrectAttendance(): void
     {
         $eventId = $this->makeEvent(-2 * self::HOUR);
@@ -485,15 +525,16 @@ final class EventServiceTest extends DatabaseTestCase
         self::assertSame([$this->playerMembership], array_column($rows, 'membershipId'));
     }
 
-    public function testTreasurerDoesNotSeeTheWholeTable(): void
+    public function testTreasurerSeesTheWholeTable(): void
     {
-        // Procenta účasti jsou výslovně jen pro admina; pínař smí docházku
-        // opravovat, ale žebříček nedostane.
+        // Pínař docházku opravuje, takže ji musí i vidět — jinak by opravoval naslepo.
+        // Hráč pořád dostane jen svůj řádek.
         $this->makeEvent(-1 * self::DAY);
 
         $rows = $this->service->summary($this->identity($this->treasurerId, Role::Treasurer), $this->seasonId, null);
 
-        self::assertSame([$this->treasurerMembership], array_column($rows, 'membershipId'));
+        self::assertGreaterThan(1, count($rows));
+        self::assertContains($this->playerMembership, array_column($rows, 'membershipId'));
     }
 
     // ---------------------------------------------------------------- nominace
@@ -585,10 +626,10 @@ final class EventServiceTest extends DatabaseTestCase
 
     // ------------------------------------------------------------------- akce
 
-    public function testOnlyAdminCreatesEvents(): void
+    public function testHraciNezakladajiAkce(): void
     {
         $this->expectStatus(403, fn () => $this->service->create(
-            $this->identity($this->treasurerId, Role::Treasurer),
+            $this->identity($this->playerId, Role::Player),
             $this->seasonId,
             $this->eventInput(),
         ));
@@ -690,12 +731,12 @@ final class EventServiceTest extends DatabaseTestCase
         self::assertNull($this->db->value('SELECT event_id FROM offence_record WHERE id = ?', [$recordId]));
     }
 
-    public function testOnlyAdminDeletesAnEvent(): void
+    public function testHraciNemazouAkce(): void
     {
         $eventId = $this->makeEvent(2 * self::DAY);
 
         $this->expectStatus(403, fn () => $this->service->delete(
-            $this->identity($this->treasurerId, Role::Treasurer),
+            $this->identity($this->playerId, Role::Player),
             $eventId,
         ));
     }
