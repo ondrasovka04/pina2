@@ -22,7 +22,12 @@ function member(id: number, name: string, balanceCzk = 0): MemberBalance {
 		status: 'active',
 		onRoster: true,
 		recordCount: 0,
+		offencesCzk: 0,
+		bonusesCzk: 0,
+		paidCzk: 0,
+		travelCzk: 0,
 		balanceCzk,
+		halves: null,
 	}
 }
 

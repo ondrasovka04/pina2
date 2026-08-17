@@ -8,32 +8,19 @@ import { Card } from '@/components/ui/Card'
 import { Field } from '@/components/ui/Field'
 import { ApiError } from '@/lib/api'
 import { useLocations, useSaveTeamSettings } from '@/lib/queries'
-import type { SettlementPeriod, TeamDetail, TeamSettings } from '@/lib/types'
+import type { TeamDetail, TeamSettings } from '@/lib/types'
 
 const selectClassName = 'rounded-xl border border-line bg-surface-2 px-3 py-2.5 text-base text-ink'
-
-const settlementPeriods: SettlementPeriod[] = ['none', 'half_year', 'season']
-
-const settlementLabels: Record<SettlementPeriod, string> = {
-	none: 'Nepoužívá se',
-	half_year: 'Po pololetích',
-	season: 'Celá sezóna',
-}
-
-/** Ověří hodnotu z `<select>` proti známým obdobím — vyhne se přetypování na `SettlementPeriod`. */
-function toSettlementPeriod(value: string): SettlementPeriod {
-	return settlementPeriods.find((period) => period === value) ?? 'none'
-}
 
 function settingsEqual(a: TeamSettings, b: TeamSettings): boolean {
 	return (
 		a.travelEnabled === b.travelEnabled &&
 		a.travelRateCzkKm === b.travelRateCzkKm &&
 		a.travelRoundTrip === b.travelRoundTrip &&
-		a.settlementPeriod === b.settlementPeriod &&
 		a.homeLocationId === b.homeLocationId &&
 		a.attendanceVisibleToPlayers === b.attendanceVisibleToPlayers &&
-		a.balancesVisibleToPlayers === b.balancesVisibleToPlayers
+		a.balancesVisibleToPlayers === b.balancesVisibleToPlayers &&
+		a.bankAccount === b.bankAccount
 	)
 }
 
@@ -70,10 +57,10 @@ export function TeamSettingsSection({ team }: { team: TeamDetail }) {
 			travelEnabled: team.settings.travelEnabled,
 			travelRateCzkKm: team.settings.travelRateCzkKm,
 			travelRoundTrip: team.settings.travelRoundTrip,
-			settlementPeriod: team.settings.settlementPeriod,
 			homeLocationId: team.settings.homeLocationId,
 			attendanceVisibleToPlayers: team.settings.attendanceVisibleToPlayers,
 			balancesVisibleToPlayers: team.settings.balancesVisibleToPlayers,
+			bankAccount: team.settings.bankAccount,
 		})
 		setRateInput(String(team.settings.travelRateCzkKm))
 		setSaved(false)
@@ -82,10 +69,10 @@ export function TeamSettingsSection({ team }: { team: TeamDetail }) {
 		team.settings.travelEnabled,
 		team.settings.travelRateCzkKm,
 		team.settings.travelRoundTrip,
-		team.settings.settlementPeriod,
 		team.settings.homeLocationId,
 		team.settings.attendanceVisibleToPlayers,
 		team.settings.balancesVisibleToPlayers,
+		team.settings.bankAccount,
 	])
 
 	if (!can('admin')) return null
@@ -201,7 +188,7 @@ export function TeamSettingsSection({ team }: { team: TeamDetail }) {
 						<span className="flex flex-col">
 							<span className="text-sm font-medium">Cesťáky</span>
 							<span className="text-ink-faint text-xs">
-								Náhrada za jízdu autem na venkovní zápasy. Zatím se teprve dodělávají, takže se zatím nikam nepočítají.
+								Náhrada za jízdu autem na venkovní zápasy se odečítá od dluhu řidiče.
 							</span>
 						</span>
 					</label>
@@ -234,20 +221,14 @@ export function TeamSettingsSection({ team }: { team: TeamDetail }) {
 					) : null}
 				</div>
 
-				<label className="flex flex-col gap-1.5">
-					<span className="text-ink-muted text-sm font-medium">Zúčtovací období</span>
-					<select
-						value={settings.settlementPeriod}
-						onChange={(event) => update({ settlementPeriod: toSettlementPeriod(event.target.value) })}
-						className={selectClassName}
-					>
-						{settlementPeriods.map((period) => (
-							<option key={period} value={period}>
-								{settlementLabels[period]}
-							</option>
-						))}
-					</select>
-				</label>
+				<Field
+					label="Účet pro QR platby"
+					placeholder="19-2000145399/0800"
+					value={settings.bankAccount ?? ''}
+					onChange={(event) => update({ bankAccount: event.target.value.trim() === '' ? null : event.target.value })}
+					error={fieldMessage(save.error, 'bankAccount')}
+					hint="Společný účet klubu. Lze zadat české číslo účtu nebo IBAN."
+				/>
 
 				{generalMessage(save.error) === undefined ? null : (
 					<p role="alert" className="text-debt text-sm">
