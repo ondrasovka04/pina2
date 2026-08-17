@@ -121,9 +121,17 @@ npm run typecheck && npm run lint && npm test && npm run format
   kterým se tam jde (`TeamSwitcher`, `CalendarPage`). Pínař jednou dostal právo
   zakládat akce a stejně ho neměl jak použít: `/akce/nova` fungovala, ale „Nová
   akce" v kalendáři pořád visela na `can('admin')`.
-- **Safari ignoruje `min-height` u `<select>`.** V Chrome vypadá `min-h-11`
-  správně, na Safari se výběr smrskne na výšku textu. Výšku proto drží svislý
-  padding (`py-2.5`) jako u ostatních polí, ne jen `min-h-11`.
+- **Selecty jdou přes `components/ui/Select.tsx`, ne přes vlastní třídy.** Safari
+  u `<select>` s nativním vzhledem ignoruje `min-height` **i svislý padding** —
+  v Chrome pole vypadalo správně, na Safari bylo o třetinu nižší. Zabírá jen
+  `appearance-none`, a s ním musí přijít i vlastní šipka. Přepsat styl zvenčí
+  nejde spolehlivě: `cn()` třídy jen spojuje, neslučuje je jako tailwind-merge,
+  takže by o výsledku rozhodovalo pořadí pravidel ve stylopisu.
+
+  **Poloha vyskakovacího menu se ovlivnit nedá** a je to tak schválně. macOS ho
+  otevírá přes pole tak, aby vybraná položka byla pod kurzorem — to je systémová
+  konvence, ne chyba. Vlastní dropdown by ji sice srovnal, ale v telefonu by
+  zabil systémový vyběrač, který se palcem obsluhuje lépe. Select zůstává nativní.
 - **Sezóna je druhá osa vedle týmu.** `useTeam()` dává `season`, `seasonId`
   i `isSeasonClosed`. Do uzavřené sezóny se nedá zapisovat — obrazovka to musí
   říct dopředu, ne nechat uživatele naklikat práci a spadnout na 409.
