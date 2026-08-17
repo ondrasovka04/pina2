@@ -116,6 +116,7 @@ export function EventPage() {
 					seasonId={seasonId}
 					participants={participants}
 					writable={writable}
+					rides={event.type === 'match' && event.isHome !== true}
 				/>
 			) : null}
 
@@ -325,10 +326,10 @@ function clampSeats(value: number): number {
 	return Math.min(8, Math.max(0, Math.trunc(value)))
 }
 
+// Jen to, co má následek: podle „beru auto" vzniká cesťák a počítají se volná místa.
 const transportOptions: Array<{ value: Transport; label: string }> = [
-	{ value: 'none', label: 'Nejedu autem' },
-	{ value: 'driver', label: 'Vezu' },
-	{ value: 'passenger', label: 'Svezu se' },
+	{ value: 'driver', label: 'Beru auto' },
+	{ value: 'none', label: 'Neberu auto' },
 ]
 
 interface MyAnswerCardProps {
@@ -664,9 +665,11 @@ interface AttendanceSectionProps {
 	seasonId: number | null
 	participants: EventParticipant[]
 	writable: boolean
+	/** U venkovního zápasu jde zpětně opravit i to, kdo jel autem — jinak nevznikne cesťák. */
+	rides: boolean
 }
 
-function AttendanceSection({ eventId, seasonId, participants, writable }: AttendanceSectionProps) {
+function AttendanceSection({ eventId, seasonId, participants, writable, rides }: AttendanceSectionProps) {
 	const saveAttendance = useSaveAttendance(eventId, seasonId)
 	const [error, setError] = useState<string | null>(null)
 
@@ -683,10 +686,29 @@ function AttendanceSection({ eventId, seasonId, participants, writable }: Attend
 		})
 	}
 
+	// Doprava se posílá zvlášť od docházky: `attendance` musí zůstat, jak je,
+	// jinak by přepnutí řidiče zrušilo ruční opravu přítomnosti.
+	function changeRide(participant: EventParticipant, driver: boolean) {
+		setError(null)
+		const items: AttendanceChange[] = [
+			{
+				membershipId: participant.membershipId,
+				attendance: participant.corrected ? participant.attendance : null,
+				transport: driver ? 'driver' : 'none',
+			},
+		]
+		saveAttendance.mutate(items, {
+			onError: (cause) => setError(cause instanceof ApiError ? cause.message : 'Dopravu se nepodařilo uložit.'),
+		})
+	}
+
 	return (
 		<Card className="px-4 py-3">
 			<h2 className="font-semibold">Docházka</h2>
-			<p className="text-ink-faint mt-1 text-sm">Docházka se odvozuje z odpovědí sama — stačí zapsat jen výjimky.</p>
+			<p className="text-ink-faint mt-1 text-sm">
+				Docházka se odvozuje z odpovědí sama — stačí zapsat jen výjimky.
+				{rides ? ' Kdo zapomněl říct, že jede autem, se dá doplnit i teď; cesťák pak vznikne sám.' : ''}
+			</p>
 
 			<div className="mt-2 flex flex-col gap-2">
 				{sortParticipants(participants).map((participant) => {
@@ -722,6 +744,18 @@ function AttendanceSection({ eventId, seasonId, participants, writable }: Attend
 									</button>
 								))}
 							</div>
+
+							{rides && participant.attendance !== 'absent' && participant.attendance !== 'injured' ? (
+								<Button
+									size="sm"
+									variant={participant.transport === 'driver' ? 'accent' : 'ghost'}
+									disabled={!writable || busy}
+									aria-pressed={participant.transport === 'driver'}
+									onClick={() => changeRide(participant, participant.transport !== 'driver')}
+								>
+									{participant.transport === 'driver' ? 'Jel autem' : 'Jel autem?'}
+								</Button>
+							) : null}
 
 							{participant.corrected ? (
 								<Button
