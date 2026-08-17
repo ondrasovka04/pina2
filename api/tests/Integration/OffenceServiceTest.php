@@ -24,6 +24,7 @@ final class OffenceServiceTest extends DatabaseTestCase
 
     private Identity $treasurer;
     private Identity $player;
+    private int $playerMembership;
 
     protected function setUp(): void
     {
@@ -48,6 +49,7 @@ final class OffenceServiceTest extends DatabaseTestCase
 
         $hracId       = $this->makeUser('hrac@prosek.cz');
         $hrac         = $this->makeMembership($hracId, $this->team, 'player');
+        $this->playerMembership = $hrac;
         $this->player = new Identity($hracId, 'hrac@prosek.cz', 'Hráč', false, [
             $this->team => Role::Player,
         ]);
@@ -354,6 +356,124 @@ final class OffenceServiceTest extends DatabaseTestCase
         self::assertSame(-20, $byId[$this->petr]['balanceCzk']);
     }
 
+    public function testBalancesSplitMoneyByHalfYearBoundary(): void
+    {
+        $this->db->run('UPDATE season SET half_year_on = \'2027-01-01\' WHERE id = ?', [$this->season]);
+
+        // Podzim: prohřešek 200 a bonus -50. Jaro: prohřešek 40 a platba 100.
+        $this->recordOn($this->honza, 200, '2026-10-05');
+        $this->recordOn($this->honza, -50, '2026-11-20');
+        $this->recordOn($this->honza, 40, '2027-03-08');
+        $this->db->run(
+            "INSERT INTO payment (season_id, membership_id, amount_czk, paid_on, method)
+             VALUES (?, ?, 100, '2027-02-01', 'cash')",
+            [$this->season, $this->honza],
+        );
+
+        $balances = $this->service->balances($this->treasurer, $this->season);
+        $member   = $this->memberRow($balances['members'], $this->honza);
+        $halves   = $member['halves'];
+        self::assertNotNull($halves);
+
+        self::assertSame('2027-01-01', $balances['halfYearOn']);
+        self::assertSame(200, $halves['first']['offencesCzk']);
+        self::assertSame(-50, $halves['first']['bonusesCzk']);
+        self::assertSame(0, $halves['first']['paidCzk']);
+        self::assertSame(150, $halves['first']['balanceCzk']);
+
+        self::assertSame(40, $halves['second']['offencesCzk']);
+        self::assertSame(100, $halves['second']['paidCzk']);
+        self::assertSame(-60, $halves['second']['balanceCzk']);
+
+        // Ploché hodnoty musí být součet obou polovin, jinak by si obrazovky odporovaly.
+        self::assertSame(90, $member['balanceCzk']);
+        self::assertSame(240, $member['offencesCzk']);
+        self::assertSame(3, $member['recordCount']);
+    }
+
+    public function testBalancesWithoutBoundaryHaveNoHalves(): void
+    {
+        $this->db->run('UPDATE season SET half_year_on = NULL WHERE id = ?', [$this->season]);
+        $this->recordOn($this->honza, 200, '2026-10-05');
+
+        $balances = $this->service->balances($this->treasurer, $this->season);
+
+        self::assertNull($balances['halfYearOn']);
+        self::assertNull($balances['halves']);
+        self::assertSame(['all'], array_column($balances['periods'], 'key'));
+        self::assertNull($this->memberRow($balances['members'], $this->honza)['halves']);
+        self::assertSame(200, $this->memberRow($balances['members'], $this->honza)['balanceCzk']);
+    }
+
+    public function testPeriodBoundsFollowTheConfiguredBoundary(): void
+    {
+        $this->db->run('UPDATE season SET half_year_on = \'2027-01-01\' WHERE id = ?', [$this->season]);
+
+        $periods = $this->service->balances($this->treasurer, $this->season)['periods'];
+        $byKey   = array_column($periods, null, 'key');
+
+        self::assertSame(['all', 'first', 'second'], array_keys($byKey));
+        self::assertSame('2026-12-31', $byKey['first']['to']);
+        self::assertSame('2027-01-01', $byKey['second']['from']);
+        self::assertSame('2027-06-30', $byKey['second']['to']);
+    }
+
+    public function testHiddenBalancesReturnOnlyPlayersOwnRow(): void
+    {
+        $this->db->run(
+            'INSERT INTO team_settings (team_id, balances_visible_to_players) VALUES (?, 0)',
+            [$this->team],
+        );
+        $this->batch([['membershipId' => $this->honza, 'offenceTypeId' => $this->lateType, 'count' => 1]]);
+
+        $balances = $this->service->balances($this->player, $this->season);
+
+        self::assertCount(1, $balances['members']);
+        self::assertSame($this->playerMembership, $balances['members'][0]['membershipId']);
+        self::assertCount(4, $this->service->balances($this->treasurer, $this->season)['members']);
+    }
+
+    public function testHiddenBalancesAlsoProtectForeignRecordDetail(): void
+    {
+        $this->db->run(
+            'INSERT INTO team_settings (team_id, balances_visible_to_players) VALUES (?, 0)',
+            [$this->team],
+        );
+        $this->batch([['membershipId' => $this->honza, 'offenceTypeId' => $this->lateType, 'count' => 1]]);
+
+        try {
+            $this->service->listRecords($this->player, $this->season, $this->honza);
+            self::fail('Hráč nesmí načíst cizí položky přímým ID.');
+        } catch (ApiException $e) {
+            self::assertSame(404, $e->status);
+        }
+    }
+
+    public function testHiddenBalancesAlsoLimitBatchHistory(): void
+    {
+        $this->db->run(
+            'INSERT INTO team_settings (team_id, balances_visible_to_players) VALUES (?, 0)',
+            [$this->team],
+        );
+        $foreign = $this->batch([['membershipId' => $this->honza, 'offenceTypeId' => $this->lateType, 'count' => 1]]);
+        $own = $this->batch(
+            [['membershipId' => $this->playerMembership, 'offenceTypeId' => $this->lateType, 'count' => 2]],
+            '99999999-9999-9999-9999-999999999999',
+        );
+
+        $batches = $this->service->batches($this->player, $this->season);
+        self::assertCount(1, $batches);
+        self::assertSame($own['batch']['id'], $batches[0]['id']);
+        self::assertSame(40, $batches[0]['totalCzk']);
+
+        try {
+            $this->service->showBatch($this->player, (int) $foreign['batch']['id']);
+            self::fail('Cizí dávka bez vlastního zápisu má zůstat skrytá.');
+        } catch (ApiException $e) {
+            self::assertSame(404, $e->status);
+        }
+    }
+
     /** Bez zápisu se počítá 0 záznamů, ne 1 z LEFT JOINu. */
     public function testBalancesCountZeroRecordsAsZero(): void
     {
@@ -539,6 +659,35 @@ final class OffenceServiceTest extends DatabaseTestCase
         foreach ($balances['members'] as $member) {
             if ($member['membershipId'] === $membershipId) {
                 return $member['balanceCzk'];
+            }
+        }
+
+        self::fail('hráč není v přehledu dluhů');
+    }
+
+    /** Zápis s konkrétním datem — pro dělení na pololetí je datum to jediné, co rozhoduje. */
+    private function recordOn(int $membershipId, int $amountCzk, string $occurredOn): void
+    {
+        $this->db->run(
+            'INSERT INTO offence_record (season_id, membership_id, offence_type_id, amount_czk, occurred_on)
+             VALUES (?, ?, ?, ?, ?)',
+            [$this->season, $membershipId, $this->lateType, $amountCzk, $occurredOn],
+        );
+    }
+
+    /**
+     * @param  list<array{membershipId:int,userId:int,name:string,jerseyNumber:int|null,status:string,
+     *     onRoster:bool,recordCount:int,offencesCzk:int,bonusesCzk:int,paidCzk:int,travelCzk:int,
+     *     balanceCzk:int,halves:array{first:array<string,int>,second:array<string,int>}|null}> $members
+     * @return array{membershipId:int,userId:int,name:string,jerseyNumber:int|null,status:string,
+     *     onRoster:bool,recordCount:int,offencesCzk:int,bonusesCzk:int,paidCzk:int,travelCzk:int,
+     *     balanceCzk:int,halves:array{first:array<string,int>,second:array<string,int>}|null}
+     */
+    private function memberRow(array $members, int $membershipId): array
+    {
+        foreach ($members as $member) {
+            if ($member['membershipId'] === $membershipId) {
+                return $member;
             }
         }
 
