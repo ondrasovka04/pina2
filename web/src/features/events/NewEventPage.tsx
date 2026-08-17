@@ -34,9 +34,12 @@ export function NewEventPage() {
 
 	if (seasonId === null || season === null) return <NoSeasonState what="akce" />
 
-	if (!can('admin')) {
+	if (!can('treasurer')) {
 		return (
-			<EmptyState title="Akce zakládá admin družstva" description="Kdo je adminem, uvidíte na obrazovce družstva." />
+			<EmptyState
+				title="Akce zakládá pínař nebo admin"
+				description="Kdo tuhle roli má, uvidíte na obrazovce družstva."
+			/>
 		)
 	}
 

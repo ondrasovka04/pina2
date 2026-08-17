@@ -35,9 +35,12 @@ export function EditEventPage() {
 		)
 	}
 
-	if (!can('admin')) {
+	if (!can('treasurer')) {
 		return (
-			<EmptyState title="Akci upravuje admin družstva" description="Kdo je adminem, uvidíte na obrazovce družstva." />
+			<EmptyState
+				title="Akci upravuje pínař nebo admin"
+				description="Kdo tuhle roli má, uvidíte na obrazovce družstva."
+			/>
 		)
 	}
 

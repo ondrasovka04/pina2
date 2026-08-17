@@ -33,11 +33,11 @@ export function SeriesPage() {
 
 	if (seasonId === null || season === null) return <NoSeasonState what="opakované akce" />
 
-	if (!can('admin')) {
+	if (!can('treasurer')) {
 		return (
 			<EmptyState
-				title="Opakované akce spravuje admin družstva"
-				description="Kdo je adminem, uvidíte na obrazovce družstva."
+				title="Opakované akce spravuje pínař nebo admin"
+				description="Kdo tuhle roli má, uvidíte na obrazovce družstva."
 			/>
 		)
 	}

@@ -18,6 +18,9 @@ type MembersQuery = ReturnType<typeof useTeamMembers>
 export function SeasonsPage() {
 	const { team, can, selectSeason } = useTeam()
 	const navigate = useNavigate()
+	// Soupisku mění i pínař — od ní se odvíjí přehled dluhů. Zakládat a uzavírat
+	// sezónu smí jen admin: uzavření je z aplikace nevratné a zamkne všechny zápisy.
+	const canRoster = can('treasurer')
 	const isAdmin = can('admin')
 
 	const { data, isPending, error, refetch } = useSeasons(team?.id ?? null)
@@ -30,11 +33,11 @@ export function SeasonsPage() {
 	const saveRoster = useSaveRoster(team?.id ?? 0)
 	const closeSeason = useCloseSeason(team?.id ?? 0)
 
-	if (!isAdmin) {
+	if (!canRoster) {
 		return (
 			<EmptyState
-				title="Sezóny spravuje admin"
-				description="Zakládání a uzavírání sezón má na starosti admin družstva. Pro přístup k téhle stránce ho poproste."
+				title="Sezóny spravuje pínař nebo admin"
+				description="Soupisku mění pínař, zakládat a uzavírat sezóny smí admin. Kdo tuhle roli má, uvidíte na obrazovce družstva."
 			/>
 		)
 	}
@@ -55,13 +58,15 @@ export function SeasonsPage() {
 		<div className="flex flex-col gap-4">
 			<div className="flex items-center justify-between gap-3">
 				<h1 className="text-lg font-semibold">Sezóny</h1>
-				<Link
-					to="/sezony/nova"
-					role="button"
-					className="bg-accent text-on-accent inline-flex min-h-11 items-center rounded-xl px-4 text-sm font-semibold"
-				>
-					Nová sezóna
-				</Link>
+				{isAdmin ? (
+					<Link
+						to="/sezony/nova"
+						role="button"
+						className="bg-accent text-on-accent inline-flex min-h-11 items-center rounded-xl px-4 text-sm font-semibold"
+					>
+						Nová sezóna
+					</Link>
+				) : null}
 			</div>
 
 			{seasons.map((season) => (
@@ -74,6 +79,7 @@ export function SeasonsPage() {
 						selectSeason(season.id)
 						void navigate('/dluhy')
 					}}
+					isAdmin={isAdmin}
 					onClose={() => closeSeason.mutate(season.id)}
 					closing={closeSeason.isPending && closeSeason.variables === season.id}
 					roster={roster}
@@ -139,6 +145,8 @@ interface SeasonCardProps {
 	isOpen: boolean
 	onToggleOpen: (open: boolean) => void
 	onView: () => void
+	/** Uzavření sezóny a přelom pololetí jsou jen pro admina; soupisku mění i pínař. */
+	isAdmin: boolean
 	onClose: () => void
 	closing: boolean
 	roster: RosterQuery
@@ -151,6 +159,7 @@ function SeasonCard({
 	isOpen,
 	onToggleOpen,
 	onView,
+	isAdmin,
 	onClose,
 	closing,
 	roster,
@@ -185,7 +194,7 @@ function SeasonCard({
 					<Button size="sm" variant="ghost" onClick={onView}>
 						Zobrazit
 					</Button>
-					{closed ? null : (
+					{closed || !isAdmin ? null : (
 						<Button size="sm" variant="danger" loading={closing} onClick={() => setConfirmingClose(true)}>
 							Uzavřít
 						</Button>
@@ -193,7 +202,7 @@ function SeasonCard({
 				</div>
 			</div>
 
-			{closed ? null : <HalfYearField season={season} />}
+			{closed || !isAdmin ? null : <HalfYearField season={season} />}
 
 			<details
 				open={isOpen}

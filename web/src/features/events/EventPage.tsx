@@ -74,7 +74,7 @@ export function EventPage() {
 			<EventHeader
 				event={event}
 				teamName={team?.name ?? 'Družstvo'}
-				isAdmin={isAdmin}
+				canManage={isTreasurer}
 				writable={writable}
 				eventId={eventId}
 				seasonId={seasonId}
@@ -171,13 +171,13 @@ const confirmLabels: Record<EventAction, string> = {
 interface EventHeaderProps {
 	event: TeamEvent
 	teamName: string
-	isAdmin: boolean
+	canManage: boolean
 	writable: boolean
 	eventId: number
 	seasonId: number | null
 }
 
-function EventHeader({ event, teamName, isAdmin, writable, eventId, seasonId }: EventHeaderProps) {
+function EventHeader({ event, teamName, canManage, writable, eventId, seasonId }: EventHeaderProps) {
 	const navigate = useNavigate()
 	const cancelEvent = useCancelEvent(eventId, seasonId)
 	const deleteEvent = useDeleteEvent(seasonId)
@@ -218,7 +218,7 @@ function EventHeader({ event, teamName, isAdmin, writable, eventId, seasonId }: 
 
 				<div className="flex shrink-0 flex-wrap items-center gap-2">
 					<AddToCalendarButton events={[event]} teamName={teamName} calendarName={event.title} label="Do kalendáře" />
-					{isAdmin ? (
+					{canManage ? (
 						<>
 							<Link
 								to={`/akce/${eventId}/upravit`}

@@ -37,20 +37,23 @@ function usageLabel(count: number): string {
 	return count === 0 ? 'Zatím nepoužité' : `Používá ho ${plural(count, 'akce', 'akce', 'akcí')}`
 }
 
-/** Místa se sdílí mezi družstvy klubu, proto je zakládá a upravuje jen admin. */
+/**
+ * Místa spravuje pínař i admin — halu soupeře zadává ten, kdo plánuje zápasy.
+ * Pozor: seznam se sdílí mezi všemi družstvy klubu, takže úprava je vidět i jim.
+ */
 export function LocationsPage() {
 	const { team, can } = useTeam()
-	const isAdmin = can('admin')
+	const canManage = can('treasurer')
 	const clubId = team?.clubId ?? null
 
 	const locations = useLocations(clubId)
 	const [formOpen, setFormOpen] = useState(false)
 
-	if (!isAdmin || team === null) {
+	if (!canManage || team === null) {
 		return (
 			<EmptyState
-				title="Místa spravuje admin"
-				description="Haly a hřiště sdílí všechna družstva klubu, proto je zakládá a upravuje admin. Pro přístup ho poproste."
+				title="Místa spravuje pínař nebo admin"
+				description="Haly a hřiště sdílí všechna družstva klubu. Kdo tuhle roli má, uvidíte na obrazovce družstva."
 			/>
 		)
 	}
