@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/Card'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { ChevronDownIcon, ChevronRightIcon, SearchIcon } from '@/components/ui/icons'
 import { Money } from '@/components/ui/Money'
+import { Select } from '@/components/ui/Select'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States'
 import { formatEventTime } from '@/features/events/events'
 import { BatchResult, BatchReview } from '@/features/offences/BatchReview'
@@ -265,10 +266,9 @@ export function NewBatchPage() {
 					{pastEvents.length === 0 ? null : (
 						<label className="flex flex-col gap-1.5">
 							<span className="text-ink-muted text-sm font-medium">Akce (nepovinná)</span>
-							<select
+							<Select
 								value={eventId ?? ''}
 								onChange={(event) => chooseEvent(event.target.value === '' ? null : Number(event.target.value))}
-								className="border-line bg-surface-2 text-ink min-h-11 rounded-xl border px-3 py-2.5 text-base"
 							>
 								<option value="">Bez akce</option>
 								{pastEvents.map((event) => (
@@ -276,7 +276,7 @@ export function NewBatchPage() {
 										{formatEventTime(event.startsAt)} — {event.title}
 									</option>
 								))}
-							</select>
+							</Select>
 							{eventId === null ? (
 								<span className="text-ink-faint text-xs">Podle vybrané akce nabídneme zápis za ty, kdo chyběli.</span>
 							) : null}

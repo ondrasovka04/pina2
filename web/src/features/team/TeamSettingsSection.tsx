@@ -4,11 +4,10 @@ import { Link } from 'react-router'
 import { useTeam } from '@/app/team'
 import { Card } from '@/components/ui/Card'
 import { Field } from '@/components/ui/Field'
+import { Select } from '@/components/ui/Select'
 import { ApiError } from '@/lib/api'
 import { useLocations, useSaveTeamSettings } from '@/lib/queries'
 import type { TeamDetail, TeamSettings } from '@/lib/types'
-
-const selectClassName = 'rounded-xl border border-line bg-surface-2 px-3 py-2.5 text-base text-ink'
 
 /**
  * Text se ukládá se zpožděním, přepínače hned. Za každou stisknutou klávesu by
@@ -150,7 +149,7 @@ export function TeamSettingsSection({ team }: { team: TeamDetail }) {
 				<div className="flex flex-col gap-1.5">
 					<label className="flex flex-col gap-1.5">
 						<span className="text-ink-muted text-sm font-medium">Domácí hala</span>
-						<select
+						<Select
 							value={settings.homeLocationId ?? ''}
 							onChange={(event) => {
 								const raw = event.target.value
@@ -158,7 +157,6 @@ export function TeamSettingsSection({ team }: { team: TeamDetail }) {
 								apply({ homeLocationId: raw === '' ? null : Number.parseInt(raw, 10) })
 							}}
 							disabled={locations.isPending}
-							className={selectClassName}
 						>
 							<option value="">Neurčeno</option>
 							{locationList.map((location) => (
@@ -166,7 +164,7 @@ export function TeamSettingsSection({ team }: { team: TeamDetail }) {
 									{location.name}
 								</option>
 							))}
-						</select>
+						</Select>
 					</label>
 					<p className="text-ink-faint text-xs">
 						Podle domácí haly se u zápasu pozná, jestli je doma nebo venku, a od ní se měří vzdálenost k soupeři.

@@ -10,6 +10,7 @@ import { Field } from '@/components/ui/Field'
 import { PlusIcon } from '@/components/ui/icons'
 import { Money } from '@/components/ui/Money'
 import { ReorderableList } from '@/components/ui/ReorderableList'
+import { Select } from '@/components/ui/Select'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States'
 import { ApiError } from '@/lib/api'
 import {
@@ -61,8 +62,6 @@ const autoEventTypeOptions: Array<{ value: AutoEventType; label: string }> = aut
 function sortTypes(items: OffenceType[]): OffenceType[] {
 	return items.toSorted((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, 'cs'))
 }
-
-const selectClassName = 'rounded-xl border border-line bg-surface-2 px-3 py-2.5 text-base text-ink'
 
 export function OffenceTypesPage() {
 	const { seasonId, can } = useTeam()
@@ -317,17 +316,13 @@ function CreateOffenceTypeForm({ seasonId, onDone }: { seasonId: number; onDone:
 				/>
 				<label className="flex flex-col gap-1.5">
 					<span className="text-ink-muted text-sm font-medium">Kategorie</span>
-					<select
-						value={category}
-						onChange={(event) => setCategory(toCategory(event.target.value))}
-						className={selectClassName}
-					>
+					<Select value={category} onChange={(event) => setCategory(toCategory(event.target.value))}>
 						{categoryOptions.map((option) => (
 							<option key={option.value} value={option.value}>
 								{option.label}
 							</option>
 						))}
-					</select>
+					</Select>
 				</label>
 
 				{generalMessage(create.error) === undefined ? null : (
@@ -425,32 +420,24 @@ function EditOffenceTypeForm({ item, allItems, saving, error, onCancel, onSave }
 				/>
 				<label className="flex flex-col gap-1.5">
 					<span className="text-ink-muted text-sm font-medium">Kategorie</span>
-					<select
-						value={category}
-						onChange={(event) => setCategory(toCategory(event.target.value))}
-						className={selectClassName}
-					>
+					<Select value={category} onChange={(event) => setCategory(toCategory(event.target.value))}>
 						{categoryOptions.map((option) => (
 							<option key={option.value} value={option.value}>
 								{option.label}
 							</option>
 						))}
-					</select>
+					</Select>
 				</label>
 
 				<label className="flex flex-col gap-1.5">
 					<span className="text-ink-muted text-sm font-medium">Navrhovat z docházky</span>
-					<select
-						value={autoRule}
-						onChange={(event) => setAutoRule(toAutoRule(event.target.value))}
-						className={selectClassName}
-					>
+					<Select value={autoRule} onChange={(event) => setAutoRule(toAutoRule(event.target.value))}>
 						{autoRuleOptions.map((option) => (
 							<option key={option.value} value={option.value}>
 								{option.label}
 							</option>
 						))}
-					</select>
+					</Select>
 					{conflictingItem === undefined ? null : (
 						<span className="text-ink-faint text-xs">
 							{conflictIsSoft
@@ -465,17 +452,13 @@ function EditOffenceTypeForm({ item, allItems, saving, error, onCancel, onSave }
 				{autoRule === 'none' ? null : (
 					<label className="flex flex-col gap-1.5">
 						<span className="text-ink-muted text-sm font-medium">U kterých akcí</span>
-						<select
-							value={autoEventType}
-							onChange={(event) => setAutoEventType(toAutoEventType(event.target.value))}
-							className={selectClassName}
-						>
+						<Select value={autoEventType} onChange={(event) => setAutoEventType(toAutoEventType(event.target.value))}>
 							{autoEventTypeOptions.map((option) => (
 								<option key={option.value} value={option.value}>
 									{option.label}
 								</option>
 							))}
-						</select>
+						</Select>
 					</label>
 				)}
 

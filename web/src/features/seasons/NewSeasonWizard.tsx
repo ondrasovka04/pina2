@@ -8,6 +8,7 @@ import { Card, CardHeader } from '@/components/ui/Card'
 import { Field } from '@/components/ui/Field'
 import { ArrowLeftIcon, CheckIcon } from '@/components/ui/icons'
 import { Money } from '@/components/ui/Money'
+import { Select } from '@/components/ui/Select'
 import { EmptyState, LoadingState } from '@/components/ui/States'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
@@ -246,13 +247,13 @@ export function NewSeasonWizard() {
 					{seasons.length > 1 ? (
 						<label className="border-line/60 flex items-center gap-3 border-b px-4 py-3 text-sm">
 							<span className="text-ink-muted">Ze sezóny</span>
-							<select
+							<Select
+								compact
 								value={sourceSeasonId ?? ''}
 								onChange={(event) => {
 									setSourceSeasonId(event.target.value === '' ? null : Number(event.target.value))
 									filledFrom.current = null
 								}}
-								className="border-line bg-surface-2 text-ink rounded-lg border px-2 py-1"
 							>
 								<option value="">nepřebírat</option>
 								{seasons.map((item) => (
@@ -260,7 +261,7 @@ export function NewSeasonWizard() {
 										{item.name}
 									</option>
 								))}
-							</select>
+							</Select>
 						</label>
 					) : null}
 

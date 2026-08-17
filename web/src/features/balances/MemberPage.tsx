@@ -11,6 +11,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Field } from '@/components/ui/Field'
 import { ArrowLeftIcon, XIcon } from '@/components/ui/icons'
 import { Money } from '@/components/ui/Money'
+import { Select } from '@/components/ui/Select'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States'
 import { PaymentQrCard } from '@/features/balances/PaymentQrCard'
 import { periodByKey } from '@/features/balances/period'
@@ -347,15 +348,11 @@ function PaymentForm({ seasonId, member }: { seasonId: number; member: MemberBal
 				<Field label="Datum" type="date" value={paidOn} onChange={(e) => setPaidOn(e.target.value)} />
 				<label className="flex flex-col gap-1.5">
 					<span className="text-ink-muted text-sm font-medium">Způsob</span>
-					<select
-						value={method}
-						onChange={(event) => setMethod(toPaymentMethod(event.target.value))}
-						className="border-line bg-surface-2 text-ink rounded-xl border px-3 py-2.5 text-base"
-					>
+					<Select value={method} onChange={(event) => setMethod(toPaymentMethod(event.target.value))}>
 						<option value="cash">Hotovost</option>
 						<option value="transfer">Převod</option>
 						<option value="qr">QR platba</option>
-					</select>
+					</Select>
 				</label>
 				<Field label="Poznámka" value={note} onChange={(e) => setNote(e.target.value)} />
 				{error === null ? null : <p className="text-debt text-sm">{error}</p>}

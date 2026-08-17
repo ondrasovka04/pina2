@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { Field } from '@/components/ui/Field'
 import { ArrowLeftIcon } from '@/components/ui/icons'
+import { Select } from '@/components/ui/Select'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States'
 import { parseDateTime, shiftMinutes } from '@/features/events/events'
 import { ApiError } from '@/lib/api'
@@ -318,10 +319,9 @@ function LocationCard({
 		<Card>
 			<CardHeader title="Místo" subtitle="Sdílené celým klubem." />
 			<div className="flex flex-col gap-3 p-4">
-				<select
+				<Select
 					value={value ?? ''}
 					onChange={(event) => onChange(event.target.value === '' ? null : Number.parseInt(event.target.value, 10))}
-					className="border-line bg-surface-2 text-ink min-h-11 rounded-xl border px-3 py-2.5 text-base"
 					aria-label="Místo konání"
 				>
 					<option value="">Neurčeno</option>
@@ -330,7 +330,7 @@ function LocationCard({
 							{location.name}
 						</option>
 					))}
-				</select>
+				</Select>
 
 				{adding ? (
 					<div className="border-line/60 flex flex-col gap-3 rounded-xl border p-3">

@@ -9,6 +9,7 @@ import { Card, CardHeader } from '@/components/ui/Card'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Field } from '@/components/ui/Field'
 import { ArrowLeftIcon } from '@/components/ui/icons'
+import { Select } from '@/components/ui/Select'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States'
 import type { Weekday } from '@/features/events/events'
 import {
@@ -296,14 +297,10 @@ function SeriesEditForm({ seasonId, clubId, series, futureEvents, onSuccess, onC
 				/>
 				<label className="flex flex-col gap-1.5">
 					<span className="text-ink-muted text-sm font-medium">Jak často</span>
-					<select
-						value={interval}
-						onChange={(event) => setInterval(Number.parseInt(event.target.value, 10))}
-						className="border-line bg-surface-2 text-ink min-h-11 rounded-xl border px-3 py-2.5 text-base"
-					>
+					<Select value={interval} onChange={(event) => setInterval(Number.parseInt(event.target.value, 10))}>
 						<option value={1}>Každý týden</option>
 						<option value={2}>Každý druhý týden</option>
-					</select>
+					</Select>
 				</label>
 			</div>
 
@@ -331,12 +328,11 @@ function SeriesEditForm({ seasonId, clubId, series, futureEvents, onSuccess, onC
 
 			<label className="flex flex-col gap-1.5">
 				<span className="text-ink-muted text-sm font-medium">Místo</span>
-				<select
+				<Select
 					value={locationId ?? ''}
 					onChange={(event) =>
 						setLocationId(event.target.value === '' ? null : Number.parseInt(event.target.value, 10))
 					}
-					className="border-line bg-surface-2 text-ink min-h-11 rounded-xl border px-3 py-2.5 text-base"
 				>
 					<option value="">Neurčeno</option>
 					{(locations.data ?? []).map((location) => (
@@ -344,7 +340,7 @@ function SeriesEditForm({ seasonId, clubId, series, futureEvents, onSuccess, onC
 							{location.name}
 						</option>
 					))}
-				</select>
+				</Select>
 			</label>
 
 			<Field
@@ -485,10 +481,10 @@ function ScopePicker({ scope, onScopeChange, fromEventId, onFromEventIdChange, f
 			</label>
 
 			{scope === 'following' && hasFuture ? (
-				<select
+				<Select
 					value={fromEventId ?? ''}
 					onChange={(event) => onFromEventIdChange(Number.parseInt(event.target.value, 10))}
-					className="border-line bg-surface-2 text-ink ml-8 min-h-11 rounded-xl border px-3 py-2.5 text-base"
+					wrapperClassName="ml-8"
 					aria-label="Od kterého termínu"
 				>
 					{futureEvents.map((futureEvent) => (
@@ -496,7 +492,7 @@ function ScopePicker({ scope, onScopeChange, fromEventId, onFromEventIdChange, f
 							{formatEventTime(futureEvent.startsAt)}
 						</option>
 					))}
-				</select>
+				</Select>
 			) : null}
 
 			<label className="flex min-h-11 cursor-pointer items-center gap-3">
