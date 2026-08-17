@@ -166,17 +166,32 @@ final class EventServiceTest extends DatabaseTestCase
         ));
     }
 
-    public function testPassengerDoesNotKeepFreeSeats(): void
+    public function testWhoDoesNotTakeACarKeepsNoFreeSeats(): void
     {
         $eventId = $this->makeEvent(2 * self::DAY, type: 'match');
 
         $this->service->saveRsvp($this->identity($this->playerId, Role::Player), $eventId, [
-            'rsvp' => 'yes', 'note' => null, 'transport' => 'passenger', 'carSeats' => 4,
+            'rsvp' => 'yes', 'note' => null, 'transport' => 'none', 'carSeats' => 4,
         ]);
 
         $detail = $this->service->detail($this->identity($this->playerId, Role::Player), $eventId);
 
         self::assertNull($this->me($detail)['carSeats']);
+    }
+
+    /**
+     * Doprava má jen dva stavy. Starý klient s „svezu se" musí dostat čitelnou
+     * chybu, ne spadnout na neznámé hodnotě enumu až v databázi.
+     */
+    public function testUnknownTransportIsRejected(): void
+    {
+        $eventId = $this->makeEvent(2 * self::DAY, type: 'match');
+
+        $this->expectStatus(400, fn () => $this->service->saveRsvp(
+            $this->identity($this->playerId, Role::Player),
+            $eventId,
+            ['rsvp' => 'yes', 'note' => null, 'transport' => 'passenger', 'carSeats' => null],
+        ));
     }
 
     public function testWhoIsNotComingDoesNotDriveAnyone(): void
@@ -275,6 +290,69 @@ final class EventServiceTest extends DatabaseTestCase
         ]);
         self::assertSame('present', $this->stateOf($reverted, $this->playerMembership));
         self::assertFalse($this->participant($reverted, $this->playerMembership)['corrected']);
+    }
+
+    public function testTreasurerCanAddForgottenDriverAfterTheMatch(): void
+    {
+        $eventId = $this->makeAwayMatch();
+        $this->service->saveRsvp($this->identity($this->playerId, Role::Player), $eventId, [
+            'rsvp' => 'yes', 'note' => null, 'transport' => 'none', 'carSeats' => null,
+        ]);
+        $this->moveEventToPast($eventId);
+
+        $treasurer = $this->identity($this->treasurerId, Role::Treasurer);
+        $detail    = $this->service->saveAttendance($treasurer, $eventId, [
+            ['membershipId' => $this->playerMembership, 'attendance' => null, 'transport' => 'driver', 'carSeats' => 3],
+        ]);
+
+        self::assertSame('driver', $this->participant($detail, $this->playerMembership)['transport']);
+        self::assertSame('present', $this->stateOf($detail, $this->playerMembership));
+    }
+
+    public function testCorrectionWithoutTransportLeavesTheRideAlone(): void
+    {
+        $eventId = $this->makeAwayMatch();
+        $this->service->saveRsvp($this->identity($this->playerId, Role::Player), $eventId, [
+            'rsvp' => 'yes', 'note' => null, 'transport' => 'driver', 'carSeats' => 3,
+        ]);
+        $this->moveEventToPast($eventId);
+
+        $detail = $this->service->saveAttendance($this->identity($this->treasurerId, Role::Treasurer), $eventId, [
+            ['membershipId' => $this->playerMembership, 'attendance' => null],
+        ]);
+
+        self::assertSame('driver', $this->participant($detail, $this->playerMembership)['transport']);
+    }
+
+    public function testAbsentDriverLosesTheRide(): void
+    {
+        $eventId = $this->makeAwayMatch();
+        $this->service->saveRsvp($this->identity($this->playerId, Role::Player), $eventId, [
+            'rsvp' => 'yes', 'note' => null, 'transport' => 'driver', 'carSeats' => 3,
+        ]);
+        $this->moveEventToPast($eventId);
+
+        // Kdo nepřijel, nikoho nesvezl — jinak by mu zůstal nárok na cesťák.
+        $detail = $this->service->saveAttendance($this->identity($this->treasurerId, Role::Treasurer), $eventId, [
+            ['membershipId' => $this->playerMembership, 'attendance' => 'absent', 'transport' => 'driver'],
+        ]);
+
+        self::assertSame('none', $this->participant($detail, $this->playerMembership)['transport']);
+    }
+
+    public function testTransportCorrectionIsIgnoredOnTraining(): void
+    {
+        $eventId = $this->makeEvent(2 * self::HOUR);
+        $this->service->saveRsvp($this->identity($this->playerId, Role::Player), $eventId, [
+            'rsvp' => 'yes', 'note' => null, 'transport' => 'none', 'carSeats' => null,
+        ]);
+        $this->moveEventToPast($eventId);
+
+        $detail = $this->service->saveAttendance($this->identity($this->treasurerId, Role::Treasurer), $eventId, [
+            ['membershipId' => $this->playerMembership, 'attendance' => null, 'transport' => 'driver'],
+        ]);
+
+        self::assertSame('none', $this->participant($detail, $this->playerMembership)['transport']);
     }
 
     public function testPlayerCannotCorrectAttendance(): void
@@ -904,6 +982,15 @@ final class EventServiceTest extends DatabaseTestCase
         );
 
         return $this->db->lastInsertId();
+    }
+
+    /** Zápas venku: má vzdálenost a místo jinde než domácí halu (ta nastavená není). */
+    private function makeAwayMatch(int $offsetMinutes = 2 * self::HOUR): int
+    {
+        $eventId = $this->makeEvent($offsetMinutes, 'match');
+        $this->db->run('UPDATE event SET distance_km = 40 WHERE id = ?', [$eventId]);
+
+        return $eventId;
     }
 
     /** Série tréninků na září; vrací její ID. */

@@ -114,7 +114,8 @@ final class EventService
 
     public const NOMINATIONS = ['none', 'nominated', 'substitute'];
 
-    public const TRANSPORT_VALUES = ['none', 'driver', 'passenger'];
+    /** Beru auto, nebo neberu. Víc stavů nemá následek, takže se nenabízejí. */
+    public const TRANSPORT_VALUES = ['none', 'driver'];
 
     /** Rozsah hromadné změny série. Jeden termín se upravuje přes update(). */
     public const SCOPES = ['following', 'all'];
@@ -902,7 +903,12 @@ final class EventService
     /**
      * Ruční oprava docházky. `null` opravu zruší a vrátí odvození z RSVP.
      *
-     * @param  list<array{membershipId:int,attendance:string|null}> $items
+     * Součástí opravy je i doprava: kdo autem jel, ale zapomněl to říct předem,
+     * se jinak nemá jak k cesťáku dostat — odpověď je po začátku akce zamčená.
+     * `transport` v položce se bere jen u venkovního zápasu; `null` znamená
+     * „nech, jak je", aby oprava samotné docházky odvozy nepřepisovala.
+     *
+     * @param  list<array{membershipId:int,attendance:string|null,transport?:string|null,carSeats?:int|null}> $items
      * @return EventDetail
      */
     public function saveAttendance(Identity $identity, int $eventId, array $items): array
@@ -918,11 +924,27 @@ final class EventService
             if ($item['attendance'] !== null && !in_array($item['attendance'], self::ATTENDANCE_VALUES, true)) {
                 throw ApiException::validation('Neznámý stav docházky.', ['field' => 'attendance']);
             }
+            if (($item['transport'] ?? null) !== null && !in_array($item['transport'], self::TRANSPORT_VALUES, true)) {
+                throw ApiException::validation('Neznámý způsob dopravy.', ['field' => 'transport']);
+            }
         }
 
         $this->assertMembers($teamId, array_map(static fn (array $item): int => $item['membershipId'], $items));
 
-        $this->db->transaction(function () use ($eventId, $items, $identity): int {
+        $event = $this->db->first(
+            'SELECT e.type, e.location_id,
+                    (SELECT ts.home_location_id FROM team_settings ts WHERE ts.team_id = ?) AS home_location_id
+               FROM event e WHERE e.id = ?',
+            [$teamId, $eventId],
+        );
+
+        if ($event === null) {
+            throw ApiException::notFound();
+        }
+
+        $away = (string) $event['type'] === 'match' && $this->resolveHome($event) !== true;
+
+        $this->db->transaction(function () use ($eventId, $items, $identity, $away): int {
             foreach ($items as $item) {
                 $this->db->run(
                     'INSERT INTO event_participant (event_id, membership_id, attendance, attendance_by, attendance_at)
@@ -932,6 +954,23 @@ final class EventService
                          attendance_by = VALUES(attendance_by),
                          attendance_at = NOW()',
                     [$eventId, $item['membershipId'], $item['attendance'], $identity->userId],
+                );
+
+                $transport = $item['transport'] ?? null;
+                if (!$away || $transport === null) {
+                    continue;
+                }
+
+                // Kdo na zápase nebyl, nikoho nesvezl — jinak by po opravě docházky
+                // zůstal viset nárok na cesťák za cestu, která se nestala.
+                $absent    = $item['attendance'] === 'absent' || $item['attendance'] === 'injured';
+                $transport = $absent ? 'none' : $transport;
+                $carSeats  = $transport === 'driver' ? ($item['carSeats'] ?? null) : null;
+
+                $this->db->run(
+                    'UPDATE event_participant SET transport = ?, car_seats = ?
+                      WHERE event_id = ? AND membership_id = ?',
+                    [$transport, $carSeats, $eventId, $item['membershipId']],
                 );
             }
 
