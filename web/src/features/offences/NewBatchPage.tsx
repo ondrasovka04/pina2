@@ -268,7 +268,7 @@ export function NewBatchPage() {
 							<select
 								value={eventId ?? ''}
 								onChange={(event) => chooseEvent(event.target.value === '' ? null : Number(event.target.value))}
-								className="border-line bg-surface-2 text-ink min-h-11 rounded-xl border px-3 text-base"
+								className="border-line bg-surface-2 text-ink min-h-11 rounded-xl border px-3 py-2.5 text-base"
 							>
 								<option value="">Bez akce</option>
 								{pastEvents.map((event) => (

@@ -128,7 +128,7 @@ function HalfYearField({ season }: { season: Season }) {
 					max={season.endsOn}
 					disabled={save.isPending}
 					onChange={(event) => change(event.target.value)}
-					className="border-line bg-surface-2 text-ink min-h-11 rounded-xl border px-3 text-base disabled:opacity-50"
+					className="border-line bg-surface-2 text-ink min-h-11 rounded-xl border px-3 py-2.5 text-base disabled:opacity-50"
 				/>
 			</label>
 			{error === null ? null : (

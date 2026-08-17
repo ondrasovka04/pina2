@@ -341,7 +341,7 @@ function SeriesForm({ seasonId, clubId, startsOn, endsOn }: FormProps) {
 							<select
 								value={interval}
 								onChange={(event) => setInterval(Number.parseInt(event.target.value, 10))}
-								className="border-line bg-surface-2 text-ink min-h-11 rounded-xl border px-3 text-base"
+								className="border-line bg-surface-2 text-ink min-h-11 rounded-xl border px-3 py-2.5 text-base"
 							>
 								<option value={1}>Každý týden</option>
 								<option value={2}>Každý druhý týden</option>
@@ -466,7 +466,7 @@ function LocationCard({
 				<select
 					value={value ?? ''}
 					onChange={(event) => onChange(event.target.value === '' ? null : Number.parseInt(event.target.value, 10))}
-					className="border-line bg-surface-2 text-ink min-h-11 rounded-xl border px-3 text-base"
+					className="border-line bg-surface-2 text-ink min-h-11 rounded-xl border px-3 py-2.5 text-base"
 					aria-label="Místo konání"
 				>
 					<option value="">Neurčeno</option>

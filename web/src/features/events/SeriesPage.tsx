@@ -299,7 +299,7 @@ function SeriesEditForm({ seasonId, clubId, series, futureEvents, onSuccess, onC
 					<select
 						value={interval}
 						onChange={(event) => setInterval(Number.parseInt(event.target.value, 10))}
-						className="border-line bg-surface-2 text-ink min-h-11 rounded-xl border px-3 text-base"
+						className="border-line bg-surface-2 text-ink min-h-11 rounded-xl border px-3 py-2.5 text-base"
 					>
 						<option value={1}>Každý týden</option>
 						<option value={2}>Každý druhý týden</option>
@@ -336,7 +336,7 @@ function SeriesEditForm({ seasonId, clubId, series, futureEvents, onSuccess, onC
 					onChange={(event) =>
 						setLocationId(event.target.value === '' ? null : Number.parseInt(event.target.value, 10))
 					}
-					className="border-line bg-surface-2 text-ink min-h-11 rounded-xl border px-3 text-base"
+					className="border-line bg-surface-2 text-ink min-h-11 rounded-xl border px-3 py-2.5 text-base"
 				>
 					<option value="">Neurčeno</option>
 					{(locations.data ?? []).map((location) => (
@@ -488,7 +488,7 @@ function ScopePicker({ scope, onScopeChange, fromEventId, onFromEventIdChange, f
 				<select
 					value={fromEventId ?? ''}
 					onChange={(event) => onFromEventIdChange(Number.parseInt(event.target.value, 10))}
-					className="border-line bg-surface-2 text-ink ml-8 min-h-11 rounded-xl border px-3 text-base"
+					className="border-line bg-surface-2 text-ink ml-8 min-h-11 rounded-xl border px-3 py-2.5 text-base"
 					aria-label="Od kterého termínu"
 				>
 					{futureEvents.map((futureEvent) => (
