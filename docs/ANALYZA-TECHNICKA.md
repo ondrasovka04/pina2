@@ -171,14 +171,15 @@ a bez diakritických nejednoznačností. Doména (UI, dokumentace) zůstává č
 ### 4.1 Přehled
 
 ```
-club ──┬── team ──┬── season ──┬── roster_entry ── membership
-       │          │            ├── offence_type
-       │          │            ├── event_series ── event ── event_participant
-       │          │            └── offence_record
-       │          └── membership ── user
-       └── club_settings
+club ───── team ──┬── season ──┬── roster_entry ── membership
+                  │            ├── offence_type
+                  │            ├── event_series ── event ── event_participant
+                  │            └── offence_record
+                  ├── membership ── user
+                  └── team_settings
 
-payment ── bank_transaction        (fáze 2)
+travel_claim                       (cesťáky)
+payment ── bank_transaction        (bank_transaction až s párováním v F6)
 invitation / password_reset / refresh_token / audit_log   (infrastruktura)
 ```
 
@@ -230,6 +231,7 @@ kombinovat (admin, který je zároveň hráč), řeší se to hierarchií práv,
 **`season`** — nyní s **umělým číselným PK** (starý model měl textový název jako PK).
 ```sql
 id BIGINT PK, team_id FK, name VARCHAR(60), starts_on DATE, ends_on DATE,
+half_year_on DATE NULL,          -- přelom pololetí, viz 4.6
 is_current BOOLEAN, closed_at DATETIME NULL
 UNIQUE (team_id, name)
 ```
@@ -345,7 +347,6 @@ note TEXT NULL,
 nomination_opens_at DATETIME NULL,
 nomination_deadline DATETIME NULL,
 status ENUM('planned','cancelled','done') DEFAULT 'planned',
-attendance_locked_at DATETIME NULL,
 INDEX (season_id, starts_at)
 ```
 **Materializace série:** z pravidla (`rrule`) se musí vyrobit konkrétní řádky v `event`,
@@ -373,7 +374,7 @@ rsvp_note   VARCHAR(255) NULL,
 rsvp_at     DATETIME NULL,
 attendance  ENUM('present','absent','injured') NULL DEFAULT NULL,  -- NULL = žádná ruční oprava
 attendance_by BIGINT NULL FK, attendance_at DATETIME NULL,
-transport   ENUM('none','driver','passenger') DEFAULT 'none',
+transport   ENUM('none','driver') DEFAULT 'none',            -- beru auto, nebo neberu
 car_seats   TINYINT NULL,
 UNIQUE (event_id, membership_id)
 ```
@@ -418,7 +419,7 @@ bylo vyhodnoceno jako zbytečná byrokracie.
 Pínař vidí docházku ostatních jen proto, že ji smí opravovat; souhrnné statistiky
 jsou výhradně pro admina. Dluhy naopak vidí všichni — „to je prdel".
 
-### 4.6 Cestovní náhrady a zúčtování
+### 4.6 Cestovní náhrady a pololetí
 
 Vzniklo ze zpětné vazby týmu a z nálezu v datech (viz 8.4): tým mužů si proplácení
 cesťáků eviduje jako záporné položky sazebníku pojmenované po jednotlivých hráčích
@@ -439,22 +440,30 @@ vstupem pro výpočet náhrady.
 **`team_settings`** — obojí je **volitelné na úrovni týmu**: mládežnické družstvo
 cesťáky řešit nemusí, tým mužů ano.
 ```sql
-team_id PK, travel_enabled BOOLEAN, travel_rate_czk_km DECIMAL(5,2),
-settlement_period ENUM('none','half_year','season'),
+team_id PK, home_location_id FK NULL,
+travel_enabled BOOLEAN, travel_rate_czk_km DECIMAL(5,2),
+travel_round_trip BOOLEAN DEFAULT 1,
 attendance_visible_to_players BOOLEAN DEFAULT 0,
 balances_visible_to_players   BOOLEAN DEFAULT 1
 ```
+Číslo účtu pro QR platby tady **není** — sedí na `club`, protože ho sdílí všechna
+družstva klubu.
 
 **`travel_claim`** — nárok na náhradu za cestu vlastním autem.
 ```sql
 id, season_id FK, membership_id FK, event_id FK NULL, occurred_on DATE,
 distance_km SMALLINT, rate_czk_km DECIMAL(5,2),   -- snapshot sazby
-amount_czk INT, passengers TINYINT NULL, settlement_id FK NULL, voided_at
+amount_czk INT, note VARCHAR(255) NULL, created_by FK NULL, voided_at
 ```
 
 Pravidla (potvrzená týmem 16. 8. 2026):
 - **Nárok má výhradně řidič** (`event_participant.transport = 'driver'`).
-  Spolujezdci nedostávají nic, `passengers` je jen informativní údaj o tom, koho vezl.
+  Spolujezdci nedostávají nic. Původní návrh k tomu měl třetí stav „svezu se"
+  (`passenger`) a počet svezených (`travel_claim.passengers`) — obojí je zrušené.
+  Stav `passenger` se v celé aplikaci nikde nelišil od `none`: nikdo ho
+  nezobrazoval ani nepočítal, takže dvě hodnoty se stejným následkem jen nutily
+  hráče vybírat mezi „nejedu autem" a „svezu se" bez rozdílu. Zůstalo **beru
+  auto / neberu auto**.
 - **Pouze zápasy.** U tréninků náhrada nevzniká; ruční doplnění zůstává možné
   pro výjimky (turnaj, soustředění).
 - **Vzdálenost = domácí hala → hala soupeře.** Bere se z `team_settings.home_location_id`
@@ -464,17 +473,29 @@ Pravidla (potvrzená týmem 16. 8. 2026):
 
 Sazba se ukládá jako snapshot — pozdější zdražení nepřepíše už vyúčtované období.
 
-**`settlement` + `settlement_line`** — uzávěrka období (typicky pololetí).
-Sečte prohřešky, bonusy, cesťáky a platby a vyčíslí, kdo komu kolik dluží:
+**Pololetí — jen členění podle data, žádná uzávěrka.** Původní návrh měl tabulky
+`settlement` a `settlement_line`: snímek zúčtovacího období, který po uzavření
+nešlo změnit zpětnou úpravou sazebníku ani doplněným zápisem. Ležely ve schématu
+od F1 nevyužité a při dokončování F4 je tým **odmítl** — zamykání by pínaře jen
+svazovalo, protože zápis za trénink dorazí i týden pozdě. Tabulky jsou zrušené;
+schéma nemá slibovat, co aplikace nedělá.
+
+Místo nich má sezóna jediný sloupec:
 ```sql
-settlement:      id, season_id, name, period_from, period_to, closed_at
-settlement_line: settlement_id, membership_id,
-                 offences_czk, bonuses_czk, travel_czk, paid_czk,
-                 balance_czk    -- >0 hráč dluží, <0 tým dluží hráči
+season.half_year_on DATE NULL   -- přelom pololetí; NULL = pololetí se neřeší
 ```
-Řádky jsou **snapshot** — po uzavření období se zpětnou změnou sazebníku ani
-doplněným zápisem nezmění. Tím se z píny stává obousměrná pokladna: dosud uměla
-jen vybírat, nově i proplácet.
+Předvyplní se na 1. ledna, protože volejbalová sezóna běží přes Nový rok. Podle
+něj se prohřešky, platby i cesťáky rozdělí na dvě poloviny — na přehledu peněz
+přepínačem, v kartě hráče dvěma sloupci vedle sebe. Nic se nezamyká.
+
+Cenou za to je nepřesnost, kterou je potřeba přiznat: **platba spadne do toho
+pololetí, kdy přišla, ne kam patřila.** Bez uzávěrky se totiž nedá poznat, které
+pololetí měla lednová platba zaplatit. Proto QR kód vyzývá k celému neuhrazenému
+zůstatku sezóny a nikde netvrdí, že platí jen jednu polovinu — text nesmí slibovat
+něco jiného, než co se strhne.
+
+Obousměrnou pokladnou se pína stává i tak: cesťák je záporná položka, takže
+aplikace dosud uměla jen vybírat, nově i proplácet.
 
 ### 4.7 Platby
 
@@ -581,16 +602,16 @@ Pro start může být za schválením platform admina (tebe), aby systém nezapl
 | Zaklikat účast (RSVP) a „jedu autem" | ✓ | ✓ | ✓ | — |
 | Vidět vlastní docházku a účast | ✓ | ✓ | ✓ | ✓ |
 | Vidět docházku spoluhráčů | — | ✓ | ✓ | ✓ |
-| **Vidět procenta účasti a žebříčky** | — | — | ✓ | ✓ |
+| **Vidět procenta účasti a žebříčky** | — | ✓ | ✓ | ✓ |
 | **Zapsat / stornovat prohřešek** | — | ✓ | ✓ | — |
 | **Označit platbu jako přijatou** | — | ✓ | ✓ | — |
-| **Uzavřít zúčtovací období** | — | ✓ | ✓ | — |
 | Zadat cestovní náhradu za jiného | — | ✓ | ✓ | — |
 | Opravit docházku u akce | — | ✓ | ✓ | — |
-| Vytvořit / upravit akci, sérii, místo | — | — | ✓ | — |
+| Vytvořit / upravit akci, sérii, místo | — | ✓ | ✓ | — |
 | Sestavit nominaci (jen zápasy) | — | — | ✓ | — |
 | **Spravovat sazebník prohřešků** | — | ✓ | ✓ | — |
-| Spravovat sezóny (založit, uzavřít) | — | — | ✓ | — |
+| Měnit soupisku sezóny | — | ✓ | ✓ | — |
+| Založit a uzavřít sezónu, přelom pololetí | — | — | ✓ | — |
 | Pozvat hráče, měnit role, pozastavit | — | — | ✓ | — |
 | Nastavení klubu, bankovní účet | — | — | ✓ | — |
 | Zakládat a mazat kluby | — | — | — | ✓ |
@@ -603,9 +624,15 @@ Za povšimnutí stojí nesymetrie u docházky a peněz. **Dluhy jsou veřejné v
 procenta vidí jen admin. Tohle není technické rozhodnutí, ale explicitní přání týmu —
 pína je legrace, docházka je citlivější věc.
 
-**Peníze patří pínaři, lidé adminovi.** Pínař tedy nejen zapisuje a uzavírá
-zúčtovací období, ale i spravuje sazebník — je to on, kdo rozhoduje, co a za kolik
-se vybírá. Admin oproti tomu zakládá sezóny, zve hráče a určuje, kdo pínařem je.
+**Provoz patří pínaři, účty adminovi.** Pínař zapisuje, spravuje sazebník — je to
+on, kdo rozhoduje, co a za kolik se vybírá — a zároveň plánuje: zakládá akce
+a série, spravuje místa a mění soupisku sezóny. Admin oproti tomu zve hráče, mění
+role, zakládá a uzavírá sezóny a určuje, kdo pínařem je.
+
+Hranice se v F4 posunula. Původně směl akce zakládat jen admin, ale v praxi to je
+tentýž člověk, který po tréninku zapisuje — a když se pínař k plánování nedostal,
+nemohl ani zapsat, k čemu se prohřešek váže. Nominace zůstala adminovi: sestava
+na zápas je něco jiného než rozpis tréninků.
 
 **Vynucení v kódu** — middleware, ne `if` roztroušené po controllerech:
 ```php
@@ -1142,9 +1169,12 @@ chyba v dluhu nebo v izolaci klubů je konec důvěry v aplikaci.
 
 **Rizika**
 1. *Limity sdíleného hostingu* — **z velké části vyřešeno** (viz 10.1): PHP 8.2 → 8.4/8.5,
-   `sodium`, `intl`, `gmp`, `curl` i `redis` k dispozici. Zbývá ověřit: dostupnost cronu
-   na tarifu, počet databází, zda běží redis/memcached server (ne jen rozšíření),
-   a zda FTP účet dosáhne nad `public_html`.
+   `sodium`, `intl`, `gmp`, `curl` i `redis` k dispozici. **Plánovač úloh na tarifu
+   je** a počtem úloh nevypadá omezený (ověřeno 17. 8. 2026), takže push připomínky
+   i měsíční upomínky mohou běžet jako samostatné úlohy a nemusí se mačkat do
+   jednoho volání. Zbývá ověřit: počet databází, zda běží redis/memcached server
+   (ne jen rozšíření), a zda FTP účet dosáhne nad `public_html` — nasazení ještě
+   neproběhlo, takže rozdělení souborů z kapitoly 10 je zatím plán, ne ověřený stav.
 2. *Bez SSH a bez vzdáleného MySQL* — **ověřeno:** port 3306 je zvenčí filtrovaný.
    Deploy jde jen přes FTP, migrace schématu a zálohy musí běžet jako PHP skript
    na serveru. Řešitelné, ale nutné s tím počítat od začátku (nelze si lokálně
@@ -1175,8 +1205,8 @@ chyba v dluhu nebo v izolaci klubů je konec důvěry v aplikaci.
 | **F2 — Prohřešky** | sazebník, dávkový zápis se souhrnnou obrazovkou, přehledy, storno dávky i zápisu, statistiky, export, **in-app a e-mailové oznámení o zápisu** | funkční náhrada staré aplikace → **vypnutí staré verze** |
 | **F3 — Docházka** | místa + navigace, jednorázové akce, opakované série, RSVP, nominace na zápasy, oprava docházky, procenta účasti (jen admin) | hlavní nová funkce |
 | **F4 — Peníze** | dluhy, bonusy, ruční platby, QR (SPAYD), upomínky | uzavření finančního cyklu |
-| **F4b — Cesťáky a zúčtování** | „jedu autem" + volná místa, sazba za km, nároky na náhradu, půlroční uzávěrka | nahradí dnešní obcházení přes záporné položky sazebníku |
-| **F5 — PWA a push** | instalace na plochu, Web Push nad frontou z F2, připomínky akcí, nastavení preferencí | náhrada zrušené mobilní aplikace |
+| **F4b — Cesťáky a pololetí** | „beru auto" + volná místa, sazba za km, nároky na náhradu, členění na pololetí (bez uzávěrky) | nahradí dnešní obcházení přes záporné položky sazebníku |
+| **F5 — PWA, push a odběr kalendáře** | instalace na plochu, Web Push nad frontou, připomínky akcí, volby kategorií, `webcal://` odběr rozpisu | náhrada zrušené mobilní aplikace |
 | **F6 — Bankovní párování** *(follow-up)* | Fio API import, algoritmus párování, rekonciliace, fronta nespárovaných | téma pro diplomovou práci; **mimo hlavní rozsah**, nic na něm nestojí |
 | **F7 — Volitelné** | platební brána jako modul, veřejná registrace klubů, statistiky napříč sezónami | podle zájmu |
 
