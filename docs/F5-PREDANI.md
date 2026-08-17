@@ -150,15 +150,32 @@ Rozhodnutí, která k tomu patří:
 
 ### Čím se to spustí — rozhodnuto 17. 8. 2026
 
-**Chráněný endpoint volaný cronem v administraci Czechie.** Tedy:
+**Chráněný endpoint volaný plánovačem úloh v administraci Czechie.** Plánovač na
+tarifu **je** a počtem úloh nevypadá omezený (ověřeno 17. 8. 2026), takže se
+nemusí všechno mačkat do jednoho volání. Z toho plyne:
 
 - endpoint s tokenem v `.env`, dávkově kvůli limitu 30 s, idempotentní (druhé
   zavolání ve stejnou minutu nesmí poslat nic dvakrát),
 - **žádný GitHub Actions workflow.** Analýza ho zmiňuje jako záložní variantu
-  (kap. 7.1), ale majitel chce cron hostingu — do CI se nesahá.
+  (kap. 7.1), ale majitel chce plánovač hostingu — do CI se nesahá.
 
-Zbývá ověřit v zákaznickém centru, jestli tarif cron opravdu má; kap. 13 analýzy
-to má pořád jako neuzavřené. Kód na tom nezávisí, nasazení ano.
+Dvě úlohy, ne jedna univerzální:
+
+| Úloha | Interval | Co dělá |
+|---|---|---|
+| odeslání fronty | nejkratší povolený (ideálně 15 min) | vyprázdní frontu oznámení |
+| upomínky na dluh | měsíčně | založí upomínky těm, kdo dluží |
+
+**Oznámení se nesmí posílat uvnitř požadavku, který je vyvolal.** Nominace
+i nový zápis vznikají v běžném požadavku, ale push služba je cizí server —
+kdyby byla pomalá nebo mimo, zdržela by nebo shodila zápis peněz. Do databáze se
+proto zapíše záznam do fronty a odešle ho až úloha. Cenou je zpoždění do jednoho
+intervalu; u zápisu ani nominace to nikomu nevadí, u připomínky před akcí taky
+ne, protože se posílá večer předem.
+
+Připomínka před akcí se **nezakládá do fronty dopředu na týdny** — úloha se
+pokaždé podívá, které akce jsou zítra a kdo na ně neodpověděl. Kdyby ležela ve
+frontě předem, poslala by se i po odpovědi nebo po zrušení akce.
 
 ### Technicky
 
@@ -173,6 +190,8 @@ zamčené obrazovce, kterou vidí kdokoli kolem.
 ### Hotovo, když
 
 - Člověk si v profilu zapne kategorii, dostane oznámení, vypne ji a už nic nechodí.
+- **Push služba mimo provoz nezdrží ani neshodí zápis dávky** — oznámení jen leží
+  ve frontě, dokud služba nenaběhne.
 - Odhlášený telefon (`410`) zmizí z databáze sám.
 - Opakované zavolání endpointu nepošle druhou kopii.
 - Nic neodejde mezi 21:00 a 8:00.
