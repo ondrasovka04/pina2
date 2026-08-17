@@ -188,6 +188,15 @@ npm run typecheck && npm run lint && npm test && npm run format
   detaily ne. Než napíšete typ odpovědi, podívejte se do příslušného controlleru
   v `api/src/Controller/` — TypeScript tenhle rozdíl sám nezachytí a projeví se
   až za běhu.
-- **Role potřebná pro akci se liší podle endpointu.** Peníze (zápisy, sazebník,
-  zúčtování) spravuje pínař, lidi a sezóny admin. Berte roli z `Service` třídy
-  na backendu, ne odhadem — jinak uživateli ukážete formulář, který skončí 403.
+- **Role potřebná pro akci se liší podle endpointu.** Pínař má peníze **a provoz**:
+  zápisy, sazebník, akce, série, místa, soupisku sezóny a souhrn účasti. Admin má
+  lidi a role, zakládání a uzavírání sezón, přelom pololetí, nastavení družstva
+  a nominace. Berte roli z `Service` třídy na backendu, ne odhadem — jinak
+  uživateli ukážete formulář, který skončí 403.
+- **Přihlášení musí zahodit cache dotazů.** Klíče nenesou uživatele
+  (`['seasons', 10, 'balances']`), takže po přepnutí účtu by `staleTime` 30 s
+  obsloužil daty předchozího — hráč by uvidel dluhy celého družstva, které mu
+  server posílat odmítá. Řeší to `startSession()` v `app/session.tsx`; každá
+  nová cesta k přihlášení musí jít přes ni. Napříč **záložkami** to nechrání:
+  refresh cookie je společná pro celý prohlížeč, takže na testování víc rolí
+  patří oddělené profily nebo anonymní okna, ne dvě záložky.

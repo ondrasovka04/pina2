@@ -142,8 +142,16 @@ v `tests/Integration/DatabaseTestCase.php` a neobchází se.
 - **Kdo přijde, vidí každý; jak akce dopadla, ne.** Odpovědi (`rsvp`, `transport`)
   jsou veřejné, protože bez nich se nedomluví odvozy. Výslednou docházku ostatních
   dostane jen pínař a admin, hráčům ji otevře až `team_settings.attendance_visible_to_players`.
-  Souhrnná procenta jsou výhradně pro admina. Je to výslovné přání týmu, ne
+  Hráč vidí v souhrnu vždycky jen svůj řádek. Je to výslovné přání týmu, ne
   technické rozhodnutí — pína je legrace, docházka citlivější věc.
+- **Pínař řídí provoz, admin lidi a sezóny.** Pínař zakládá, upravuje, ruší i maže
+  akce a série, spravuje místa konání, mění soupisku sezóny a vidí souhrn účasti
+  celého družstva — docházku opravuje, takže ji musí i vidět, jinak by opravoval
+  naslepo. Adminovi zůstávají **členové a role**, **zakládání, úprava a uzavření
+  sezóny** (uzavření je z aplikace nevratné a zamkne všechny zápisy), **přelom
+  pololetí**, **nastavení družstva** a **nominace** — ta je o sestavě, ne o provozu.
+  Kdo tuhle hranici posouvá, musí ji posunout na obou stranách: `Service` třída
+  i podmínka `can()` ve frontendu, jinak uživatel uvidí tlačítko končící 403.
 - **Doprava má jen dva stavy: beru auto, nebo neberu.** `transport` je
   `driver`, nebo `none`. Původní `passenger` („svezu se") se od `none` v celé
   aplikaci **nikde nelišil** — nepočítal se, nikde se nezobrazoval, jen zabíral

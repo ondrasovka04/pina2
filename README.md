@@ -138,7 +138,7 @@ pro trénink a zvlášť pro zápas, protože sazby se liší i o stovky korun.
 **Doma se necestuje.** Domácí zápas se pozná podle domácí haly družstva a nevzniká
 u něj ani vzdálenost, ani domluva odvozů, takže z něj nemůže vzniknout cesťák.
 
-281 testů na backendu, 185 na frontendu, PHPStan level 8 čistý.
+284 testů na backendu, 185 na frontendu, PHPStan level 8 čistý.
 
 **Před spuštěním zbývá:**
 

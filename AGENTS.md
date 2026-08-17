@@ -30,7 +30,7 @@ dokumentace, commit messages. Anglicky zůstávají jen identifikátory v kódu
 docker compose up -d                                        # MySQL + PHP na :8080
 cd web && npm run dev                                       # frontend na :5173
 
-docker compose run --rm php ./vendor/bin/phpunit            # 281 testů
+docker compose run --rm php ./vendor/bin/phpunit            # 284 testů
 docker compose run --rm php ./vendor/bin/phpstan analyse --memory-limit=512M
 docker compose run --rm php ./vendor/bin/php-cs-fixer fix --dry-run --diff
 cd web && npm run typecheck && npm run lint && npm test
