@@ -14,9 +14,10 @@ přes sto skutečných e-mailových adres. Z toho plyne většina omezení níž
 ## Pravidla, která se v F5 poruší nejsnáz
 
 1. **Nová kategorie zpráv potřebuje souhlas majitele.** Pošta je povolená jen na
-   pozvánky a aktivace. **Web Push je celý nový kanál** — dokud majitel neřekne,
-   co a kdy se smí posílat, nesmí odejít ani jedno oznámení. Napsat kód jde,
-   rozeslat ne.
+   pozvánky a aktivace; pro **Web Push** majitel 17. 8. 2026 povolil čtyři
+   kategorie, každou jako **volbu jednotlivce** (viz část 3). Cokoli mimo ten
+   seznam — souhrny, marketing, oznámení pro celý klub — potřebuje nový souhlas.
+   Napsat kód jde vždycky, rozeslat jen to, co je na seznamu a co si člověk zapnul.
 2. **Odběr kalendáře je jediná část aplikace dostupná bez přihlášení.** Všechno
    ostatní chrání token v hlavičce a `TeamScope`. Tady oprávnění nese sama adresa,
    takže se s ní musí zacházet jako s heslem.
@@ -121,20 +122,62 @@ Co udělat:
 
 ## 3. Web Push
 
-**Nic z toho zatím neexistuje** a **rozesílání není povolené.** Než se napíše
-řádka, musí být od majitele jasné odpovědi na:
+**Nic z toho zatím neexistuje.** Bez části 2 nemá smysl začínat: **na iOS push
+funguje jen u aplikace přidané na plochu** a potřebuje service worker z PWA.
 
-- **co se posílá** (upomínka na akci? nový dluh? konec RSVP?) a **kdy**,
-- **kdo to spustí** — hosting je Czechia/Zoner bez SSH a spouštěč pro
-  odesílání na čas je otevřená otázka; bez něj z upomínek nic nebude,
-- co se stane, když si to člověk nepřeje — vypínač musí být od začátku.
+### Co se posílá — rozhodnuto 17. 8. 2026
 
-Technicky: VAPID klíče do `.env` (necommitovat), tabulka `push_subscription`
-(`user_id`, endpoint, klíče, `created_at`, `last_seen_at`, `failed_at`), a na
-straně prohlížeče `PushManager` + service worker z PWA. **Na iOS push funguje jen
-u aplikace přidané na plochu** a po výslovném povolení, takže bez F5.2 nemá smysl
-začínat. Mrtvá odběr (`410 Gone` od push služby) se musí mazat, jinak se fronta
-zanese.
+Čtyři kategorie a **každá je volba jednotlivce**, ne nastavení družstva. Nikdo
+nesmí zapnout oznámení někomu jinému.
+
+| Kategorie | Kdy | Komu |
+|---|---|---|
+| Neodpověděl jsi na blížící se akci | večer před akcí | jen těm, kdo nemají `rsvp` |
+| Zveřejněná nominace | při zveřejnění sestavy | nominovaným |
+| Nový zápis do píny | při založení dávky | tomu, koho se zápis týká |
+| Upomínka na dluh | měsíčně | kdo má kladný zůstatek |
+
+Rozhodnutí, která k tomu patří:
+
+- **Výchozí stav:** po přihlášení k odběru zapnuté první dvě, obě peněžní vypnuté.
+  Upomínka na dluh se musí **aktivně zapnout** — u pošty jsou upomínky bez
+  zvláštního souhlasu zakázané a push je otravnější než e-mail. Je to jedna
+  konstanta, dá se to změnit, ale ne mlčky.
+- **Nic v noci.** Neposílat před 8:00 a po 21:00; co vyjde mimo, počká.
+- **Jednou a dost.** Odeslání se zapisuje na trojici (člověk, akce, kategorie),
+  jinak hodinový cron pošle připomínku pokaždé, co se probudí.
+- **Vypnutí musí zabrat okamžitě**, i když je v běhu dávka odesílání.
+
+### Čím se to spustí — rozhodnuto 17. 8. 2026
+
+**Chráněný endpoint volaný cronem v administraci Czechie.** Tedy:
+
+- endpoint s tokenem v `.env`, dávkově kvůli limitu 30 s, idempotentní (druhé
+  zavolání ve stejnou minutu nesmí poslat nic dvakrát),
+- **žádný GitHub Actions workflow.** Analýza ho zmiňuje jako záložní variantu
+  (kap. 7.1), ale majitel chce cron hostingu — do CI se nesahá.
+
+Zbývá ověřit v zákaznickém centru, jestli tarif cron opravdu má; kap. 13 analýzy
+to má pořád jako neuzavřené. Kód na tom nezávisí, nasazení ano.
+
+### Technicky
+
+VAPID klíče do `.env` (**necommitovat**), tabulka `push_subscription`
+(`user_id`, endpoint, klíče, `created_at`, `last_seen_at`, `failed_at`) a volby
+kategorií na uživatele. Na straně prohlížeče `PushManager` + service worker z PWA.
+Mrtvý odběr (`410 Gone` od push služby) se musí mazat, jinak se fronta zanese.
+
+V oznámení **nesmí být částka ani jméno cizího člověka** — text se zobrazí na
+zamčené obrazovce, kterou vidí kdokoli kolem.
+
+### Hotovo, když
+
+- Člověk si v profilu zapne kategorii, dostane oznámení, vypne ji a už nic nechodí.
+- Odhlášený telefon (`410`) zmizí z databáze sám.
+- Opakované zavolání endpointu nepošle druhou kopii.
+- Nic neodejde mezi 21:00 a 8:00.
+- Testy pokrývají výchozí stav voleb, potlačení v noci, deduplikaci a mazání
+  mrtvých odběrů.
 
 ## Jak se to ověřuje
 
@@ -153,7 +196,9 @@ bez chyb.**
 
 ## Co nedělat
 
-- Neposílat žádné oznámení ani e-mail bez výslovného souhlasu majitele.
+- Neposílat žádnou kategorii oznámení mimo ty čtyři z části 3 a žádný e-mail mimo
+  pozvánky a aktivace.
+- Nesahat do CI. Spouštěč je cron hostingu, ne GitHub Actions.
 - Nesahat na `settlement`/uzávěrku — pololetí je **jen členění podle data**, nic
   se nezamyká, tabulky pro snímek byly zrušené schválně.
 - Nezavádět druhý generátor ICS s vlastními pravidly.
