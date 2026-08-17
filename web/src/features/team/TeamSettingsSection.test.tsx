@@ -38,16 +38,39 @@ const team = {
 	settings,
 }
 
-function renderSection() {
+function renderSection(shown = team) {
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 
-	return render(
+	const result = render(
 		<QueryClientProvider client={client}>
 			<MemoryRouter>
-				<TeamSettingsSection team={team} />
+				<TeamSettingsSection team={shown} />
 			</MemoryRouter>
 		</QueryClientProvider>,
 	)
+
+	/** Přepnutí družstva bez odmontování — detail druhého družstva bývá v cache. */
+	function switchTo(other: typeof team) {
+		result.rerender(
+			<QueryClientProvider client={client}>
+				<MemoryRouter>
+					<TeamSettingsSection team={other} />
+				</MemoryRouter>
+			</QueryClientProvider>,
+		)
+	}
+
+	return { ...result, switchTo }
+}
+
+/** Uložení, které visí, dokud ho test nepustí dál. */
+function deferred() {
+	let settle: (() => void) | undefined
+	const promise = new Promise<void>((resolve) => {
+		settle = resolve
+	})
+
+	return { promise, settle: () => settle?.() }
 }
 
 describe('TeamSettingsSection — ukládání bez tlačítka', () => {
@@ -98,5 +121,83 @@ describe('TeamSettingsSection — ukládání bez tlačítka', () => {
 		await screen.findByText(/uložení selhalo/)
 		// Obrazovka nesmí ukazovat nastavení, které na serveru neplatí.
 		expect(checkbox).toBeChecked()
+	})
+
+	it('rozepsané číslo účtu se neposílá, dokud nemá tvar účtu', async () => {
+		const user = userEvent.setup()
+		renderSection()
+
+		const account = screen.getByLabelText('Účet pro QR platby')
+		await user.clear(account)
+		await user.type(account, '123456789')
+
+		// Ani po prodlevě — chybí kód banky, server by hlásil chybu nad půlkou účtu.
+		await new Promise((resolve) => setTimeout(resolve, 900))
+		expect(put).not.toHaveBeenCalled()
+
+		await user.type(account, '/0800')
+		await waitFor(() => expect(put).toHaveBeenCalledTimes(1), { timeout: 3000 })
+		expect(put.mock.calls[0]?.[1]).toEqual({ ...settings, bankAccount: '123456789/0800' })
+	})
+
+	it('cvaknutí přepínače neuspěchá odeslání rozepsaného účtu', async () => {
+		const user = userEvent.setup()
+		renderSection()
+
+		const account = screen.getByLabelText('Účet pro QR platby')
+		await user.clear(account)
+		await user.type(account, '123456789')
+		// Přepínač ukládá hned; nesmí s sebou vzít účet, na který pak míří QR platba.
+		await user.click(screen.getByRole('checkbox', { name: /Cesťáky/ }))
+
+		await waitFor(() => expect(put).toHaveBeenCalledTimes(1))
+		expect(put.mock.calls[0]?.[1]).toEqual({ ...settings, travelEnabled: false })
+	})
+
+	it('selhání staršího uložení nezahodí novější změnu', async () => {
+		const user = userEvent.setup()
+		const first = deferred()
+
+		put.mockImplementationOnce(async () => {
+			await first.promise
+			throw new Error('bez signálu')
+		})
+		put.mockResolvedValue(settings)
+		renderSection()
+
+		const attendance = screen.getByRole('checkbox', { name: /Docházka ostatních/ })
+		const balances = screen.getByRole('checkbox', { name: /Dluhy ostatních/ })
+
+		await user.click(attendance)
+		await user.click(balances)
+		// Teprve teď selže první požadavek — druhý už je naplánovaný za ním.
+		first.settle()
+
+		await waitFor(() => expect(put).toHaveBeenCalledTimes(2))
+		// Druhá změna je na serveru, takže ji obrazovka nesmí vizuálně vrátit.
+		expect(balances).not.toBeChecked()
+	})
+
+	it('odpověď pro předchozí družstvo nepřepíše zobrazené nastavení', async () => {
+		const user = userEvent.setup()
+		const first = deferred()
+
+		put.mockImplementationOnce(async () => {
+			await first.promise
+
+			return settings
+		})
+		const other = { ...team, id: 9, name: 'Junioři', settings: { ...settings, travelRateCzkKm: 12 } }
+		const { switchTo } = renderSection()
+
+		await user.click(screen.getByRole('checkbox', { name: /Docházka ostatních/ }))
+		switchTo(other)
+
+		await screen.findByDisplayValue('12')
+		first.settle()
+
+		// Uložení patřilo mužům; juniorům nesmí přepsat sazbu ani vypsat „uloženo".
+		await waitFor(() => expect(screen.getByDisplayValue('12')).toBeInTheDocument())
+		expect(screen.queryByText('uloženo')).toBeNull()
 	})
 })

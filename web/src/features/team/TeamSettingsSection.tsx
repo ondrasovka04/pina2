@@ -8,6 +8,7 @@ import { Select } from '@/components/ui/Select'
 import { ApiError } from '@/lib/api'
 import { useLocations, useSaveTeamSettings } from '@/lib/queries'
 import type { TeamDetail, TeamSettings } from '@/lib/types'
+import { looksLikeBankAccount } from '@/lib/validation'
 
 /**
  * Text se ukládá se zpožděním, přepínače hned. Za každou stisknutou klávesu by
@@ -55,8 +56,10 @@ export function TeamSettingsSection({ team }: { team: TeamDetail }) {
 	const save = useSaveTeamSettings(team.id)
 
 	const [settings, setSettings] = useState<TeamSettings>(team.settings)
-	// Sazba za km se edituje jako text, ať jde napsat desetinnou tečku/čárku bez skákání kurzoru.
+	// Obě textová pole mají vlastní nárazník: do `settings` se hodnota dostane až
+	// ve chvíli, kdy se dá uložit. Rozepsaná „5," ani půlka účtu tam nemají co dělat.
 	const [rateInput, setRateInput] = useState(String(team.settings.travelRateCzkKm))
+	const [accountInput, setAccountInput] = useState(team.settings.bankAccount ?? '')
 	const [status, setStatus] = useState<Status>('idle')
 
 	// Požadavky jdou ve frontě, ať rychlé přepínání nedoručí starší stav jako poslední.
@@ -66,10 +69,23 @@ export function TeamSettingsSection({ team }: { team: TeamDetail }) {
 	/** Zrcadlo hodnot pro dvě změny dřív, než se komponenta překreslí. */
 	const latest = useRef<TeamSettings>(team.settings)
 	const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+	/** Pořadí naplánovaných uložení — starší odpověď nesmí přepsat novější stav. */
+	const pending = useRef(0)
+	/** Družstvo, kterému formulář právě patří; čte se z běžící odpovědi. */
+	const shownTeamId = useRef(team.id)
 
-	// Přepnutí družstva nebo cizí změna — rozepsaný formulář nemá přežít pod jiným
-	// nastavením. Vlastní uložení sem dorazí taky, ale to se od `confirmed` neliší,
-	// takže hlášku „uloženo" nesmaže.
+	// Přepnutí družstva zruší rozepsané uložení. Bez toho by naplánovaný požadavek
+	// odletěl už pod novým družstvem — `useSaveTeamSettings` míří na aktuální id,
+	// takže by cizí nastavení přepsalo to zobrazené.
+	useEffect(() => {
+		shownTeamId.current = team.id
+
+		return () => clearTimeout(timer.current ?? undefined)
+	}, [team.id])
+
+	// Čerstvá data ze serveru — rozepsaný formulář nemá přežít pod jiným nastavením.
+	// Vlastní uložení sem dorazí taky, ale to se od `confirmed` neliší, takže hlášku
+	// „uloženo" nesmaže.
 	useEffect(() => {
 		if (settingsEqual(team.settings, confirmed.current)) return
 
@@ -77,29 +93,39 @@ export function TeamSettingsSection({ team }: { team: TeamDetail }) {
 		latest.current = team.settings
 		setSettings(team.settings)
 		setRateInput(String(team.settings.travelRateCzkKm))
+		setAccountInput(team.settings.bankAccount ?? '')
 		setStatus('idle')
-	}, [
-		team.id,
-		team.settings,
-		team.settings.travelEnabled,
-		team.settings.travelRateCzkKm,
-		team.settings.travelRoundTrip,
-		team.settings.homeLocationId,
-		team.settings.attendanceVisibleToPlayers,
-		team.settings.balancesVisibleToPlayers,
-		team.settings.bankAccount,
-	])
-
-	useEffect(() => () => clearTimeout(timer.current ?? undefined), [])
+	}, [team.id, team.settings])
 
 	if (!can('admin')) return null
 
-	/** Naplánuje uložení; další změna během čekání ho nahradí, nepošlou se obě. */
-	function apply(changes: Partial<TeamSettings>, delayMs = 0) {
+	/** Zapíše hodnotu do formuláře. Samo o sobě neukládá. */
+	function stage(changes: Partial<TeamSettings>): TeamSettings {
 		const next = { ...latest.current, ...changes }
 
 		latest.current = next
 		setSettings(next)
+
+		return next
+	}
+
+	/**
+	 * Rozepsaný text jen čeká: zruší naplánované uložení a do `latest` vrátí
+	 * potvrzenou hodnotu. Bez toho by naplánované uložení z předchozí klávesy
+	 * vystřelilo doprostřed psaní — a cvaknutí přepínače by odeslalo číslo účtu,
+	 * které uživatel mezitím rozepsal do něčeho jiného.
+	 */
+	function hold(changes: Partial<TeamSettings>) {
+		const next = stage(changes)
+
+		clearTimeout(timer.current ?? undefined)
+		setStatus(settingsEqual(next, confirmed.current) ? 'idle' : 'saving')
+	}
+
+	/** Naplánuje uložení; další změna během čekání ho nahradí, nepošlou se obě. */
+	function apply(changes: Partial<TeamSettings>, delayMs = 0) {
+		const next = stage(changes)
+
 		clearTimeout(timer.current ?? undefined)
 
 		if (settingsEqual(next, confirmed.current)) {
@@ -109,20 +135,33 @@ export function TeamSettingsSection({ team }: { team: TeamDetail }) {
 		}
 
 		setStatus('saving')
-		timer.current = setTimeout(() => persist(next), delayMs)
+
+		const seq = ++pending.current
+		timer.current = setTimeout(() => persist(next, seq), delayMs)
 	}
 
-	function persist(next: TeamSettings) {
+	function persist(next: TeamSettings, seq: number) {
+		const forTeam = team.id
+
 		queue.current = queue.current
 			.then(async () => {
 				await save.mutateAsync(next)
+
+				if (forTeam !== shownTeamId.current) return
+
 				confirmed.current = next
-				setStatus('saved')
+				if (seq === pending.current) setStatus('saved')
 			})
 			.catch(() => {
+				if (forTeam !== shownTeamId.current) return
+				// Selhalo starší uložení a mezitím přišla další změna — tu nechme být.
+				// Obrazovka nesmí zahodit, co uživatel právě naklikal.
+				if (seq !== pending.current) return
+
 				latest.current = confirmed.current
 				setSettings(confirmed.current)
 				setRateInput(String(confirmed.current.travelRateCzkKm))
+				setAccountInput(confirmed.current.bankAccount ?? '')
 				setStatus('error')
 			})
 	}
@@ -132,7 +171,24 @@ export function TeamSettingsSection({ team }: { team: TeamDetail }) {
 		setRateInput(raw)
 
 		const parsed = Number.parseFloat(raw.replace(',', '.'))
+
 		if (Number.isFinite(parsed)) apply({ travelRateCzkKm: parsed }, TEXT_DELAY_MS)
+		else hold({ travelRateCzkKm: confirmed.current.travelRateCzkKm })
+	}
+
+	/**
+	 * Půlka účtu se neposílá. Server by ji odmítl a hláška by naskočila uprostřed
+	 * psaní — a hlavně na tohle číslo míří QR kód s reálnou platbou, takže tam
+	 * nesmí ani dočasně stát něco, co uživatel teprve dopisuje.
+	 */
+	function changeAccount(raw: string) {
+		setAccountInput(raw)
+
+		const account = raw.trim()
+
+		if (account === '') apply({ bankAccount: null }, TEXT_DELAY_MS)
+		else if (looksLikeBankAccount(account)) apply({ bankAccount: account }, TEXT_DELAY_MS)
+		else hold({ bankAccount: confirmed.current.bankAccount })
 	}
 
 	const locationList = locations.data ?? []
@@ -258,10 +314,8 @@ export function TeamSettingsSection({ team }: { team: TeamDetail }) {
 				<Field
 					label="Účet pro QR platby"
 					placeholder="19-2000145399/0800"
-					value={settings.bankAccount ?? ''}
-					onChange={(event) =>
-						apply({ bankAccount: event.target.value.trim() === '' ? null : event.target.value }, TEXT_DELAY_MS)
-					}
+					value={accountInput}
+					onChange={(event) => changeAccount(event.target.value)}
 					error={fieldMessage(save.error, 'bankAccount')}
 					hint="Společný účet klubu. Lze zadat české číslo účtu nebo IBAN."
 				/>
