@@ -116,6 +116,14 @@ npm run typecheck && npm run lint && npm test && npm run format
   než aby strhla cizí částku.
 - **Role se liší podle týmu.** Tentýž člověk bývá u mužů hráč a u juniorů pínař;
   co smí, se ptejte přes `can()` z `useTeam()`, ne z globálního uživatele.
+- **Vstupní bod musí pouštět stejnou roli jako stránka.** Když se rozšíří
+  oprávnění, nestačí povolit obrazovku a API — musí se najít i tlačítko a odkaz,
+  kterým se tam jde (`TeamSwitcher`, `CalendarPage`). Pínař jednou dostal právo
+  zakládat akce a stejně ho neměl jak použít: `/akce/nova` fungovala, ale „Nová
+  akce" v kalendáři pořád visela na `can('admin')`.
+- **Safari ignoruje `min-height` u `<select>`.** V Chrome vypadá `min-h-11`
+  správně, na Safari se výběr smrskne na výšku textu. Výšku proto drží svislý
+  padding (`py-2.5`) jako u ostatních polí, ne jen `min-h-11`.
 - **Sezóna je druhá osa vedle týmu.** `useTeam()` dává `season`, `seasonId`
   i `isSeasonClosed`. Do uzavřené sezóny se nedá zapisovat — obrazovka to musí
   říct dopředu, ne nechat uživatele naklikat práci a spadnout na 409.
