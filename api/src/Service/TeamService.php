@@ -237,10 +237,8 @@ final class TeamService
 
     /**
      * Založí družstvo v existujícím klubu a zakladatele rovnou udělá jeho adminem.
-     *
-     * Tím se řetěz oprávnění uzavírá sám: admin mužů může založit juniory a je
-     * jejich adminem, dokud roli nepředá dál. Žádné pevně zadané ID se na to
-     * nepoužívá — rozhoduje jen role v klubu (viz TeamScope::club).
+     * Řetěz oprávnění se tím uzavírá sám a nerozhoduje o něm žádné pevné ID, jen
+     * role v klubu (viz TeamScope::club).
      *
      * @return TeamDetail
      */

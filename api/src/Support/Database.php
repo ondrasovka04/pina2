@@ -106,7 +106,7 @@ final class Database
     }
 
     /**
-     * Multi-table writes (batch, settlement): all or nothing.
+     * Zápis do víc tabulek (dávka, platba se stornem): všechno, nebo nic.
      *
      * @template T
      * @param  callable(): T $callback

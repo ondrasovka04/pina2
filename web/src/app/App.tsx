@@ -104,12 +104,7 @@ export function App() {
 function SessionRoot() {
 	return (
 		<SessionProvider>
-			{/*
-			 * Bez tohohle si prohlížeč drží pozici posuvníku i po přechodu na jinou
-			 * obrazovku — kdo klikl na akci dole v kalendáři, otevřel si její detail
-			 * někde v půlce. Nová navigace tedy vyjede nahoru, zatímco tlačítko zpět
-			 * vrátí člověka tam, kde v seznamu skončil.
-			 */}
+			{/* Bez tohohle by kliknutí na akci dole v kalendáři otevřelo detail v půlce. */}
 			<ScrollRestoration />
 			<Outlet />
 		</SessionProvider>

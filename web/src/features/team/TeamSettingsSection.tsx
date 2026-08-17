@@ -46,9 +46,8 @@ function generalMessage(error: unknown): string | undefined {
  * Nastavení družstva — vidí a mění jen admin. Nejdůležitější je domácí hala:
  * podle ní se u zápasu pozná doma/venku a za domácí zápas nevzniká cesťák.
  *
- * Bez tlačítka: každá změna jde na server sama, stejně jako soupiska sezóny.
- * Když se uložení nepovede, vrátí se hodnota tam, kde ji server naposledy
- * potvrdil — obrazovka nesmí ukazovat nastavení, které nikde neplatí.
+ * Ukládá se bez tlačítka a při chybě se hodnota vrátí na naposledy potvrzenou —
+ * obrazovka nesmí ukazovat nastavení, které nikde neplatí.
  */
 export function TeamSettingsSection({ team }: { team: TeamDetail }) {
 	const { can } = useTeam()

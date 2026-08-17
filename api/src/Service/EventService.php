@@ -14,10 +14,9 @@ use Pina\Support\Recurrence;
 /**
  * Akce (tréninky, zápasy) a docházka.
  *
- * `event_participant.attendance` je jen ruční oprava, ne docházka sama — ta se
- * odvozuje z RSVP (COALESCE(oprava, odvození)). Tým odmítl odklikávat celý tým
- * po každém tréninku. Proto taky RSVP jde měnit jen do začátku akce, jinak by
- * si hráč přepsal vlastní docházku.
+ * `event_participant.attendance` je jen ruční oprava; skutečný stav je
+ * COALESCE(oprava, odvození z RSVP). Proto jde RSVP měnit jen do začátku akce —
+ * jinak by si hráč přepsal vlastní docházku.
  *
  * @phpstan-type LocationPayload array{
  *     id:int,
@@ -166,9 +165,8 @@ final class EventService
     /**
      * Detail akce i s tím, kdo přijde.
      *
-     * Kdo dorazí, vidí celý tým kvůli odvozům. Skutečnou docházku ostatních vidí
-     * jen pínař a admin, hráčům ji otevře přepínač `attendance_visible_to_players` —
-     * docházka je citlivější než dluhy.
+     * Kdo dorazí, vidí celý tým kvůli odvozům. Skutečnou docházku ostatních
+     * otevře hráčům až `attendance_visible_to_players`.
      *
      * @return EventDetail
      */
@@ -381,9 +379,8 @@ final class EventService
     }
 
     /**
-     * Založí opakovanou akci a rovnou vyrobí všechny termíny — sezóna sérii
-     * ohraničuje, takže termínů je jen pár desítek. Žádné klouzavé okno ani
-     * plánovaná úloha, co by je dogenerovávala později.
+     * Založí opakovanou akci a rovnou vyrobí všechny termíny; sezóna sérii
+     * ohraničuje, takže jich je pár desítek a nic je nedogeneruje později.
      *
      * @param  array{
      *     title:string,
@@ -533,11 +530,10 @@ final class EventService
     /**
      * Úprava opakované akce v zadaném rozsahu.
      *
-     * `following` sérii **rozštěpí** — původní skončí den před hranicí, od ní
-     * platí nová, takže stará dál popisuje, jak se hrálo předtím. `all` přepíše
-     * celou sérii včetně minulých termínů. Co zůstane na stejném datu, se jen
-     * upraví, aby odpovědi a docházka nezmizely — maže a zakládá se jen to,
-     * co se posunulo.
+     * `following` sérii **rozštěpí**, aby stará dál popisovala, jak se hrálo
+     * předtím; `all` přepíše celou včetně minulých termínů. Co zůstane na stejném
+     * datu, se jen upraví — maže se jen to, co se posunulo, aby odpovědi
+     * a docházka nezmizely.
      *
      * @param  array{
      *     title:string,
@@ -903,10 +899,9 @@ final class EventService
     /**
      * Ruční oprava docházky. `null` opravu zruší a vrátí odvození z RSVP.
      *
-     * Součástí opravy je i doprava: kdo autem jel, ale zapomněl to říct předem,
-     * se jinak nemá jak k cesťáku dostat — odpověď je po začátku akce zamčená.
-     * `transport` v položce se bere jen u venkovního zápasu; `null` znamená
-     * „nech, jak je", aby oprava samotné docházky odvozy nepřepisovala.
+     * Opravit jde i dopravu — kdo autem jel, ale zapomněl to říct předem, se
+     * k cesťáku jinak nedostane. Bere se jen u venkovního zápasu a `null` v ní
+     * znamená „nech, jak je".
      *
      * @param  list<array{membershipId:int,attendance:string|null,transport?:string|null,carSeats?:int|null}> $items
      * @return EventDetail

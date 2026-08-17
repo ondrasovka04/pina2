@@ -338,9 +338,8 @@ final class OffenceService
     /**
      * Zdroj: soupiska sezóny, ne všichni členové. Včetně těch, co odešli ale dluh zůstal.
      *
-     * Vedle součtů za celou sezónu se vrací i rozpad na pololetí, pokud má sezóna
-     * nastavený přelom. Je to **jen členění podle data**, ne uzávěrka: nic se
-     * nezamyká a platba se přičte do toho pololetí, kdy skutečně přišla.
+     * Rozpad na pololetí je **jen členění podle data**, ne uzávěrka: nic se
+     * nezamyká a platba se přičte do toho pololetí, kdy přišla, ne kam patřila.
      *
      * @return array{
      *     seasonId:int, visibility:'team'|'own', halfYearOn:string|null,

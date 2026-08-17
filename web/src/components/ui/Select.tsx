@@ -13,14 +13,9 @@ interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
 /**
  * Výběr ze seznamu se systémovým vzhledem vypnutým.
  *
- * Safari u `<select>` s nativním vzhledem ignoruje `min-height` **i svislý
- * padding** a smrskne ho na výšku textu — vedle běžného pole pak byl o třetinu
- * nižší, zatímco v Chromu vypadal správně. Jediné, co zabírá, je
- * `appearance-none`; tím ale zmizí i systémová šipka, takže si ji kreslíme sami.
- *
- * Proto se selecty nestylují po jednotlivých obrazovkách: `cn` je jen spojení
- * tříd bez slučování, takže přepsat `py` zvenčí by nespolehlivě záviselo na
- * pořadí pravidel ve stylopisu.
+ * Safari u `<select>` ignoruje `min-height` **i svislý padding**, takže vedle
+ * běžného pole byl o třetinu nižší. Zabírá jen `appearance-none` — a s ním musí
+ * přijít i vlastní šipka. Proč se styl nepřepisuje zvenčí, stojí ve web/AGENTS.md.
  */
 export function Select({ compact = false, wrapperClassName, className, ...rest }: SelectProps) {
 	return (

@@ -9,11 +9,8 @@ import { api } from '@/lib/api'
 import { emailError } from '@/lib/validation'
 
 /**
- * Vyžádání odkazu na nové heslo.
- *
- * Potvrzení je schválně neurčité („pokud je adresa u nás"). Kdyby aplikace
- * rozlišovala známou a neznámou adresu, dala by se přes tenhle formulář
- * zjišťovat, kdo v ní je.
+ * Vyžádání odkazu na nové heslo. Potvrzení je schválně neurčité — kdyby aplikace
+ * rozlišovala známou a neznámou adresu, šlo by přes formulář zjišťovat, kdo v ní je.
  */
 export function ForgotPasswordPage() {
 	const [email, setEmail] = useState('')
