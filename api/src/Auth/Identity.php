@@ -39,12 +39,6 @@ final class Identity
         return $this->isPlatformAdmin || isset($this->rolesByTeam[$teamId]);
     }
 
-    /** @return list<int> */
-    public function teamIds(): array
-    {
-        return array_keys($this->rolesByTeam);
-    }
-
     /** @return array<string,mixed> pro payload tokenu a odpověď /me */
     public function toArray(): array
     {
