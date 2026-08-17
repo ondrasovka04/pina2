@@ -132,6 +132,7 @@ npm run typecheck && npm run lint && npm test && npm run format
   otevírá přes pole tak, aby vybraná položka byla pod kurzorem — to je systémová
   konvence, ne chyba. Vlastní dropdown by ji sice srovnal, ale v telefonu by
   zabil systémový vyběrač, který se palcem obsluhuje lépe. Select zůstává nativní.
+
 - **Sezóna je druhá osa vedle týmu.** `useTeam()` dává `season`, `seasonId`
   i `isSeasonClosed`. Do uzavřené sezóny se nedá zapisovat — obrazovka to musí
   říct dopředu, ne nechat uživatele naklikat práci a spadnout na 409.

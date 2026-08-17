@@ -136,27 +136,36 @@ export function TeamSwitcher() {
 									Spravovat družstva
 								</Link>
 							) : null}
-							<Link
-								to="/sezony"
-								onClick={() => setOpen(false)}
-								className="hover:bg-surface-2 text-ink-muted flex min-h-11 items-center justify-center rounded-lg px-2 text-sm"
-							>
-								Sezóny a soupiska
-							</Link>
-							<Link
-								to="/serie"
-								onClick={() => setOpen(false)}
-								className="hover:bg-surface-2 text-ink-muted flex min-h-11 items-center justify-center rounded-lg px-2 text-sm"
-							>
-								Opakované akce
-							</Link>
-							<Link
-								to="/mista"
-								onClick={() => setOpen(false)}
-								className="hover:bg-surface-2 text-ink-muted flex min-h-11 items-center justify-center rounded-lg px-2 text-sm"
-							>
-								Spravovat místa
-							</Link>
+							{/*
+							 * Jen pínař a admin. Správce platformy, který je v tomhle družstvu
+							 * hráč, tady mít odkazy nesmí — obrazovky by ho odmítly a příznak
+							 * správce platformy není univerzální klíč, jen provozní role.
+							 */}
+							{canManage ? (
+								<>
+									<Link
+										to="/sezony"
+										onClick={() => setOpen(false)}
+										className="hover:bg-surface-2 text-ink-muted flex min-h-11 items-center justify-center rounded-lg px-2 text-sm"
+									>
+										Sezóny a soupiska
+									</Link>
+									<Link
+										to="/serie"
+										onClick={() => setOpen(false)}
+										className="hover:bg-surface-2 text-ink-muted flex min-h-11 items-center justify-center rounded-lg px-2 text-sm"
+									>
+										Opakované akce
+									</Link>
+									<Link
+										to="/mista"
+										onClick={() => setOpen(false)}
+										className="hover:bg-surface-2 text-ink-muted flex min-h-11 items-center justify-center rounded-lg px-2 text-sm"
+									>
+										Spravovat místa
+									</Link>
+								</>
+							) : null}
 							{platformAdmin ? (
 								<Link
 									to="/sprava"
