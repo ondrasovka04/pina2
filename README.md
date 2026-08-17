@@ -86,7 +86,7 @@ Hosting nemá SSH, deploy jde přes FTP a rozděluje se na dvě místa:
 | F1 | schéma, migrace, auth, role, týmy, sezóny, členové | hotovo |
 | F2 | prohřešky — sazebník, dávkový zápis, přehledy | hotovo |
 | F3 | docházka, nominace, opakované akce | hotovo |
-| F4 | dluhy, platby, QR (SPAYD), cesťáky, zúčtování | |
+| F4 | dluhy, platby, QR (SPAYD), cesťáky, pololetí | hotovo |
 | F5 | PWA, Web Push | |
 | F6 | párování plateb z bankovního API (follow-up) | |
 
@@ -106,6 +106,22 @@ celé), odpovědi hráčů, domluva odvozů u venkovních zápasů, nominace, ru
 docházky, procenta účasti, správa míst konání a export do kalendáře v telefonu
 (`.ics`). Nastavení družstva drží domácí halu, viditelnost docházky a sazbu cesťáků.
 
+Hotová je i **F4 — peníze**: zůstatek skládá prohřešky, bonusy, potvrzené
+platby a cesťáky. Pínař může platby i ruční cesťáky zapsat a stornovat, proběhlé
+venkovní zápasy se řidičům načtou podle sazby družstva a hráč zaplatí kladný dluh
+přes QR ve formátu SPAYD. Číslo účtu se spravuje v nastavení družstva a sdílí ho
+celý klub. Kdo zapomněl předem říct, že jede autem, se doplní zpětně v docházce —
+stejně jako se opravuje samotná docházka.
+
+**Pololetí se nezavírá, jen zobrazuje.** Sezóna má datum přelomu (předvyplněné na
+1. ledna) a podle něj se dluhy, platby i cesťáky rozdělí na podzim a jaro — na
+přehledu peněz přepínačem, v kartě hráče dvěma sloupci vedle sebe. Nic se tím
+nezamyká, protože zamykání by pínaře jen svazovalo. Cenou za to je, že platba
+spadne do toho pololetí, kdy přišla, ne kam patřila: proto QR pořád vyzývá
+k celému nedoplatku sezóny a nikde netvrdí, že platí jen jednu polovinu.
+Tabulky pro snímek uzávěrky (`settlement`, `settlement_line`) ležely ve schématu
+od F1 nevyužité a jsou zrušené — schéma nemá slibovat, co aplikace nedělá.
+
 Tři rozhodnutí, která stojí za připomenutí, protože jdou proti první intuici:
 
 **Docházka se nezapisuje, jen opravuje.** Hráč předem řekne, jestli přijde, a po
@@ -120,9 +136,9 @@ Který prohřešek to je, se nehádá z názvu — pínař ho označí v sazebn�
 pro trénink a zvlášť pro zápas, protože sazby se liší i o stovky korun.
 
 **Doma se necestuje.** Domácí zápas se pozná podle domácí haly družstva a nevzniká
-u něj ani vzdálenost, ani domluva odvozů — bude to podklad pro cesťáky ve F4.
+u něj ani vzdálenost, ani domluva odvozů, takže z něj nemůže vzniknout cesťák.
 
-252 testů na backendu, 172 na frontendu, PHPStan level 8 čistý.
+281 testů na backendu, 185 na frontendu, PHPStan level 8 čistý.
 
 **Před spuštěním zbývá:**
 

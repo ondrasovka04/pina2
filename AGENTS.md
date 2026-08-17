@@ -30,7 +30,7 @@ dokumentace, commit messages. Anglicky zůstávají jen identifikátory v kódu
 docker compose up -d                                        # MySQL + PHP na :8080
 cd web && npm run dev                                       # frontend na :5173
 
-docker compose run --rm php ./vendor/bin/phpunit            # 252 testů
+docker compose run --rm php ./vendor/bin/phpunit            # 281 testů
 docker compose run --rm php ./vendor/bin/phpstan analyse --memory-limit=512M
 cd web && npm run typecheck && npm run lint && npm test
 ```
@@ -90,9 +90,16 @@ pojmenovat v UI, držte se levého sloupce.
 
 ## Stav
 
-F1 (auth, role, týmy, sezóny, členové), F2 (prohřešky) a F3 (docházka, nominace,
-opakované akce) jsou hotové na backendu i frontendu. F4 peníze a cesťáky, F5 PWA,
-F6 párování plateb z banky teprve budou. Tabulka fází je v README.
+F1 (auth, role, týmy, sezóny, členové), F2 (prohřešky), F3 (docházka, nominace,
+opakované akce) i **F4 peníze** jsou hotové na backendu i frontendu: zůstatek skládá
+prohřešky, bonusy, platby a cesťáky, pínař platby i ruční cesťáky zapisuje a stornuje,
+cesťáky se načítají z odehraných venkovních zápasů, hráč platí QR ve formátu SPAYD
+a čísla se dělí na pololetí podle data u sezóny. F5 PWA a F6 párování plateb z banky
+teprve budou. Tabulka fází je v README.
+
+**Uzávěrka se nedělá.** Snímek zúčtovacího období (`settlement`, `settlement_line`)
+byl ve schématu od F1, ale tým zamykání odmítl — tabulky jsou proto zrušené.
+Pololetí je jen členění podle data, ne stav.
 
 Na pomezí F3 a F4 už stojí **návrh prohřešků z docházky**: po akci se pínaři nabídne
 zápis za ty, kdo chyběli, a on ho potvrdí nebo upraví. Který prohřešek to je, říká

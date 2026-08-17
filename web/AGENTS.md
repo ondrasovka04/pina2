@@ -144,6 +144,41 @@ npm run typecheck && npm run lint && npm test && npm run format
   ani vzdálenost, stejně jako u tréninku, a server obojí zahodí. Podmínka v UI
   je `event.isHome !== true`, ne `=== false`: dokud hala není nastavená, není
   důvod otázku na odvoz schovávat.
+- **Zůstatek má čtyři složky.** `MemberBalance` nese `offencesCzk`, `bonusesCzk`,
+  `paidCzk` a `travelCzk`; `balanceCzk` je jejich výsledek, ne samostatný údaj.
+  Nikdy je nepřepočítávejte v klientu — server je jediný zdroj pravdy o penězích.
+  `BalanceList.visibility` říká `'own'`, když hráč vidí jen sebe: pak nemá smysl
+  řazení ani pořadí „x. z y".
+- **Pololetí se vybírá, nepočítá.** Server posílá `periods` (vždy `all`, k tomu
+  `first`/`second`, když má sezóna přelom) a hotové součty v `halves`. Klient si
+  jen vybere přes `features/balances/period.ts` — logika je mimo komponenty právě
+  proto, aby šla testovat. Ploché hodnoty jsou celá sezóna, `halves === null`
+  znamená, že se pololetí neřeší a přepínač se nevykresluje.
+
+  Seznamy plateb a cesťáků se filtrují podle data v klientu (`itemsInPeriod`),
+  protože jsou to datované položky, ne přepočítávání peněz. Když období nesedí,
+  `itemsInPeriod` **nefiltruje nic** — schovat peníze je horší než ukázat víc.
+
+- **Nula se nikdy nevypisuje se znaménkem.** Obrazovky obracejí znaménko
+  u zaplaceno a cesťáků a `-0` je v JS pravda `=== 0`, takže `Intl` vypsalo
+  „-0 Kč". Řeší to `formatCzk`; kdo formátuje peníze jinak, tu past objeví znovu.
+- **Cesťák se zadává jedním směrem, ukládá tam i zpět.** Formulář se ptá na
+  vzdálenost jedním směrem, `TravelClaim.distanceKm` už je proplácená vzdálenost
+  po zdvojení. Nezdvojujte ji znovu při zobrazení.
+- **Peníze mají tři obrazovky, ne jednu.** `/dluhy` je kdo kolik dluží, `/zapisy`
+  historie dávek prohřešků, `/platby` přijaté platby a cesťáky. Spodní navigace je
+  plná (pět položek), takže nové obrazovky se prolinkovávají z `/dluhy` — ne že
+  se do nabídky vecpe šestá.
+- **Zapomenutého řidiče doplní pínař v docházce.** Tlačítko „Jel autem?" je
+  v `AttendanceSection`, ale jen u venkovního zápasu (`rides`) a jen u toho, kdo
+  nebyl označený za nepřítomného. Posílá se `transport` **bez** změny docházky:
+  `attendance` se dá jen tam, kde už ruční oprava byla (`corrected`), jinak `null`
+  — jinak by kliknutí na řidiče zabetonovalo odvozenou přítomnost jako opravu.
+- **Platební QR je doplněk, ne obsah stránky.** Kdo nedluží, kartu nevidí vůbec,
+  a při načítání se nevykresluje `LoadingState` — velký spinner, který zmizí, je
+  na obrazovce dluhů jen poskakující prázdné místo. Knihovna `qrcode` se dotahuje
+  zvlášť; když nedojde, zůstane vidět číslo účtu a VS, protože podle nich se dá
+  zaplatit ručně.
 - **Kdo přijde, vidí každý; jak akce dopadla, ne.** `EventDetail.canSeeAttendance`
   říká, jestli se smí ukázat docházka ostatních. Nespoléhejte se na roli v klientu —
   server posílá cizí `attendance` jako `null` a UI to musí ustát.

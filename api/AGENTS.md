@@ -133,6 +133,12 @@ v `tests/Integration/DatabaseTestCase.php` a neobchází se.
   dostane jen pínař a admin, hráčům ji otevře až `team_settings.attendance_visible_to_players`.
   Souhrnná procenta jsou výhradně pro admina. Je to výslovné přání týmu, ne
   technické rozhodnutí — pína je legrace, docházka citlivější věc.
+- **Doprava má jen dva stavy: beru auto, nebo neberu.** `transport` je
+  `driver`, nebo `none`. Původní `passenger` („svezu se") se od `none` v celé
+  aplikaci **nikde nelišil** — nepočítal se, nikde se nezobrazoval, jen zabíral
+  třetí knoflík. Následek má výhradně `driver`: podle něj se sčítají volná místa
+  a vzniká cesťák. Neznámou hodnotu služba odmítne 400, aby starý klient nespadl
+  až na enumu v databázi.
 - **Odvozy jen u venkovního zápasu a jen u toho, kdo přijede.**
   `event_participant.transport` se u tréninku, u domácího zápasu i u odpovědi
   „nepřijdu" srovná na `none` — do vlastní haly se každý dopraví sám. Není to chyba 400 —
@@ -167,6 +173,59 @@ v `tests/Integration/DatabaseTestCase.php` a neobchází se.
   tým. `saveNominations` proto mění **jen poslané hráče**, nepřepisuje zbytek:
   klient posílá jedno jméno po kliknutí. U tréninku je nominace vždycky `none` —
   nominovat na trénink byla vyhodnocená jako zbytečná byrokracie.
+- **Doprava se opravuje zpětně stejně jako docházka.** Odpověď je po začátku akce
+  zamčená, takže kdo zapomněl říct, že jede autem, by se k cesťáku nedostal —
+  `saveAttendance` proto bere u venkovního zápasu i `transport`. Chybějící pole
+  nechává dopravu být (oprava docházky odvozy nepřepisuje) a u nepřítomného se
+  srovná na `none`, jinak by zůstal nárok za cestu, která se nestala.
+- **Cesťák vzniká jen řidiči venkovního zápasu.** `syncTravelClaims` porovnává
+  `event.location_id` s domácí halou, **ne** jen `distance_km > 0` — vzdálenost může
+  ve sloupci zůstat z doby, kdy hala ještě nastavená nebyla, a `EventService` ji
+  zahazuje až v payloadu. Kdo přehodí podmínku na samotnou vzdálenost, proplatí
+  cestu do vlastní haly. Sazba se ukládá jako snapshot, takže pozdější změna
+  sazebníku nepřepočítá už vzniklý nárok.
+- **Storno cesťáku sync nevrací.** Načtení z odehraných zápasů čte i stornované
+  řádky právě proto, aby je nezaložilo znovu; storno je rozhodnutí pínaře.
+  Naopak nárok, u kterého řidič odpadl (oprava docházky, zrušený zápas,
+  hala se stala domácí), se při dalším načtení stornuje sám.
+- **QR je do koruny stejné číslo jako zůstatek na kontě.** Počítá se přes
+  `seasonBalance`, tedy bez filtru na `occurred_on` — datum zápisu klidně padne
+  mimo rozsah sezóny (turnaj před jejím začátkem) a hráč nesmí dostat QR na
+  nižší částku, než jakou vidí.
+- **Pololetí je členění, ne uzávěrka.** `season.half_year_on` je jen datum, podle
+  kterého se čísla dělí; nic se nezamyká. Tabulky `settlement` a `settlement_line`
+  jsou proto **zrušené** — snímek uzávěrky tým odmítl, nechtěl si nechat svázat ruce.
+  Předvyplní se 1. lednem, který padne do sezóny (`defaultHalfYear`),
+  a musí ležet **uvnitř** sezóny, ne na jejím okraji — jinak by jedna polovina
+  byla prázdná. `NULL` znamená, že se pololetí neřeší, a `balances` pak neposílá
+  ani `halves`, ani přepínač období.
+
+  Plyne z toho, co pololetí **nedokáže**: platba se počítá do toho pololetí,
+  kdy přišla, ne kam patřila. Proto QR pořád vyzývá k celému nedoplatku sezóny
+  a jeho popis se jmenuje „Nedoplatek 25/26", ne „1. pololetí" — nesmí slibovat,
+  že se strhne jen polovina. Bez uzávěrky to jinak nejde a předchozí `settlement_period`
+  u družstva to jen předstíralo.
+- **Součet obou polovin musí dát celou sezónu.** `balances` proto ploché hodnoty
+  nepočítá samostatným dotazem, ale sečtením `halves` — jinak by se dvě čísla na
+  téže obrazovce rozešla. Peníze se čtou třemi dotazy (zápisy, platby, cesťáky)
+  s `GROUP BY membership_id, half`; nikdy nejoinujte ty tři tabulky naráz,
+  násobí se řádky.
+- **Účet pro QR patří klubu, ne družstvu.** `club.bank_account` sdílí všechna
+  družstva klubu, i když se edituje v nastavení družstva. Uložení nastavení je
+  úplná náhrada: co klient nepošle, se smaže — stejně jako u ostatních polí.
+  Formát hlídá `Support\CzechBankAccount` (číslo účtu i český IBAN), SPAYD
+  potřebuje IBAN.
+- **Prázdné tabulky ve schématu jsou schválně, ale jen tyhle.** `bank_transaction`
+  (+ `payment.bank_transaction_id`) čeká na F6 párování plateb z banky,
+  `notification`, `notification_pref`, `notification_queue` a `push_subscription`
+  na F5 Web Push, `audit_log` na provozní auditní stopu. `payment.method = 'gateway'`
+  drží místo platební bráně. Nic jiného ve schématu ležet nemá — kdo přidá sloupec
+  „na potom", vyrobí past: PHPStan ani testy nepoznají, že se nikdy neplní.
+- **Kdo nevidí cizí dluhy, nevidí ani položky, ze kterých vznikají.**
+  `team_settings.balances_visible_to_players` řeší `Service\FinancialAccess` na
+  jednom místě a platí na zůstatky, zápisy, dávky, platby i cesťáky — jinak by
+  se cizí částka dala přečíst z detailu dávky. Provozní správce bez členství
+  v družstvu se přes tyhle obrazovky do cizího klubu nedostane.
 - **Obnova hesla nesmí prozradit, kdo je registrovaný.** `/auth/password/forgot`
   odpovídá stejně pro známou i neznámou adresu; i překročený limit se mlčí.
   Odkaz platí hodinu (přepisuje existující heslo) a vydává se jen samoobslužně —
