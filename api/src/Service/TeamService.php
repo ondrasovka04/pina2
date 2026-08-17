@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Pina\Service;
 
+use InvalidArgumentException;
 use Pina\Auth\Identity;
 use Pina\Auth\Role;
 use Pina\Auth\TeamScope;
 use Pina\Auth\TokenService;
 use Pina\Http\ApiException;
 use Pina\Mail\InvitationMail;
+use Pina\Support\CzechBankAccount;
 use Pina\Support\Database;
 use Pina\Support\PaymentReference;
 
@@ -23,10 +25,10 @@ use Pina\Support\PaymentReference;
  *     travelEnabled:bool,
  *     travelRateCzkKm:float,
  *     travelRoundTrip:bool,
- *     settlementPeriod:string,
  *     homeLocationId:int|null,
  *     attendanceVisibleToPlayers:bool,
- *     balancesVisibleToPlayers:bool
+ *     balancesVisibleToPlayers:bool,
+ *     bankAccount:string|null
  * }
  * @phpstan-type TeamDetail array{
  *     id:int,
@@ -71,9 +73,6 @@ final class TeamService
      * @var list<string>
      */
     private const MEMBER_STATUSES = ['active', 'left'];
-
-    /** @var list<string> */
-    private const SETTLEMENT_PERIODS = ['none', 'half_year', 'season'];
 
     public function __construct(
         private readonly Database $db,
@@ -735,8 +734,12 @@ final class TeamService
     {
         $this->scope->team($identity, $teamId, Role::Admin);
 
-        if (!in_array($settings['settlementPeriod'], self::SETTLEMENT_PERIODS, true)) {
-            throw ApiException::validation('Neznámé období zúčtování.', ['field' => 'settlementPeriod']);
+        try {
+            $bankAccount = $settings['bankAccount'] === null
+                ? null
+                : CzechBankAccount::normalize($settings['bankAccount']);
+        } catch (InvalidArgumentException $e) {
+            throw ApiException::validation($e->getMessage(), ['field' => 'bankAccount']);
         }
 
         // Domácí hala musí patřit témuž klubu, jinak by šlo přes cizí ID zjistit,
@@ -755,30 +758,35 @@ final class TeamService
             }
         }
 
-        $this->db->run(
-            'INSERT INTO team_settings
+        $this->db->transaction(function () use ($teamId, $settings, $bankAccount): void {
+            $this->db->run(
+                'UPDATE club c JOIN team t ON t.club_id = c.id SET c.bank_account = ? WHERE t.id = ?',
+                [$bankAccount, $teamId],
+            );
+
+            $this->db->run(
+                'INSERT INTO team_settings
                  (team_id, home_location_id, travel_enabled, travel_rate_czk_km, travel_round_trip,
-                  settlement_period, attendance_visible_to_players, balances_visible_to_players)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                  attendance_visible_to_players, balances_visible_to_players)
+             VALUES (?, ?, ?, ?, ?, ?, ?)
              ON DUPLICATE KEY UPDATE
                  home_location_id              = VALUES(home_location_id),
                  travel_enabled                = VALUES(travel_enabled),
                  travel_rate_czk_km            = VALUES(travel_rate_czk_km),
                  travel_round_trip             = VALUES(travel_round_trip),
-                 settlement_period             = VALUES(settlement_period),
                  attendance_visible_to_players = VALUES(attendance_visible_to_players),
                  balances_visible_to_players   = VALUES(balances_visible_to_players)',
-            [
-                $teamId,
-                $settings['homeLocationId'],
-                (int) $settings['travelEnabled'],
-                number_format($settings['travelRateCzkKm'], 2, '.', ''),
-                (int) $settings['travelRoundTrip'],
-                $settings['settlementPeriod'],
-                (int) $settings['attendanceVisibleToPlayers'],
-                (int) $settings['balancesVisibleToPlayers'],
-            ],
-        );
+                [
+                    $teamId,
+                    $settings['homeLocationId'],
+                    (int) $settings['travelEnabled'],
+                    number_format($settings['travelRateCzkKm'], 2, '.', ''),
+                    (int) $settings['travelRoundTrip'],
+                    (int) $settings['attendanceVisibleToPlayers'],
+                    (int) $settings['balancesVisibleToPlayers'],
+                ],
+            );
+        });
 
         return $this->settings($teamId);
     }
@@ -909,33 +917,29 @@ final class TeamService
     private function settings(int $teamId): array
     {
         $row = $this->db->first(
-            'SELECT home_location_id, travel_enabled, travel_rate_czk_km, travel_round_trip,
-                    settlement_period, attendance_visible_to_players, balances_visible_to_players
-               FROM team_settings WHERE team_id = ?',
+            'SELECT c.bank_account, ts.home_location_id, ts.travel_enabled, ts.travel_rate_czk_km,
+                    ts.travel_round_trip, ts.attendance_visible_to_players,
+                    ts.balances_visible_to_players
+               FROM team t
+               JOIN club c ON c.id = t.club_id
+               LEFT JOIN team_settings ts ON ts.team_id = t.id
+              WHERE t.id = ?',
             [$teamId],
         );
 
-        // Řádek vzniká až prvním uložením; do té doby platí výchozí hodnoty ze schématu.
+        // Tým by měl být ověřený předem, ale privátní metoda zůstane bezpečná i samostatně.
         if ($row === null) {
-            return [
-                'travelEnabled'              => false,
-                'travelRateCzkKm'            => 5.0,
-                'travelRoundTrip'            => true,
-                'settlementPeriod'           => 'none',
-                'homeLocationId'             => null,
-                'attendanceVisibleToPlayers' => false,
-                'balancesVisibleToPlayers'   => true,
-            ];
+            throw ApiException::notFound();
         }
 
         return [
-            'travelEnabled'              => (bool) $row['travel_enabled'],
-            'travelRateCzkKm'            => (float) $row['travel_rate_czk_km'],
-            'travelRoundTrip'            => (bool) $row['travel_round_trip'],
-            'settlementPeriod'           => (string) $row['settlement_period'],
+            'travelEnabled'              => (bool) ($row['travel_enabled'] ?? false),
+            'travelRateCzkKm'            => (float) ($row['travel_rate_czk_km'] ?? 5.0),
+            'travelRoundTrip'            => (bool) ($row['travel_round_trip'] ?? true),
             'homeLocationId'             => $row['home_location_id'] === null ? null : (int) $row['home_location_id'],
-            'attendanceVisibleToPlayers' => (bool) $row['attendance_visible_to_players'],
-            'balancesVisibleToPlayers'   => (bool) $row['balances_visible_to_players'],
+            'attendanceVisibleToPlayers' => (bool) ($row['attendance_visible_to_players'] ?? false),
+            'balancesVisibleToPlayers'   => (bool) ($row['balances_visible_to_players'] ?? true),
+            'bankAccount'                => $row['bank_account'] === null ? null : (string) $row['bank_account'],
         ];
     }
 

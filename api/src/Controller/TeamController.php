@@ -160,10 +160,10 @@ final class TeamController
             'travelEnabled'              => $request->bool('travelEnabled'),
             'travelRateCzkKm'            => $this->rate($request),
             'travelRoundTrip'            => $request->bool('travelRoundTrip', true),
-            'settlementPeriod'           => $request->optionalString('settlementPeriod') ?? 'none',
             'homeLocationId'             => $this->homeLocationId($request),
             'attendanceVisibleToPlayers' => $request->bool('attendanceVisibleToPlayers'),
             'balancesVisibleToPlayers'   => $request->bool('balancesVisibleToPlayers', true),
+            'bankAccount'                => $request->optionalString('bankAccount'),
         ]);
 
         return Response::ok($settings);

@@ -772,22 +772,36 @@ final class TeamServiceTest extends DatabaseTestCase
         $first = $this->service->saveSettings($this->admin, $this->prosekTeam, $this->settings([
             'travelEnabled'   => true,
             'travelRateCzkKm' => 6.5,
+            'bankAccount'     => '19-2000145399/0800',
         ]));
 
         self::assertTrue($first['travelEnabled']);
         self::assertSame(6.5, $first['travelRateCzkKm']);
+        self::assertSame('19-2000145399/0800', $first['bankAccount']);
 
         // Druhé: přepsání bez duplikátu.
         $second = $this->service->saveSettings($this->admin, $this->prosekTeam, $this->settings([
-            'travelEnabled'    => false,
-            'travelRateCzkKm'  => 8.0,
-            'settlementPeriod' => 'half_year',
+            'travelEnabled'   => false,
+            'travelRateCzkKm' => 8.0,
         ]));
 
         self::assertFalse($second['travelEnabled']);
         self::assertSame(8.0, $second['travelRateCzkKm']);
-        self::assertSame('half_year', $second['settlementPeriod']);
         self::assertSame(1, (int) $this->db->value('SELECT COUNT(*) FROM team_settings'));
+        self::assertNull($this->db->value('SELECT bank_account FROM club WHERE id = ?', [$this->prosekClub]));
+    }
+
+    public function testInvalidBankAccountIsRejected(): void
+    {
+        try {
+            $this->service->saveSettings($this->admin, $this->prosekTeam, $this->settings([
+                'bankAccount' => 'účet někam',
+            ]));
+            self::fail('Neplatný účet se nesmí uložit.');
+        } catch (ApiException $e) {
+            self::assertSame(400, $e->status);
+            self::assertSame('bankAccount', $e->details['field'] ?? null);
+        }
     }
 
     public function testPlayerCannotChangeSettings(): void
@@ -829,10 +843,10 @@ final class TeamServiceTest extends DatabaseTestCase
      *     travelEnabled:bool,
      *     travelRateCzkKm:float,
      *     travelRoundTrip:bool,
-     *     settlementPeriod:string,
      *     homeLocationId:int|null,
      *     attendanceVisibleToPlayers:bool,
-     *     balancesVisibleToPlayers:bool
+     *     balancesVisibleToPlayers:bool,
+     *     bankAccount:string|null
      * }
      */
     private function settings(array $overrides = []): array
@@ -841,20 +855,20 @@ final class TeamServiceTest extends DatabaseTestCase
          *     travelEnabled:bool,
          *     travelRateCzkKm:float,
          *     travelRoundTrip:bool,
-         *     settlementPeriod:string,
-         *     homeLocationId:int|null,
+             *     homeLocationId:int|null,
          *     attendanceVisibleToPlayers:bool,
-         *     balancesVisibleToPlayers:bool
+         *     balancesVisibleToPlayers:bool,
+         *     bankAccount:string|null
          * } $settings
          */
         $settings = [
             'travelEnabled'              => false,
             'travelRateCzkKm'            => 5.0,
             'travelRoundTrip'            => true,
-            'settlementPeriod'           => 'none',
             'homeLocationId'             => null,
             'attendanceVisibleToPlayers' => false,
             'balancesVisibleToPlayers'   => true,
+            'bankAccount'                => null,
             ...$overrides,
         ];
 
