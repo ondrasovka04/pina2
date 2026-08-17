@@ -6,8 +6,9 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States'
+import { ApiError } from '@/lib/api'
 import { players } from '@/lib/plural'
-import { useCloseSeason, useRoster, useSaveRoster, useSeasons, useTeamMembers } from '@/lib/queries'
+import { useCloseSeason, useRoster, useSaveRoster, useSeasons, useSetHalfYear, useTeamMembers } from '@/lib/queries'
 import type { RosterEntry, Season, TeamMember } from '@/lib/types'
 import { formatDate, roleLabels } from '@/lib/types'
 
@@ -84,6 +85,55 @@ export function SeasonsPage() {
 	)
 }
 
+/**
+ * Datum, kterým se sezóna dělí na pololetí. Ukládá se při každé změně, stejně
+ * jako soupiska — jedno pole si tlačítko nezaslouží. Vyprázdněním se pololetí
+ * vypne; nic se tím nezamyká, jen se přestanou dělit čísla na obrazovkách peněz.
+ */
+function HalfYearField({ season }: { season: Season }) {
+	const { team } = useTeam()
+	const save = useSetHalfYear(team?.id ?? 0)
+	const [error, setError] = useState<string | null>(null)
+
+	function change(value: string) {
+		setError(null)
+		save.mutate(
+			{ seasonId: season.id, halfYearOn: value === '' ? null : value },
+			{
+				onError: (cause) =>
+					setError(cause instanceof ApiError ? cause.message : 'Přelom pololetí se nepodařilo uložit.'),
+			},
+		)
+	}
+
+	return (
+		<div className="border-line/60 border-t px-4 py-3">
+			<label className="flex flex-wrap items-center justify-between gap-2">
+				<span className="flex flex-col">
+					<span className="text-sm font-medium">Přelom pololetí</span>
+					<span className="text-ink-faint text-xs">
+						Podle tohohle data se dělí dluhy a platby. Prázdné pole pololetí vypne.
+					</span>
+				</span>
+				<input
+					type="date"
+					value={season.halfYearOn ?? ''}
+					min={season.startsOn}
+					max={season.endsOn}
+					disabled={save.isPending}
+					onChange={(event) => change(event.target.value)}
+					className="border-line bg-surface-2 text-ink min-h-11 rounded-xl border px-3 text-base disabled:opacity-50"
+				/>
+			</label>
+			{error === null ? null : (
+				<p role="alert" className="text-debt mt-2 text-sm">
+					{error}
+				</p>
+			)}
+		</div>
+	)
+}
+
 interface SeasonCardProps {
 	season: Season
 	isOpen: boolean
@@ -142,6 +192,8 @@ function SeasonCard({
 					)}
 				</div>
 			</div>
+
+			{closed ? null : <HalfYearField season={season} />}
 
 			<details
 				open={isOpen}

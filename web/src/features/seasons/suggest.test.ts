@@ -5,7 +5,17 @@ import type { Season } from '@/lib/types'
 import { addYear, nextSeasonName, suggestSeason } from './suggest'
 
 function season(name: string, startsOn: string, endsOn: string): Season {
-	return { id: 1, teamId: 1, name, startsOn, endsOn, isCurrent: true, closedAt: null, rosterCount: 0 }
+	return {
+		id: 1,
+		teamId: 1,
+		name,
+		startsOn,
+		endsOn,
+		halfYearOn: null,
+		isCurrent: true,
+		closedAt: null,
+		rosterCount: 0,
+	}
 }
 
 describe('addYear', () => {
