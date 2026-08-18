@@ -191,12 +191,16 @@ id            BIGINT PK AUTO_INCREMENT
 name          VARCHAR(120) NOT NULL          -- "SK Prosek Praha"
 slug          VARCHAR(60) UNIQUE NOT NULL    -- "sk-prosek" (pro URL)
 created_at    DATETIME NOT NULL
-status        ENUM('active','suspended') DEFAULT 'active'
 ```
+Klub drží jen identitu. Nic, co se nastavuje — účet ani znak — na něm neleží;
+to patří družstvu. Původně tu byl i `status`, ale pozastavený klub nikdo nikdy
+nepotřeboval a sloupec by se jen nikdy neplnil.
 
-**`team`** — družstvo v klubu (muži A, ženy, junioři). Klub může mít jen jedno.
+**`team`** — družstvo v klubu (muži, junioři, kadeti). Klub jich má víc.
 ```sql
-id, club_id FK, name VARCHAR(120), color VARCHAR(7), archived_at DATETIME NULL
+id, club_id FK, name VARCHAR(120), color VARCHAR(7),
+logo_url VARCHAR(255) NULL,                  -- nahraný znak; bez něj se kreslí klubový
+archived_at DATETIME NULL
 ```
 
 **`user`** — člověk, globálně napříč kluby (jeden účet, víc týmů).
@@ -446,8 +450,9 @@ travel_round_trip BOOLEAN DEFAULT 1,
 attendance_visible_to_players BOOLEAN DEFAULT 0,
 balances_visible_to_players   BOOLEAN DEFAULT 1
 ```
-Číslo účtu pro QR platby tady **není** — sedí na `club`, protože ho sdílí všechna
-družstva klubu.
+Je tu i `bank_account` pro QR platby. Původně seděl na `club`, jenže se editoval
+v nastavení družstva — změna u mužů tím tiše přepsala účet juniorům i kadetům.
+Každé družstvo má vlastní kasu, takže i vlastní účet.
 
 **`travel_claim`** — nárok na náhradu za cestu vlastním autem.
 ```sql
@@ -549,9 +554,9 @@ s opakováním — selhání push serveru nesmí shodit zápis prohřešků.
 Původně měla být `notification` i **schránka v aplikaci**, ze které se zprávy
 čtou zpětně. Ta ve F5 nevznikla: obrazovka bez čtecího endpointu nemá co
 ukazovat, a přišlo by na ni jen to, co člověk už dostal na displej. Sloupce
-`read_at` a `payload` proto zůstávají prázdné a jsou jediné dvě výjimky
-z pravidla „žádné sloupce na potom" (viz `api/AGENTS.md`) — čekají na tu
-obrazovku, ne na doplnění chybějícího chování.
+`read_at` a `payload` proto zůstávají prázdné jako výjimka z pravidla „žádné
+sloupce na potom" — čekají na tu obrazovku, ne na doplnění chybějícího chování.
+Úplný výčet povolených výjimek je v `api/AGENTS.md`.
 
 `audit_log` je nový — u peněz a docházky je "kdo to změnil a kdy" požadavek, ne luxus.
 

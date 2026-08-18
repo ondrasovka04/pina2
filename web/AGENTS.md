@@ -231,6 +231,31 @@ npm run typecheck && npm run lint && npm test && npm run format
   jiný, takže by nikdy netrefila) a bez toho by v zařízení jen ležela cizí data
   za nulový užitek. Nový service worker čeká na potvrzení ve `PwaUpdatePrompt`.
 
+- **Obrázek nikdy nestojí sám za informaci.** `Avatar` dostane `src` a při chybějícím
+  nebo nenačteném obrázku spadne na iniciály, respektive na číslo dresu; je
+  `aria-hidden`, protože jméno stojí vedle. `TeamLogo` se chová stejně vůči
+  `ClubMark`. Proto se `src` nikam nepodmiňuje — komponenta si `null` i rozbitou
+  adresu vyřídí sama.
+
+  **Znak se vepisuje (`object-contain`), tvář se oseká (`object-cover`).**
+  Znaky jsou skoro vždycky na šířku a server je tak i ukládá, takže `object-cover`
+  by jim odřízl kraje. Volající zadává znaku jen výšku, šířka dojede podle poměru.
+
+  **Znak je družstva, ne klubu** (`TeamSummary.logoUrl`). `TeamLogo` padá zpátky
+  na klubový `ClubMark`, takže družstvo bez znaku vypadá jako dřív.
+
+- **Obrázek se ukládá jako datová URL, ne jako `FormData`.** Klient soubor přečte
+  `FileReader`em a pošle ho v JSON těle jako každou jinou mutaci; API nikde jinde
+  multipart nepřijímá a kvůli jedné obrazovce se to nezaváděl.
+
+  Předtím ho ale **zmenší na 1024 px přes `<canvas>`**, takže na server nejde
+  dvacetimegabajtová fotka kvůli obrázku, ze kterého bude 512 px. Není to jen
+  úspora dat: canvas respektuje **EXIF orientaci**, kterou GD na serveru ignoruje,
+  takže fotka na výšku by se bez toho uložila položená na bok. Když prohlížeč
+  canvas neumí, `downscaled()` vrátí `null` a pošle se původní soubor —
+  proto se výsledek nikdy nesmí považovat za jistý. Poměr stran počítá
+  `scaledSize()` zvlášť, aby šel testovat bez canvasu.
+
 - **Oprávnění k Push se žádá jen po kliknutí.** Peněžní kategorie jsou
   ve výchozím stavu vypnuté a server je zdroj pravdy; prohlížečový odběr
   se v profilu pouze zaregistruje nebo odregistruje.

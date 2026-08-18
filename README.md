@@ -43,6 +43,14 @@ docker compose up -d                    # MySQL 8 + PHP 8.5 (shoda s produkcí),
 cd web && npm install && npm run dev    # frontend na :5173, /api proxy na :8080
 ```
 
+Po změně `docker/php/Dockerfile` nestačí `docker compose build` — běžící kontejner
+na `:8080` by dál jel na starém obrazu, zatímco `docker compose run` už na novém.
+Rozdíl se pak projeví jen v aplikaci, ne v testech:
+
+```bash
+docker compose up -d --build --force-recreate php
+```
+
 Backend:
 
 ```bash
@@ -77,6 +85,14 @@ Hosting nemá SSH, deploy jde přes FTP a rozděluje se na dvě místa:
 | `web/dist/*` | `public_html/` |
 
 `open_basedir` sahá nad web root, takže `.env` ani `vendor/` nejsou z internetu dostupné.
+
+Nahrané obrázky leží v `api/storage/images/`, tedy **na disku, ne v databázi**.
+Adresář musí být zapisovatelný pro PHP a **nesmí se při nasazení přepsat** —
+záloha databáze ho neobsahuje, takže po jeho smazání zbydou v tabulkách odkazy
+na soubory, které nikde nejsou (aplikace to ustojí, ukáže iniciály). PHP navíc
+potřebuje GD **přeložené s JPEG a WebP**; bez toho se nedá nahrát fotka
+z telefonu, ověřit to jde `php -r 'print_r(gd_info());'`. Do těla požadavku se
+obrázek vejde s rezervou, protože ho prohlížeč zmenší dřív, než ho odešle.
 
 Pro Web Push se před nasazením přes `cd api && composer vapid:generate` vytvoří
 `VAPID_PUBLIC_KEY` a `VAPID_PRIVATE_KEY`; spolu s `VAPID_SUBJECT` a náhodným
@@ -123,8 +139,9 @@ docházky, procenta účasti, správa míst konání a průběžný odběr kalen
 Hotová je i **F4 — peníze**: zůstatek skládá prohřešky, bonusy, potvrzené
 platby a cesťáky. Pínař může platby i ruční cesťáky zapsat a stornovat, proběhlé
 venkovní zápasy se řidičům načtou podle sazby družstva a hráč zaplatí kladný dluh
-přes QR ve formátu SPAYD. Číslo účtu se spravuje v nastavení družstva a sdílí ho
-celý klub. Kdo zapomněl předem říct, že jede autem, se doplní zpětně v docházce —
+přes QR ve formátu SPAYD. Číslo účtu má **každé družstvo vlastní** — původně
+leželo na klubu, takže změna u mužů tiše přepsala účet juniorům i kadetům.
+Kdo zapomněl předem říct, že jede autem, se doplní zpětně v docházce —
 stejně jako se opravuje samotná docházka.
 
 **Pololetí se nezavírá, jen zobrazuje.** Sezóna má datum přelomu (předvyplněné na
@@ -152,7 +169,16 @@ pro trénink a zvlášť pro zápas, protože sazby se liší i o stovky korun.
 **Doma se necestuje.** Domácí zápas se pozná podle domácí haly družstva a nevzniká
 u něj ani vzdálenost, ani domluva odvozů, takže z něj nemůže vzniknout cesťák.
 
-309 testů na backendu, 187 na frontendu, PHPStan level 8 čistý. Část testů
+Hráči i družstva mají **obrázky**. Profilový obrázek se nastaví v `/ja`, znak
+družstva v `/druzstvo`; bez něj se všude kreslí znak klubu. Bere JPEG, PNG,
+GIF i WebP; prohlížeč fotku nejdřív zmenší na 1024 px, takže se mobilními daty
+netáhne deset megabajtů pro obrázek, ze kterého bude 512 px. Server pak z každého
+souboru udělá vlastní PNG — profil se oseká na čtverec, aby vyplnil kolečko
+u jména, znak klubu se naopak vepíše celý, protože loga jsou na šířku. Obrázek
+je vidět všude u jména: v soupisce, dluzích, docházce, nominaci, dávkách,
+platbách i cesťácích. Kdo žádný nemá, má dál iniciály nebo číslo dresu.
+
+320 testů na backendu, 195 na frontendu, PHPStan level 8 čistý. Část testů
 formátu ICS se s jeho generátorem přesunula z TypeScriptu na server.
 
 **Před spuštěním zbývá:**

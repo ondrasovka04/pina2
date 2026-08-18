@@ -229,11 +229,17 @@ v `tests/Integration/DatabaseTestCase.php` a neobchází se.
   téže obrazovce rozešla. Peníze se čtou třemi dotazy (zápisy, platby, cesťáky)
   s `GROUP BY membership_id, half`; nikdy nejoinujte ty tři tabulky naráz,
   násobí se řádky.
-- **Účet pro QR patří klubu, ne družstvu.** `club.bank_account` sdílí všechna
-  družstva klubu, i když se edituje v nastavení družstva. Uložení nastavení je
-  úplná náhrada: co klient nepošle, se smaže — stejně jako u ostatních polí.
-  Formát hlídá `Support\CzechBankAccount` (číslo účtu i český IBAN), SPAYD
-  potřebuje IBAN.
+- **Účet pro QR patří družstvu.** `team_settings.bank_account`; každé družstvo má
+  vlastní kasu, takže i vlastní účet. Do F5 ležel na klubu a editoval se
+  v nastavení družstva — změna u mužů tím tiše přepsala účet juniorům i kadetům.
+  Migrace `002` ho každému družstvu zkopírovala, takže se nic neztratilo.
+  Uložení nastavení je úplná náhrada: co klient nepošle, se smaže — stejně jako
+  u ostatních polí. Formát hlídá `Support\CzechBankAccount` (číslo účtu i český
+  IBAN), SPAYD potřebuje IBAN.
+
+  **Družstvo bez uloženého nastavení nemá v `team_settings` řádek**, ne prázdné
+  hodnoty. Čte se přes `LEFT JOIN` a výchozí hodnoty jsou v kódu; kdo sáhne na
+  tuhle tabulku migrací, musí počítat s tím, že `UPDATE` taková družstva minul.
 - **Prázdné tabulky ve schématu jsou schválně, ale jen tyhle.** `bank_transaction`
   (+ `payment.bank_transaction_id`) čeká na F6 párování plateb z banky,
   `notification.read_at` a `notification.payload` na schránku oznámení
@@ -266,6 +272,34 @@ v `tests/Integration/DatabaseTestCase.php` a neobchází se.
   tvrdí „aktivní na jiném zařízení". Nová kategorie
   oznámení bez samostatného souhlasu majitele nesmí vzniknout. Odhlášení
   ze všech zařízení maže i všechny push odběry daného účtu.
+
+- **Nahraný obrázek se nikdy neuloží tak, jak přišel.** `ImageService` ho přes GD
+  převzorkuje do vlastního PNG, takže z něj spadnou EXIF údaje (včetně polohy)
+  i cokoli, co se v souboru vezlo. Profil se oseká na čtverec, znak klubu se
+  vepíše celý — znak na šířku by výřezem přišel o kraje. Z animovaného GIFu
+  zůstane první snímek. Limity (4 MB, 16 Mpx) jsou **záložní**, protože obrázek
+  zmenšuje už prohlížeč; drží paměť, ne přenos: GD si obrázek rozbalí na 4 bajty
+  na pixel a `memory_limit` je 128 MB. Výš je zvednout nejde, base64 je o třetinu
+  delší než soubor a `post_max_size` je 8 MB. Formát se ověřuje třikrát (hlavička
+  data URL, `getimagesizefromstring` a `gd_info`), protože GD přeložené bez JPEG
+  vypadá funkční a na fotku vrátí jen `false`.
+- **EXIF orientaci řeší klient, ne server.** GD ji ignoruje, takže fotka nafocená
+  na výšku by se uložila položená na bok; `<canvas>` v prohlížeči ji respektuje
+  a odesílá už srovnaný obrázek. Kdo by zmenšování na klientu vypnul, musí
+  otočení dodělat tady.
+- **Znak patří družstvu, ne klubu, a cesta k souboru se nesmí kopírovat.** Dvě
+  družstva se stejnou cestou by si po první výměně znaku navzájem smazala soubor
+  — `deleteStoredFile` maže starý po každém uložení. Proto ho migrace `002`
+  schválně nedědí: kdo znak chce, nahraje si ho, a bez něj se kreslí klubový
+  `ClubMark`.
+- **Soubory leží mimo databázi a jejich adresa je oprávnění.** V tabulce je jen
+  cesta, obsah v `api/storage/images/`. Endpoint je **veřejný** — `<img>` nemůže
+  poslat hlavičku `Authorization` a access token se drží jen v paměti, takže
+  autorizace se dělá jinak: název souboru je 128 bitů náhody a při každé výměně
+  vzniká nový. Kdo adresu nezná, obrázek nenajde; kdo ji zná, si ho přečte i po
+  odchodu z družstva. Je to fotka, kterou si člověk nahrál sám, ne peníze —
+  ale ukládat sem cokoli citlivějšího by tenhle model neunesl.
+  Záloha databáze obrázky **neobsahuje**.
 
 ## Nasazení
 

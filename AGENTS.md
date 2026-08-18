@@ -30,10 +30,10 @@ dokumentace, commit messages. Anglicky zůstávají jen identifikátory v kódu
 docker compose up -d                                        # MySQL + PHP na :8080
 cd web && npm run dev                                       # frontend na :5173
 
-docker compose run --rm php ./vendor/bin/phpunit            # 309 testů
+docker compose run --rm php ./vendor/bin/phpunit            # 320 testů
 docker compose run --rm php ./vendor/bin/phpstan analyse --memory-limit=512M
 docker compose run --rm php ./vendor/bin/php-cs-fixer fix --dry-run --diff
-cd web && npm run typecheck && npm run lint && npm test      # 187 testů
+cd web && npm run typecheck && npm run lint && npm test      # 195 testů
 ```
 
 Před dokončením úkolu, který sáhl na kód, musí projít testy i statická analýza
@@ -97,6 +97,8 @@ prohřešky, bonusy, platby a cesťáky, pínař platby i ruční cesťáky zapi
 cesťáky se načítají z odehraných venkovních zápasů, hráč platí QR ve formátu SPAYD
 a čísla se dělí na pololetí podle data u sezóny. Hotová je i **F5**: instalovatelná
 PWA, Web Push se dvěma osobními volbami a odběr kalendáře přes `webcal://`.
+Nad rámec fází mají hráči i kluby **obrázky** — normalizované PNG na disku
+v `api/storage/images/`, ne v databázi.
 **F6** (párování plateb z banky) teprve bude; rozhodnutí F5 jsou v
 [docs/F5-PREDANI.md](docs/F5-PREDANI.md).
 Tabulka fází je v README.
