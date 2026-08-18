@@ -236,8 +236,9 @@ v `tests/Integration/DatabaseTestCase.php` a neobchází se.
   potřebuje IBAN.
 - **Prázdné tabulky ve schématu jsou schválně, ale jen tyhle.** `bank_transaction`
   (+ `payment.bank_transaction_id`) čeká na F6 párování plateb z banky,
-  `notification`, `notification_pref`, `notification_queue` a `push_subscription`
-  na F5 Web Push, `audit_log` na provozní auditní stopu. `payment.method = 'gateway'`
+  `notification.read_at` a `notification.payload` na schránku oznámení
+  v aplikaci (F5 dodala jen push, ne obrazovku pro čtení zpětně) a
+  `audit_log` na provozní auditní stopu. `payment.method = 'gateway'`
   drží místo platební bráně. Nic jiného ve schématu ležet nemá — kdo přidá sloupec
   „na potom", vyrobí past: PHPStan ani testy nepoznají, že se nikdy neplní.
 - **Kdo nevidí cizí dluhy, nevidí ani položky, ze kterých vznikají.**
@@ -249,6 +250,22 @@ v `tests/Integration/DatabaseTestCase.php` a neobchází se.
   odpovídá stejně pro známou i neznámou adresu; i překročený limit se mlčí.
   Odkaz platí hodinu (přepisuje existující heslo) a vydává se jen samoobslužně —
   admin heslo zrušit nemůže, jinak by šlo převzít cizí účet.
+- **Adresa odběru kalendáře je heslo.** `calendar_feed` drží jen SHA-256 otisk
+  tokenu a veřejný endpoint při každém načtení znovu ověří živé členství.
+  Zneplatněný odběr i bývalý člen dostanou 404. ICS skládá jedině
+  `Support\IcsCalendar`; nesmí obsahovat poznámku, jména, docházku ani peníze.
+  Stabilní UID a `ETag` jsou podmínka, aby se přesunutá akce aktualizovala a
+  kalendáře zbytečně nestahovaly celou sezónu.
+- **Push se nikdy neposílá v doménovém požadavku.** Zápis dávky vloží
+  `notification` a frontu v téže databázové transakci; síť volá až chráněný
+  cron. Fronta je po jednotlivých `push_subscription`, hlídá deduplikaci,
+  noční klid 23:00–8:00 a při `404`/`410` mrtvý odběr smaže. Odběr se drží
+  po `push_subscription.device_id` (náhodné id prohlížeče z localStorage), ne
+  po adrese: tu push služba při každé nové registraci service workera mění,
+  takže bez toho po sobě jedno zařízení nechává mrtvé řádky a aplikace pak
+  tvrdí „aktivní na jiném zařízení". Nová kategorie
+  oznámení bez samostatného souhlasu majitele nesmí vzniknout. Odhlášení
+  ze všech zařízení maže i všechny push odběry daného účtu.
 
 ## Nasazení
 

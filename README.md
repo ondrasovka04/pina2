@@ -78,6 +78,12 @@ Hosting nemá SSH, deploy jde přes FTP a rozděluje se na dvě místa:
 
 `open_basedir` sahá nad web root, takže `.env` ani `vendor/` nejsou z internetu dostupné.
 
+Pro Web Push se před nasazením přes `cd api && composer vapid:generate` vytvoří
+`VAPID_PUBLIC_KEY` a `VAPID_PRIVATE_KEY`; spolu s `VAPID_SUBJECT` a náhodným
+`CRON_TOKEN` se doplní do `api/.env` podle příkladu. Plánovač hostingu pak volá
+každých 15 minut jedinou úlohu `POST /api/v1/cron/notifications/send?token=...`,
+která založí připomínky na zítřejší akce a odešle frontu.
+
 ## Fáze
 
 |     | Obsah | Stav |
@@ -87,21 +93,22 @@ Hosting nemá SSH, deploy jde přes FTP a rozděluje se na dvě místa:
 | F2 | prohřešky — sazebník, dávkový zápis, přehledy | hotovo |
 | F3 | docházka, nominace, opakované akce | hotovo |
 | F4 | dluhy, platby, QR (SPAYD), cesťáky, pololetí | hotovo |
-| F5 | PWA, Web Push, odběr kalendáře (`webcal://`) | |
+| F5 | PWA, Web Push, odběr kalendáře (`webcal://`) | hotovo |
 | F6 | párování plateb z bankovního API (follow-up) | |
 
 Cíl: F1 + F2 na start sezóny 26/27 (září 2026), pak vypnout starou aplikaci.
 
-Zadání F5 se všemi rozhodnutími a pastmi je v [docs/F5-PREDANI.md](docs/F5-PREDANI.md).
-Odběr kalendáře tam přibyl proti původnímu plánu: dnešní export `.ics` je snímek,
-takže po přesunutí tréninku zůstane v telefonu starý čas. Odběr je adresa, kterou
-si kalendář sám občas načte — a protože se kalendář neumí přihlásit, nese celé
-oprávnění sama adresa. Bude to jediná část aplikace dostupná bez přihlášení,
-což je taky důvod, proč nespěchala na spuštění.
+Rozhodnutí a bezpečnostní omezení F5 jsou v [docs/F5-PREDANI.md](docs/F5-PREDANI.md).
+Aplikaci lze nainstalovat na plochu, spustí se i bez signálu (dál než na
+přihlášení se ale bez sítě nedostane) a nová verze se aktivuje až po potvrzení.
+Data se do zařízení neukládají. Web Push
+posílá jen dvě schválené kategorie podle osobních voleb, přes databázovou frontu
+a chráněné cron úlohy. Odběr kalendáře nese oprávnění tajnou adresou
+`webcal://`, jejíž otisk lze v profilu zneplatnit.
 
 ## Kde to stojí
 
-K 17. 8. 2026 je hotové všechno z F1 a F2: přihlášení a role, družstva a jejich
+K 18. 8. 2026 je hotové všechno z F1 a F2: přihlášení a role, družstva a jejich
 členové, sezóny se soupiskami, sazebník, dávkový zápis prohřešků, přehled dluhů,
 pozvánky a aktivační odkazy e-mailem, obnova zapomenutého hesla a konzole správce
 platformy. Světlý i tmavý režim.
@@ -110,8 +117,8 @@ Hotová je i celá **F3 — docházka**: kalendář v seznamu i v měsíční m�
 jednorázové akce i opakované série (z pravidla „každé úterý a čtvrtek" se vyrobí
 všechny termíny do konce sezóny, měnit i mazat je jde od jednoho termínu dál nebo
 celé), odpovědi hráčů, domluva odvozů u venkovních zápasů, nominace, ruční opravy
-docházky, procenta účasti, správa míst konání a export do kalendáře v telefonu
-(`.ics`). Nastavení družstva drží domácí halu, viditelnost docházky a sazbu cesťáků.
+docházky, procenta účasti, správa míst konání a průběžný odběr kalendáře v telefonu
+(`webcal://`). Nastavení družstva drží domácí halu, viditelnost docházky a sazbu cesťáků.
 
 Hotová je i **F4 — peníze**: zůstatek skládá prohřešky, bonusy, potvrzené
 platby a cesťáky. Pínař může platby i ruční cesťáky zapsat a stornovat, proběhlé
@@ -145,7 +152,8 @@ pro trénink a zvlášť pro zápas, protože sazby se liší i o stovky korun.
 **Doma se necestuje.** Domácí zápas se pozná podle domácí haly družstva a nevzniká
 u něj ani vzdálenost, ani domluva odvozů, takže z něj nemůže vzniknout cesťák.
 
-284 testů na backendu, 197 na frontendu, PHPStan level 8 čistý.
+309 testů na backendu, 187 na frontendu, PHPStan level 8 čistý. Část testů
+formátu ICS se s jeho generátorem přesunula z TypeScriptu na server.
 
 **Před spuštěním zbývá:**
 
@@ -156,7 +164,14 @@ u něj ani vzdálenost, ani domluva odvozů, takže z něj nemůže vzniknout ce
    se po družstvech, po 25 zprávách na kliknutí. Začít je potřeba u adminů —
    kadeti ani VK Benátky nemají zatím jediného přihlášeného člena včetně svých.
 3. **Zkontrolovat aktuální sezóny.** Kadeti mají označenou „Kadeti 24/25“, dva
-   roky starou.
+   roky starou. Junioři mají 25/26.
+4. **Vyzkoušet odběr kalendáře na ostré adrese.** Lokálně to jde jen ručně
+   vloženou `http://` adresou: macOS Kalendář si `webcal://` přeloží na
+   **https**, a dev server certifikát nemá. Google kalendář navíc načítá adresu
+   ze svých serverů, takže na localhost nedosáhne vůbec. Po nasazení tedy ověřit,
+   že tlačítko „Přidat do kalendáře" projde na jedno kliknutí — v Apple kalendáři
+   i v Google kalendáři. Samotný endpoint je ověřený (hlavičky, `ETag`, 304, 429,
+   zneplatnění i to, že ICS neobsahuje osobní data).
 
 VK Benátky jsou v datech cizí živý klub s vlastním adminem. Oddělení od Prosku
 drží role na serveru, ne jen UI — správce platformy vidí jejich zdraví, ne peníze.

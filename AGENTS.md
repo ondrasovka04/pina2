@@ -30,10 +30,10 @@ dokumentace, commit messages. Anglicky zůstávají jen identifikátory v kódu
 docker compose up -d                                        # MySQL + PHP na :8080
 cd web && npm run dev                                       # frontend na :5173
 
-docker compose run --rm php ./vendor/bin/phpunit            # 284 testů
+docker compose run --rm php ./vendor/bin/phpunit            # 309 testů
 docker compose run --rm php ./vendor/bin/phpstan analyse --memory-limit=512M
 docker compose run --rm php ./vendor/bin/php-cs-fixer fix --dry-run --diff
-cd web && npm run typecheck && npm run lint && npm test
+cd web && npm run typecheck && npm run lint && npm test      # 187 testů
 ```
 
 Před dokončením úkolu, který sáhl na kód, musí projít testy i statická analýza
@@ -95,9 +95,11 @@ F1 (auth, role, týmy, sezóny, členové), F2 (prohřešky), F3 (docházka, nom
 opakované akce) i **F4 peníze** jsou hotové na backendu i frontendu: zůstatek skládá
 prohřešky, bonusy, platby a cesťáky, pínař platby i ruční cesťáky zapisuje a stornuje,
 cesťáky se načítají z odehraných venkovních zápasů, hráč platí QR ve formátu SPAYD
-a čísla se dělí na pololetí podle data u sezóny. **F5** (PWA, Web Push, odběr
-kalendáře přes `webcal://`) a **F6** (párování plateb z banky) teprve budou —
-zadání F5 je v [docs/F5-PREDANI.md](docs/F5-PREDANI.md). Tabulka fází je v README.
+a čísla se dělí na pololetí podle data u sezóny. Hotová je i **F5**: instalovatelná
+PWA, Web Push se dvěma osobními volbami a odběr kalendáře přes `webcal://`.
+**F6** (párování plateb z banky) teprve bude; rozhodnutí F5 jsou v
+[docs/F5-PREDANI.md](docs/F5-PREDANI.md).
+Tabulka fází je v README.
 
 **Uzávěrka se nedělá.** Snímek zúčtovacího období (`settlement`, `settlement_line`)
 byl ve schématu od F1, ale tým zamykání odmítl — tabulky jsou proto zrušené.

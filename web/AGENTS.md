@@ -217,3 +217,26 @@ npm run typecheck && npm run lint && npm test && npm run format
   nová cesta k přihlášení musí jít přes ni. Napříč **záložkami** to nechrání:
   refresh cookie je společná pro celý prohlížeč, takže na testování víc rolí
   patří oddělené profily nebo anonymní okna, ne dvě záložky.
+- **Kalendář se odebírá, nestahuje, a spravuje se jen v profilu.** Klientský
+  generátor `.ics` už neexistuje; odběr celé sezóny vydává server a jediné místo,
+  kde se zakládá a ruší, je `CalendarFeedsCard` v `/ja`. Do kalendáře ani do
+  detailu akce tlačítko nepatří — je to jednorázové nastavení telefonu, ne
+  součást provozu. Token se drží jen v otevřeném dialogu a při zavření se maže
+  i z mutation cache; ze serveru ho podruhé získat nejde.
+- **Service worker cachuje jen shell, žádná data.** Přednačítá statické soubory
+  a navigaci, takže se aplikace spustí i bez signálu — ale skončí na přihlášení,
+  protože bez sítě se relace obnovit nedá. **Odpovědi API se necachují ani ke
+  čtení** a zápisy se nikdy nefrontují. Zkoušelo se to a nestálo to za nic:
+  klíčovat soukromou cache podle relace nejde (access token je po každém startu
+  jiný, takže by nikdy netrefila) a bez toho by v zařízení jen ležela cizí data
+  za nulový užitek. Nový service worker čeká na potvrzení ve `PwaUpdatePrompt`.
+
+- **Oprávnění k Push se žádá jen po kliknutí.** Peněžní kategorie jsou
+  ve výchozím stavu vypnuté a server je zdroj pravdy; prohlížečový odběr
+  se v profilu pouze zaregistruje nebo odregistruje.
+
+  **Kde to nejde, tlačítko se nevykresluje a stojí tam důvod.** Vypnuté tlačítko
+  na kliknutí nic neudělá ani nenapíše, takže vypadá jako rozbitá aplikace —
+  přesně tak to jednou skončilo. Na počítači instalace potřeba není ani v Safari;
+  brání jen iPhone a iPad, kde iOS push povolí až aplikaci na ploše
+  (`needsInstallForPush()`).

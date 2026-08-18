@@ -4,6 +4,11 @@ Zadání pro toho, kdo bude psát F5. Fáze má tři části: **odběr kalendá�
 **PWA** a **Web Push**. Jsou nezávislé, dělají se v tomhle pořadí a každá se dá
 odevzdat samostatně.
 
+**Stav 18. 8. 2026:** celá F5 je hotová. Kalendář má individuální odběr,
+frontend je instalovatelná PWA s bezpečnou čtecí cache a Web Push používá
+VAPID, osobní volby, databázovou frontu a dvě chráněné cron úlohy. Soubor
+zůstává jako záznam rozhodnutí a omezení pro další změny.
+
 Nejdřív si přečti [AGENTS.md](../AGENTS.md), [api/AGENTS.md](../api/AGENTS.md)
 a [web/AGENTS.md](../web/AGENTS.md) — jsou tam pravidla, konvence a seznam pastí,
 do kterých už někdo šlápl. Tenhle soubor je nenahrazuje, jen popisuje F5.
@@ -15,7 +20,8 @@ přes sto skutečných e-mailových adres. Z toho plyne většina omezení níž
 
 1. **Nová kategorie zpráv potřebuje souhlas majitele.** Pošta je povolená jen na
    pozvánky a aktivace; pro **Web Push** majitel 17. 8. 2026 povolil čtyři
-   kategorie, každou jako **volbu jednotlivce** (viz část 3). Cokoli mimo ten
+   kategorie, každou jako **volbu jednotlivce** (viz část 3); z nich se
+   18. 8. 2026 zrušila nominace, takže platí tři. Cokoli mimo ten
    seznam — souhrny, marketing, oznámení pro celý klub — potřebuje nový souhlas.
    Napsat kód jde vždycky, rozeslat jen to, co je na seznamu a co si člověk zapnul.
 2. **Odběr kalendáře je jediná část aplikace dostupná bez přihlášení.** Všechno
@@ -33,10 +39,9 @@ přes sto skutečných e-mailových adres. Z toho plyne většina omezení níž
 
 ### Proč
 
-Dneska si jde rozpis stáhnout jako soubor `.ics` (`AddToCalendarButton`). Je to
-**snímek**: když se trénink přesune, v telefonu zůstane starý čas, dokud si
-člověk soubor nestáhne znovu. Odběr je proti tomu adresa, kterou si kalendář sám
-občas načte, takže se změna propíše bez zásahu.
+Původní rozpis se stahoval jako soubor `.ics`, tedy snímek, který po přesunutí
+tréninku zůstal starý. Nahradil ho odběr: adresa, kterou si kalendář sám občas
+načte, takže se změna propíše bez zásahu.
 
 Zádrhel je v tom, že **kalendář v telefonu se neumí přihlásit**. Neposílá token
 ani neprojde přihlašovacím formulářem — sáhne na adresu a čeká `text/calendar`.
@@ -133,17 +138,22 @@ nesmí zapnout oznámení někomu jinému.
 | Kategorie | Kdy | Komu |
 |---|---|---|
 | Neodpověděl jsi na blížící se akci | večer před akcí | jen těm, kdo nemají `rsvp` |
-| Zveřejněná nominace | při zveřejnění sestavy | nominovaným |
 | Nový zápis do píny | při založení dávky | tomu, koho se zápis týká |
-| Upomínka na dluh | měsíčně | kdo má kladný zůstatek |
 
 Rozhodnutí, která k tomu patří:
 
-- **Výchozí stav:** po přihlášení k odběru zapnuté první dvě, obě peněžní vypnuté.
-  Upomínka na dluh se musí **aktivně zapnout** — u pošty jsou upomínky bez
-  zvláštního souhlasu zakázané a push je otravnější než e-mail. Je to jedna
-  konstanta, dá se to změnit, ale ne mlčky.
-- **Nic v noci.** Neposílat před 8:00 a po 21:00; co vyjde mimo, počká.
+- **Výchozí stav:** připomínka na nezodpovězenou akci zapnutá, zápis do píny
+  vypnutý. Peněžní kategorii si musí každý **aktivně zapnout** — u pošty jsou
+  upomínky bez zvláštního souhlasu zakázané a push je otravnější než e-mail.
+  Je to jedna konstanta, dá se to změnit, ale ne mlčky.
+- **Zrušené kategorie se nevrací bez nového rozhodnutí.** Nominace a upomínka
+  na dluh z původních čtyř vypadly (18. 8. 2026), důvody jsou
+  u `NotificationService::PREFERENCES`.
+- **Nic v noci.** Neposílat před 8:00 a po 23:00; co vyjde mimo, počká.
+  Hranice byla původně 21:00 — to byl **můj návrh, ne rozhodnutí majitele**, a byl
+  špatný: dávka se zapisuje hned po tréninku nebo zápase, takže nejčastější
+  oznámení vždycky spadlo do zakázaného okna. Na 23:00 to posunul majitel
+  18. 8. 2026.
 - **Jednou a dost.** Odeslání se zapisuje na trojici (člověk, akce, kategorie),
   jinak hodinový cron pošle připomínku pokaždé, co se probudí.
 - **Vypnutí musí zabrat okamžitě**, i když je v běhu dávka odesílání.
@@ -159,15 +169,14 @@ nemusí všechno mačkat do jednoho volání. Z toho plyne:
 - **žádný GitHub Actions workflow.** Analýza ho zmiňuje jako záložní variantu
   (kap. 7.1), ale majitel chce plánovač hostingu — do CI se nesahá.
 
-Dvě úlohy, ne jedna univerzální:
+Jediná úloha — druhá byla na měsíční upomínky dluhu a ty se zrušily:
 
 | Úloha | Interval | Co dělá |
 |---|---|---|
-| odeslání fronty | nejkratší povolený (ideálně 15 min) | vyprázdní frontu oznámení |
-| upomínky na dluh | měsíčně | založí upomínky těm, kdo dluží |
+| odeslání fronty | nejkratší povolený (ideálně 15 min) | založí připomínky na zítřejší akce a vyprázdní frontu |
 
-**Oznámení se nesmí posílat uvnitř požadavku, který je vyvolal.** Nominace
-i nový zápis vznikají v běžném požadavku, ale push služba je cizí server —
+**Oznámení se nesmí posílat uvnitř požadavku, který je vyvolal.** Nový zápis
+vzniká v běžném požadavku, ale push služba je cizí server —
 kdyby byla pomalá nebo mimo, zdržela by nebo shodila zápis peněz. Do databáze se
 proto zapíše záznam do fronty a odešle ho až úloha. Cenou je zpoždění do jednoho
 intervalu; u zápisu ani nominace to nikomu nevadí, u připomínky před akcí taky
@@ -194,7 +203,7 @@ zamčené obrazovce, kterou vidí kdokoli kolem.
   ve frontě, dokud služba nenaběhne.
 - Odhlášený telefon (`410`) zmizí z databáze sám.
 - Opakované zavolání endpointu nepošle druhou kopii.
-- Nic neodejde mezi 21:00 a 8:00.
+- Nic neodejde mezi 23:00 a 8:00.
 - Testy pokrývají výchozí stav voleb, potlačení v noci, deduplikaci a mazání
   mrtvých odběrů.
 
@@ -210,12 +219,12 @@ cd web && npm run typecheck && npm run lint && npm run format && npm test -- --r
 ```
 
 Před odevzdáním musí projít testy i statická analýza té části, které se změna
-týká. Výchozí stav: **284 testů na backendu, 197 na frontendu, PHPStan level 8
-bez chyb.**
+týká. Stav po F5: **309 testů na backendu, 187 na frontendu, PHPStan level 8
+bez chyb.** Testy formátu ICS se spolu s generátorem přesunuly na backend.
 
 ## Co nedělat
 
-- Neposílat žádnou kategorii oznámení mimo ty čtyři z části 3 a žádný e-mail mimo
+- Neposílat žádnou kategorii oznámení mimo ty z části 3 a žádný e-mail mimo
   pozvánky a aktivace.
 - Nesahat do CI. Spouštěč je cron hostingu, ne GitHub Actions.
 - Nesahat na `settlement`/uzávěrku — pololetí je **jen členění podle data**, nic

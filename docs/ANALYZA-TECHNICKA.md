@@ -534,16 +534,24 @@ refresh_token   (id, user_id, token_hash, expires_at, revoked_at, user_agent, ip
 invitation      (id, team_id, email, role, token_hash, expires_at, accepted_at, invited_by)
 password_reset  (id, user_id, token_hash, expires_at, used_at)
 login_attempt   (id, email, ip, succeeded, created_at)          -- rate limiting
+calendar_feed   (id, user_id, team_id, season_id, token_hash, created_at, last_used_at, revoked_at)
 audit_log       (id, club_id, actor_user_id, action, entity, entity_id, payload JSON, created_at)
-push_subscription (id, user_id, endpoint, p256dh, auth, created_at)
+push_subscription (id, user_id, device_id, endpoint, endpoint_hash, p256dh, auth, content_encoding, created_at, last_seen_at, failed_at)
 notification_pref (user_id, channel, event_type, enabled)
-notification      (id, user_id, type, title, body, link, payload JSON, read_at, created_at)
-notification_queue(id, notification_id, channel, status, attempts, last_error, send_after)
+notification      (id, user_id, type, title, body, link, payload JSON, dedupe_key, read_at, created_at)
+notification_queue(id, notification_id, push_subscription_id, channel, status, attempts, last_error, send_after, locked_at)
 ```
 
-`notification` je in-app schránka (vidí ji každý bez ohledu na push a e-mail),
-`notification_queue` je odesílací fronta s opakováním — selhání push serveru
-nesmí shodit zápis prohřešků.
+`notification` je jedna zpráva pro jednoho člověka a `dedupe_key` v ní hlídá, že
+stejná událost nedorazí dvakrát; `notification_queue` je odesílací fronta
+s opakováním — selhání push serveru nesmí shodit zápis prohřešků.
+
+Původně měla být `notification` i **schránka v aplikaci**, ze které se zprávy
+čtou zpětně. Ta ve F5 nevznikla: obrazovka bez čtecího endpointu nemá co
+ukazovat, a přišlo by na ni jen to, co člověk už dostal na displej. Sloupce
+`read_at` a `payload` proto zůstávají prázdné a jsou jediné dvě výjimky
+z pravidla „žádné sloupce na potom" (viz `api/AGENTS.md`) — čekají na tu
+obrazovku, ne na doplnění chybějícího chování.
 
 `audit_log` je nový — u peněz a docházky je "kdo to změnil a kdy" požadavek, ne luxus.
 
@@ -679,12 +687,14 @@ GET    /api/v1/offence-batches/{id}            -- detail dávky (rozpis pro hrá
 POST   /api/v1/offence-batches/{id}/void       -- storno celé dávky
 POST   /api/v1/offences/{id}/void              -- storno jednoho zápisu
 
-GET    /api/v1/notifications                   -- in-app seznam
-POST   /api/v1/notifications/{id}/read
-GET    /api/v1/me/notification-preferences
-PUT    /api/v1/me/notification-preferences
+GET    /api/v1/notifications                   -- in-app seznam, nevznikl (viz 4.8)
+POST   /api/v1/notifications/{id}/read          -- nevznikl
 
 GET    /api/v1/seasons/{s}/events?from=&to=    -- kalendář
+GET    /api/v1/calendar/{token}.ics             -- veřejný odběr, token je oprávnění
+GET    /api/v1/me/calendar-feeds                -- vlastní aktivní odběry
+POST   /api/v1/seasons/{s}/calendar-feed        -- vydá tajnou adresu jednou
+DELETE /api/v1/calendar-feeds/{id}              -- zneplatnění odběru
 POST   /api/v1/seasons/{s}/events
 POST   /api/v1/seasons/{s}/event-series
 PATCH  /api/v1/events/{id}
@@ -699,7 +709,11 @@ GET    /api/v1/memberships/{id}/payment-qr     -- SPAYD řetězec pro QR
 GET    /api/v1/clubs/{c}/bank-transactions     -- fáze 2
 POST   /api/v1/bank-transactions/{id}/match
 
+GET    /api/v1/me/notifications/settings
+PUT    /api/v1/me/notifications/preferences
 POST   /api/v1/push/subscribe
+POST   /api/v1/push/unsubscribe
+POST   /api/v1/cron/notifications/send?token=...
 GET    /api/v1/seasons/{s}/export?format=csv|xlsx
 ```
 
@@ -778,21 +792,23 @@ s rozdílem a klient souhrn přepočítá.
 Notifikace se posílá **agregovaně za dávku, jedna na hráče** — ne jedna na každý
 prohřešek. Pět zpráv během deseti vteřin je důvod, proč si lidé notifikace vypnou.
 
-> **Pína — trénink 16. 9.**
-> Byly ti zapsány 3 prohřešky za 60 Kč. Celkem dlužíš 340 Kč.
+> **Nový zápis do píny**
+> V píně máš nový zápis.
 
-Klepnutí otevře detail dávky s rozpisem. Kanály:
-- **Web Push** pro ty, kdo mají PWA na ploše a notifikace povolené,
-- **e-mail** jako fallback,
-- **in-app** seznam oznámení vždy (i pro toho, kdo obojí odmítl).
+Klepnutí otevře aplikaci. Na zamčené obrazovce není částka ani cizí jméno.
+Kanálem je **Web Push** pro ty, kdo si ho na daném zařízení povolili;
+e-mailový fallback pro tyto kategorie povolený není.
 
 Každý uživatel si v nastavení volí, co chce dostávat (`notification_pref`).
-Odesílání běží **po commitu transakce** a jeho selhání nesmí shodit zápis —
-neúspěšné notifikace jdou do fronty (`notification_queue`) a zkusí se znovu.
-Storno dávky pošle opravné oznámení („zápis byl zrušen").
+Doménový zápis založí notifikaci a frontu ve stejné databázové transakci,
+ale cizí push službu volá až cron. Její selhání proto nemůže shodit zápis.
 
-Stejný mechanismus se použije pro ostatní události: nová nominace, připomínka akce,
-upomínka dluhu, potvrzení přijaté platby.
+Povolené kategorie jsou jen dvě: připomínka nezodpovězené akce a nový zápis
+do píny. Upomínka dluhu se zrušila 18. 8. 2026 — vybírá se jednou za pololetí,
+takže měsíční zpráva připomínala něco, s čím hráč nic dělat nemá, a kdo pořád
+nezaplatil, se řeší v týmovém chatu. Nominace mezi nimi není — aplikace nemá krok
+„sestava je hotová" a výchozí stav je „jede celá soupiska", takže by oznámení
+nenesla informaci; zrušila se 18. 8. 2026, viz `NotificationService::PREFERENCES`.
 
 ### 7.4 QR platba (fáze 1, nulové náklady)
 Backend složí SPAYD řetězec (standard ČBA, čitelný všemi českými bankami):
@@ -992,17 +1008,16 @@ Na tuhle část se dá nasadit návrh v jednom průchodu (designový systém →
 obrazovky) a průběžně screenshotovat proti reálnému UI.
 
 ### 9.3 PWA a notifikace
-- `vite-plugin-pwa`, manifest, ikony, offline shell (kalendář a přehled se čtou z cache).
+- `vite-plugin-pwa`, manifest, ikony, offline shell (jen statické soubory — data se
+  do zařízení neukládají, viz `web/AGENTS.md`).
 - Instalace na plochu: Android i iOS (16.4+) — nahrazuje ztracenou Play Store distribuci.
 - Web Push (VAPID) z PHP přes `minishlink/web-push`:
   - **zapsané prohřešky — jedno agregované oznámení za dávku** (viz 7.3),
-  - nová nominace,
-  - připomínka akce 24 h a 2 h předem,
-  - potvrzení přijaté platby,
-  - měsíční upomínka dluhu.
+  - připomínka nezodpovězené akce večer předem.
   Na iOS funguje push jen pro PWA přidanou na plochu — v UI je potřeba onboarding krok
   "přidat na plochu".
-- E-mail (PHPMailer) jako fallback pro ty, kdo push nepovolí.
+- Odesílání běží z databázové fronty přes cron hostingu; mezi 23:00 a 8:00
+  nic neodejde a `404`/`410` odstraní mrtvý odběr.
 
 ---
 
