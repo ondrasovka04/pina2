@@ -1,9 +1,11 @@
-import type { ComponentType, SVGProps } from 'react'
+import type { ComponentType, ReactNode, SVGProps } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet } from 'react-router'
 
+import { useCurrentUser } from '@/app/session'
 import { useTeam } from '@/app/team'
 import { TeamSwitcher } from '@/app/TeamSwitcher'
-import { ClubMark } from '@/components/ClubMark'
+import { TeamLogo } from '@/components/TeamLogo'
 import { CalendarIcon, ListIcon, PlusIcon, UserIcon, WalletIcon } from '@/components/ui/icons'
 import { ErrorState, LoadingState } from '@/components/ui/States'
 import { cn } from '@/lib/cn'
@@ -14,6 +16,8 @@ interface NavItem {
 	label: string
 	icon: ComponentType<SVGProps<SVGSVGElement>>
 	requires?: Role
+	/** Místo ikony se v liště ukáže profilový obrázek, pokud ho uživatel má. */
+	avatar?: boolean
 }
 
 const navItems: NavItem[] = [
@@ -21,11 +25,34 @@ const navItems: NavItem[] = [
 	{ to: '/dluhy', label: 'Dluhy', icon: WalletIcon },
 	{ to: '/zapsat', label: 'Zapsat', icon: PlusIcon, requires: 'treasurer' },
 	{ to: '/sazebnik', label: 'Sazebník', icon: ListIcon },
-	{ to: '/ja', label: 'Já', icon: UserIcon },
+	{ to: '/ja', label: 'Já', icon: UserIcon, avatar: true },
 ]
+
+/**
+ * Tvář místo ikony; při chybějícím nebo rozbitém obrázku `fallback` (iniciály by
+ * mezi linkovými ikonami vypadaly cizí). `ringed` značí aktivní záložku tam, kde
+ * ji obrázek nemůže vzít z barvy textu jako ikona.
+ */
+function NavAvatar({ src, ringed, fallback }: { src: string; ringed: boolean; fallback: ReactNode }) {
+	const [failed, setFailed] = useState(false)
+
+	useEffect(() => setFailed(false), [src])
+
+	if (failed) return fallback
+
+	return (
+		<img
+			src={src}
+			alt=""
+			className={cn('size-6 rounded-full object-cover', ringed && 'outline-accent outline-2 outline-offset-1')}
+			onError={() => setFailed(true)}
+		/>
+	)
+}
 
 export function AppLayout() {
 	const { team, can, isLoading, isSeasonLoading, isSeasonClosed, error } = useTeam()
+	const user = useCurrentUser()
 
 	if (isLoading) return <LoadingState />
 	if (error !== null) return <ErrorState error={error} />
@@ -51,7 +78,7 @@ export function AppLayout() {
 			>
 				<div className="mx-auto flex w-full max-w-3xl items-center gap-3 px-4 py-2.5">
 					<Link to="/kalendar" aria-label="Kalendář" className="shrink-0">
-						<ClubMark className="h-8" />
+						<TeamLogo src={team.logoUrl} className="h-8 max-w-24" />
 					</Link>
 
 					<TeamSwitcher />
@@ -75,7 +102,14 @@ export function AppLayout() {
 									)
 								}
 							>
-								{item.label}
+								{item.avatar === true && user.avatarUrl !== null ? (
+									<span className="flex items-center gap-2">
+										<NavAvatar src={user.avatarUrl} ringed={false} fallback={null} />
+										{item.label}
+									</span>
+								) : (
+									item.label
+								)}
 							</NavLink>
 						))}
 					</nav>
@@ -106,7 +140,15 @@ export function AppLayout() {
 							>
 								{({ isActive }) => (
 									<>
-										<item.icon className={cn('size-6', isActive && 'stroke-2')} />
+										{item.avatar === true && user.avatarUrl !== null ? (
+											<NavAvatar
+												src={user.avatarUrl}
+												ringed={isActive}
+												fallback={<UserIcon className={cn('size-6', isActive && 'stroke-2')} />}
+											/>
+										) : (
+											<item.icon className={cn('size-6', isActive && 'stroke-2')} />
+										)}
 										{item.label}
 									</>
 								)}
