@@ -25,6 +25,7 @@ export interface CurrentUser {
 	id: number
 	email: string
 	name: string
+	avatarUrl: string | null
 	platformAdmin: boolean
 	/** Umí nasazení odesílat poštu? Bez toho se odkazy předávají ručně. */
 	mailEnabled: boolean
@@ -42,6 +43,7 @@ export interface TeamSummary {
 	id: number
 	name: string
 	color: string | null
+	logoUrl: string | null
 	clubId: number
 	clubName: string
 	membershipId: number
@@ -74,6 +76,7 @@ export interface RosterEntry {
 	membershipId: number
 	userId: number
 	name: string
+	avatarUrl: string | null
 	role: Role
 	status: MemberStatus
 	jerseyNumber: number | null
@@ -85,6 +88,7 @@ export interface TeamMember {
 	id: number
 	userId: number
 	name: string
+	avatarUrl: string | null
 	email: string
 	role: Role
 	status: MemberStatus
@@ -204,7 +208,7 @@ export interface TeamSettings {
 	homeLocationId: number | null
 	attendanceVisibleToPlayers: boolean
 	balancesVisibleToPlayers: boolean
-	/** Společný účet klubu pro QR platby. */
+	/** Účet družstva pro QR platby. */
 	bankAccount: string | null
 }
 
@@ -212,6 +216,7 @@ export interface TeamDetail {
 	id: number
 	name: string
 	color: string | null
+	logoUrl: string | null
 	archivedAt: string | null
 	clubId: number
 	clubName: string
@@ -311,6 +316,7 @@ export interface MemberBalance {
 	membershipId: number
 	userId: number
 	name: string
+	avatarUrl: string | null
 	jerseyNumber: number | null
 	status: MemberStatus
 	/**
@@ -373,6 +379,7 @@ export interface Payment {
 	seasonId: number
 	membershipId: number
 	memberName: string
+	memberAvatarUrl: string | null
 	amountCzk: number
 	paidOn: string
 	method: PaymentMethod
@@ -388,6 +395,7 @@ export interface TravelClaim {
 	seasonId: number
 	membershipId: number
 	memberName: string
+	memberAvatarUrl: string | null
 	eventId: number | null
 	eventTitle: string | null
 	occurredOn: string
@@ -434,6 +442,7 @@ export interface BatchMember {
 	membershipId: number
 	userId: number
 	name: string
+	avatarUrl: string | null
 	recordCount: number
 	voidedCount: number
 	totalCzk: number
@@ -592,6 +601,7 @@ export interface EventParticipant {
 	membershipId: number
 	userId: number
 	name: string
+	avatarUrl: string | null
 	jerseyNumber: number | null
 	/** `false` = na soupisce sezóny není, ale u akce záznam má. */
 	onRoster: boolean
@@ -632,6 +642,7 @@ export interface AttendanceRow {
 	membershipId: number
 	userId: number
 	name: string
+	avatarUrl: string | null
 	jerseyNumber: number | null
 	present: number
 	absent: number

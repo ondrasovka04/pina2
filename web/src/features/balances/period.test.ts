@@ -12,6 +12,7 @@ function member(overrides: Partial<MemberBalance> = {}): MemberBalance {
 		membershipId: 1,
 		userId: 1,
 		name: 'Kindrák',
+		avatarUrl: null,
 		jerseyNumber: null,
 		status: 'active',
 		onRoster: true,

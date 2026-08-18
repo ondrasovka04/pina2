@@ -325,6 +325,37 @@ export function useTeamDetail(teamId: number | null) {
 	})
 }
 
+/**
+ * Obrázek jde s jménem, tedy skoro do každé odpovědi (soupiska, dluhy, docházka,
+ * dávky, platby, cesťáky). Vypisovat klíče po jednom znamená na jeden zapomenout,
+ * takže se zneplatní cache celá — je to jedno kliknutí za rok.
+ */
+export function useSaveUserImage() {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: (image: string | null) =>
+			image === null
+				? api.delete<{ avatarUrl: string | null }>('/me/avatar')
+				: api.put<{ avatarUrl: string | null }>('/me/avatar', { image }),
+		onSuccess: () => queryClient.invalidateQueries(),
+	})
+}
+
+export function useSaveTeamImage(teamId: number) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: (image: string | null) =>
+			image === null
+				? api.delete<{ logoUrl: string | null }>(`/teams/${teamId}/logo`)
+				: api.put<{ logoUrl: string | null }>(`/teams/${teamId}/logo`, { image }),
+		// `['teams']` je předpona, takže se zneplatní i detail družstva, odkud
+		// znak čte nastavení — a hlavička v `AppLayout`.
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.teams }),
+	})
+}
+
 export function useRenameTeam(teamId: number) {
 	const queryClient = useQueryClient()
 

@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react'
+
 import { cn } from '@/lib/cn'
 
 /** „Ondřej Kopáč" → „OK". Jedno slovo dá jedno písmeno, prázdné jméno pomlčku. */
@@ -13,13 +15,18 @@ export function initials(name: string): string {
 
 interface AvatarProps {
 	name: string
+	src?: string | null
 	/** Číslo dresu se ukáže místo iniciál — hráči se mezi sebou znají spíš podle něj. */
 	jerseyNumber?: number | null
 	size?: 'sm' | 'md'
 	className?: string
 }
 
-export function Avatar({ name, jerseyNumber = null, size = 'md', className }: AvatarProps) {
+export function Avatar({ name, src = null, jerseyNumber = null, size = 'md', className }: AvatarProps) {
+	const [failed, setFailed] = useState(false)
+
+	useEffect(() => setFailed(false), [src])
+
 	const label = jerseyNumber === null ? initials(name) : String(jerseyNumber)
 
 	return (
@@ -32,7 +39,11 @@ export function Avatar({ name, jerseyNumber = null, size = 'md', className }: Av
 				className,
 			)}
 		>
-			{label}
+			{src !== null && !failed ? (
+				<img src={src} alt="" className="size-full rounded-full object-cover" onError={() => setFailed(true)} />
+			) : (
+				label
+			)}
 		</span>
 	)
 }

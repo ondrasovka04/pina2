@@ -317,7 +317,7 @@ export function TeamSettingsSection({ team }: { team: TeamDetail }) {
 					value={accountInput}
 					onChange={(event) => changeAccount(event.target.value)}
 					error={fieldMessage(save.error, 'bankAccount')}
-					hint="Společný účet klubu. Lze zadat české číslo účtu nebo IBAN."
+					hint="Účet tohohle družstva. Lze zadat české číslo účtu nebo IBAN."
 				/>
 
 				{generalMessage(save.error) === undefined ? null : (

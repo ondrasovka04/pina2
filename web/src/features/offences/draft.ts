@@ -82,6 +82,7 @@ export interface DraftItem {
 export interface DraftMember {
 	membershipId: number
 	name: string
+	avatarUrl: string | null
 	jerseyNumber: number | null
 	balanceCzk: number
 	totalCzk: number
@@ -127,6 +128,7 @@ export function summarizeDraft(
 		const entry = byMember.get(membershipId) ?? {
 			membershipId,
 			name: member.name,
+			avatarUrl: member.avatarUrl,
 			jerseyNumber: member.jerseyNumber,
 			balanceCzk: member.balanceCzk,
 			totalCzk: 0,

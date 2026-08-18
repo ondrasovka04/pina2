@@ -148,7 +148,7 @@ function MemberRow({ member, period, isMe }: { member: MemberBalance; period: Pe
 				isMe && 'bg-brand-600/10',
 			)}
 		>
-			<Avatar name={member.name} jerseyNumber={member.jerseyNumber} />
+			<Avatar name={member.name} src={member.avatarUrl} jerseyNumber={member.jerseyNumber} />
 
 			<div className="min-w-0 flex-1">
 				<p className="truncate font-medium">

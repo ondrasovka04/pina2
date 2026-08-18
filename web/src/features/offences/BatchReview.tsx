@@ -72,7 +72,7 @@ export function BatchReview({
 				{summary.members.map((member) => (
 					<div key={member.membershipId} className="px-4 py-3">
 						<div className="flex items-center gap-3">
-							<Avatar name={member.name} jerseyNumber={member.jerseyNumber} size="sm" />
+							<Avatar name={member.name} src={member.avatarUrl} jerseyNumber={member.jerseyNumber} size="sm" />
 							<p className="min-w-0 flex-1 truncate font-medium">{member.name}</p>
 							<Money czk={member.totalCzk} className="font-semibold" />
 						</div>
@@ -145,7 +145,7 @@ export function BatchResult({ result, onAnother }: BatchResultProps) {
 			<Card className="divide-line/50 divide-y">
 				{result.members.map((member) => (
 					<div key={member.membershipId} className="flex items-center gap-3 px-4 py-3">
-						<Avatar name={member.name} size="sm" />
+						<Avatar name={member.name} src={member.avatarUrl} size="sm" />
 						<div className="min-w-0 flex-1">
 							<p className="truncate font-medium">{member.name}</p>
 							<p className="text-ink-faint text-xs">
@@ -161,10 +161,11 @@ export function BatchResult({ result, onAnother }: BatchResultProps) {
 				<Button variant="accent" size="lg" fullWidth onClick={onAnother}>
 					Zapsat další
 				</Button>
+				{/* Šířka podle nápisu, ne půl obrazovky — s `flex-1` se text zalomil na dva řádky. */}
 				<Link
 					to="/dluhy"
 					role="button"
-					className="bg-surface-2 text-ink inline-flex min-h-12 flex-1 items-center justify-center rounded-xl px-5 text-base"
+					className="bg-surface-2 text-ink inline-flex min-h-12 shrink-0 items-center justify-center rounded-xl px-5 text-base whitespace-nowrap"
 				>
 					Na dluhy
 				</Link>

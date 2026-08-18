@@ -7,11 +7,12 @@ import { useTheme } from '@/app/theme'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { Field } from '@/components/ui/Field'
+import { ImageUpload } from '@/components/ui/ImageUpload'
 import { Money } from '@/components/ui/Money'
 import { api, ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import type { TeamDebt } from '@/lib/queries'
-import { useMyDebts } from '@/lib/queries'
+import { useMyDebts, useSaveUserImage } from '@/lib/queries'
 import type { ThemePreference } from '@/lib/theme'
 import { themeLabels } from '@/lib/theme'
 import type { Membership } from '@/lib/types'
@@ -32,6 +33,8 @@ export function ProfilePage() {
 				<p className="text-ink-muted text-sm">{user.email}</p>
 			</div>
 
+			<ProfileImageCard />
+
 			<MyTeamsCard />
 
 			<AppInstallCard />
@@ -51,6 +54,31 @@ export function ProfilePage() {
 				<LogoutEverywhereButton />
 			</Card>
 		</div>
+	)
+}
+
+function ProfileImageCard() {
+	const user = useCurrentUser()
+	const { refreshUser } = useSession()
+	const save = useSaveUserImage()
+
+	return (
+		<Card>
+			<CardHeader title="Profilový obrázek" />
+			<div className="p-4">
+				<ImageUpload
+					name={user.name}
+					imageUrl={user.avatarUrl}
+					onSave={async (image) => {
+						await save.mutateAsync(image)
+						// Uloženo je uloženo. Když se pak nepovede načíst `/me`, není to
+						// chyba ukládání — hlásit ji by znamenalo tvrdit, že obrázek
+						// nevznikl, a on přitom na serveru je.
+						await refreshUser().catch(() => undefined)
+					}}
+				/>
+			</div>
+		</Card>
 	)
 }
 

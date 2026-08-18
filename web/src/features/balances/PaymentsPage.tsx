@@ -167,6 +167,7 @@ export function PaymentsPage() {
 								key={payment.id}
 								membershipId={payment.membershipId}
 								name={payment.memberName}
+								imageUrl={payment.memberAvatarUrl}
 								title={methodLabels[payment.method]}
 								detail={`${formatDate(payment.paidOn)}${payment.note === null ? '' : ` · ${payment.note}`}`}
 								amountCzk={-payment.amountCzk}
@@ -190,6 +191,7 @@ export function PaymentsPage() {
 							key={claim.id}
 							membershipId={claim.membershipId}
 							name={claim.memberName}
+							imageUrl={claim.memberAvatarUrl}
 							title={claim.eventTitle ?? claim.note ?? 'Ruční cesťák'}
 							detail={`${formatDate(claim.occurredOn)} · ${claim.distanceKm} km × ${formatCzk(claim.rateCzkKm)}`}
 							amountCzk={-claim.amountCzk}
@@ -228,6 +230,7 @@ function Tab({ active, onClick, children }: { active: boolean; onClick: () => vo
 interface RowProps {
 	membershipId: number
 	name: string
+	imageUrl: string | null
 	title: string
 	detail: string
 	amountCzk: number
@@ -237,10 +240,10 @@ interface RowProps {
 	onVoid?: (() => void) | undefined
 }
 
-function Row({ membershipId, name, title, detail, amountCzk, voided, voiding, voidLabel, onVoid }: RowProps) {
+function Row({ membershipId, name, imageUrl, title, detail, amountCzk, voided, voiding, voidLabel, onVoid }: RowProps) {
 	return (
 		<div className={cn('flex items-center gap-3 px-4 py-3', voided && 'opacity-50')}>
-			<Avatar name={name} size="sm" />
+			<Avatar name={name} src={imageUrl} size="sm" />
 			<div className="min-w-0 flex-1">
 				<p className={cn('truncate font-medium', voided && 'line-through')}>
 					<Link to={`/hraci/${membershipId}`} className="hover:underline">

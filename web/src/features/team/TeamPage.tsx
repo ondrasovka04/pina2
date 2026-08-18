@@ -6,6 +6,7 @@ import { useTeam } from '@/app/team'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Field } from '@/components/ui/Field'
+import { ImageUpload } from '@/components/ui/ImageUpload'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States'
 import { InvitationsSection } from '@/features/team/InvitationsSection'
 import { MemberRow } from '@/features/team/MemberRow'
@@ -18,12 +19,13 @@ import { plural } from '@/lib/plural'
 import {
 	useActivationLink,
 	useRenameTeam,
+	useSaveTeamImage,
 	useSendActivationEmails,
 	useTeamDetail,
 	useTeamMembers,
 	useUpdateMembership,
 } from '@/lib/queries'
-import type { ActivationBatch, IssuedLink } from '@/lib/types'
+import type { ActivationBatch, IssuedLink, TeamDetail } from '@/lib/types'
 
 type IssuedKind = 'invitation' | 'activation'
 
@@ -76,6 +78,8 @@ export function TeamPage() {
 			<h1 className="text-lg font-semibold">Družstvo</h1>
 
 			<TeamNameCard teamId={team.id} name={team.name} clubName={team.clubName} />
+
+			{detail.data === undefined ? null : <TeamImageCard team={detail.data} />}
 
 			{failure === null ? null : (
 				<p role="alert" className="bg-debt-500/15 text-debt rounded-xl px-3 py-2 text-sm">
@@ -141,6 +145,25 @@ export function TeamPage() {
 				onClose={() => setIssued(null)}
 			/>
 		</div>
+	)
+}
+
+function TeamImageCard({ team }: { team: TeamDetail }) {
+	const save = useSaveTeamImage(team.id)
+
+	return (
+		<Card className="p-4">
+			<div className="mb-3">
+				<h2 className="font-semibold">Znak družstva</h2>
+				<p className="text-ink-faint text-sm">Bez něj se všude kreslí znak klubu.</p>
+			</div>
+			<ImageUpload
+				name={team.name}
+				imageUrl={team.logoUrl}
+				shape="rounded"
+				onSave={(image) => save.mutateAsync(image).then(() => undefined)}
+			/>
+		</Card>
 	)
 }
 

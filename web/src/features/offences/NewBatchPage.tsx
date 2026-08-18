@@ -472,7 +472,7 @@ function MemberComposeRow({ member, types, draft, open, onToggle, onAdd, onRemov
 				aria-expanded={open}
 				className="flex w-full items-center gap-3 px-4 py-3 text-left"
 			>
-				<Avatar name={member.name} jerseyNumber={member.jerseyNumber} />
+				<Avatar name={member.name} src={member.avatarUrl} jerseyNumber={member.jerseyNumber} />
 
 				<span className="min-w-0 flex-1">
 					<span className="block truncate font-medium">{member.name}</span>

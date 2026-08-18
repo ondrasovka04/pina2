@@ -1,5 +1,6 @@
 import { useState } from 'react'
 
+import { Avatar } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { isLastAdmin, needsActivation, roleOrder } from '@/features/team/members'
@@ -48,6 +49,7 @@ export function MemberRow({ member, members, isMe, busy, onChange, onActivate }:
 				aria-expanded={expanded}
 				className="flex min-h-14 w-full items-center gap-3 px-1 py-2 text-left"
 			>
+				<Avatar name={member.name} src={member.avatarUrl} jerseyNumber={member.jerseyNumber} size="sm" />
 				<span className="min-w-0 flex-1">
 					<span className="flex flex-wrap items-center gap-x-2 gap-y-1">
 						<span className={cn('truncate font-medium', left && 'text-ink-faint')}>{member.name}</span>

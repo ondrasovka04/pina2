@@ -34,6 +34,7 @@ const team = {
 	archivedAt: null,
 	clubId: 1,
 	clubName: 'SK Prosek',
+	logoUrl: null,
 	memberCount: 18,
 	settings,
 }

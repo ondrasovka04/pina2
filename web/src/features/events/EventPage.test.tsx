@@ -66,6 +66,7 @@ function detail(overrides: Partial<TeamEvent> = {}): EventDetail {
 				membershipId: 2,
 				userId: 1,
 				name: 'Ondra',
+				avatarUrl: null,
 				jerseyNumber: 7,
 				onRoster: true,
 				nomination: 'none',

@@ -129,7 +129,7 @@ export function MemberPage() {
 
 			<Card className="overflow-hidden">
 				<div className="flex items-center gap-4 px-4 py-4">
-					<Avatar name={member.name} jerseyNumber={member.jerseyNumber} />
+					<Avatar name={member.name} src={member.avatarUrl} jerseyNumber={member.jerseyNumber} />
 					<div className="min-w-0 flex-1">
 						<p className="truncate text-lg font-semibold">{member.name}</p>
 						<p className="text-ink-muted text-sm">{recordsLabel(member.recordCount)}</p>

@@ -2,6 +2,7 @@ import { useState } from 'react'
 
 import { useTeam } from '@/app/team'
 import { NoSeasonState } from '@/components/NoSeasonState'
+import { Avatar } from '@/components/ui/Avatar'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States'
 import { formatRatio } from '@/features/events/events'
@@ -68,6 +69,7 @@ function byRatio(a: AttendanceRow, b: AttendanceRow): number {
 function AttendanceLine({ row }: { row: AttendanceRow }) {
 	return (
 		<li className="flex items-center gap-3 px-4 py-3">
+			<Avatar name={row.name} src={row.avatarUrl} jerseyNumber={row.jerseyNumber} size="sm" />
 			<div className="min-w-0 flex-1">
 				<p className="truncate font-medium">
 					{row.name}

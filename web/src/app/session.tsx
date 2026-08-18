@@ -15,6 +15,7 @@ interface SessionValue {
 	acceptInvitation: (token: string, password: string, name: string) => Promise<void>
 	/** Nové heslo z odkazu — server v odpovědi rovnou přihlašuje. */
 	resetPassword: (token: string, password: string) => Promise<void>
+	refreshUser: () => Promise<void>
 	signOut: () => Promise<void>
 }
 
@@ -135,9 +136,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 		}
 	}, [queryClient])
 
+	const refreshUser = useCallback(async () => {
+		setUser(await api.get<CurrentUser>('/me'))
+	}, [])
+
 	const value = useMemo<SessionValue>(
-		() => ({ status, user, signIn, acceptInvitation, resetPassword, signOut }),
-		[status, user, signIn, acceptInvitation, resetPassword, signOut],
+		() => ({ status, user, signIn, acceptInvitation, resetPassword, refreshUser, signOut }),
+		[status, user, signIn, acceptInvitation, resetPassword, refreshUser, signOut],
 	)
 
 	return <SessionContext value={value}>{children}</SessionContext>

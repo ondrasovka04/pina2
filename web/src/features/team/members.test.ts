@@ -6,6 +6,7 @@ import type { MemberStatus, Role, TeamMember } from '@/lib/types'
 function member(overrides: Partial<TeamMember> & { id: number; name: string }): TeamMember {
 	return {
 		userId: overrides.id,
+		avatarUrl: null,
 		email: `${overrides.name}@prosek.cz`,
 		role: 'player' as Role,
 		status: 'active' as MemberStatus,

@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 
 import { useTeam } from '@/app/team'
+import { Avatar } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
@@ -262,6 +263,7 @@ function RosterReadOnly({ roster }: { roster: RosterEntry[] }) {
 		<div className="divide-line/50 divide-y">
 			{roster.map((entry) => (
 				<div key={entry.membershipId} className="flex items-center gap-3 py-2 text-sm">
+					<Avatar name={entry.name} src={entry.avatarUrl} jerseyNumber={entry.jerseyNumber} size="sm" />
 					<span className="min-w-0 flex-1 truncate">
 						{entry.name}
 						{entry.jerseyNumber === null ? null : ` · #${entry.jerseyNumber}`}

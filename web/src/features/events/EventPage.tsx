@@ -566,7 +566,7 @@ function ParticipantRow({
 
 	return (
 		<div className="border-line/50 flex items-center gap-3 border-b py-2 last:border-b-0">
-			<Avatar name={participant.name} jerseyNumber={participant.jerseyNumber} size="sm" />
+			<Avatar name={participant.name} src={participant.avatarUrl} jerseyNumber={participant.jerseyNumber} size="sm" />
 			<div className="min-w-0 flex-1">
 				<p className="truncate text-sm font-medium">{participant.name}</p>
 				{participant.rsvpNote === null ? null : (
@@ -708,7 +708,12 @@ function AttendanceSection({ eventId, seasonId, participants, writable, rides }:
 							key={participant.membershipId}
 							className="border-line/50 flex flex-wrap items-center gap-2 border-b py-2 last:border-b-0"
 						>
-							<Avatar name={participant.name} jerseyNumber={participant.jerseyNumber} size="sm" />
+							<Avatar
+								name={participant.name}
+								src={participant.avatarUrl}
+								jerseyNumber={participant.jerseyNumber}
+								size="sm"
+							/>
 							<div className="min-w-0 flex-1">
 								<p className="truncate text-sm font-medium">{participant.name}</p>
 								{participant.corrected ? <span className="text-ink-faint text-xs">ručně opraveno</span> : null}
@@ -815,7 +820,12 @@ function NominationSection({ eventId, participants, writable }: NominationSectio
 						key={participant.membershipId}
 						className="border-line/50 flex flex-wrap items-center gap-2 border-b py-2 last:border-b-0"
 					>
-						<Avatar name={participant.name} jerseyNumber={participant.jerseyNumber} size="sm" />
+						<Avatar
+							name={participant.name}
+							src={participant.avatarUrl}
+							jerseyNumber={participant.jerseyNumber}
+							size="sm"
+						/>
 						<p className="min-w-0 flex-1 truncate text-sm font-medium">{participant.name}</p>
 
 						<div className="border-line bg-surface-2 flex rounded-xl border p-1">

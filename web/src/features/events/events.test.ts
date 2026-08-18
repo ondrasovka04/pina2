@@ -60,6 +60,7 @@ function participant(overrides: Partial<EventParticipant> = {}): EventParticipan
 		membershipId: 1,
 		userId: 1,
 		name: 'Adam Novák',
+		avatarUrl: null,
 		jerseyNumber: null,
 		onRoster: true,
 		nomination: 'none',
