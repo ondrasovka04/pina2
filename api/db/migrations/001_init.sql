@@ -200,6 +200,26 @@ CREATE TABLE event_participant (
   CONSTRAINT fk_participant_by FOREIGN KEY (attendance_by) REFERENCES `user` (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_czech_ci;
 
+-- Tajna adresa pro prubezne nacitany kalendar. Token se vraci jen pri vydani,
+-- v databazi zustava pouze SHA-256 otisk. Opravneni se pri kazdem nacteni znovu
+-- overuje proti zivemu clenstvi, takze odchod z druzstva feed okamzite vypne.
+CREATE TABLE calendar_feed (
+  id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id      BIGINT UNSIGNED NOT NULL,
+  team_id      BIGINT UNSIGNED NOT NULL,
+  season_id    BIGINT UNSIGNED NOT NULL,
+  token_hash   CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_used_at DATETIME NULL,
+  revoked_at   DATETIME NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_calendar_feed_token (token_hash),
+  KEY ix_calendar_feed_owner (user_id, season_id, revoked_at),
+  CONSTRAINT fk_calendar_feed_user FOREIGN KEY (user_id) REFERENCES `user` (id) ON DELETE CASCADE,
+  CONSTRAINT fk_calendar_feed_team FOREIGN KEY (team_id) REFERENCES team (id) ON DELETE CASCADE,
+  CONSTRAINT fk_calendar_feed_season FOREIGN KEY (season_id) REFERENCES season (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_czech_ci;
+
 -- ---------------------------------------------------------------- prohřešky
 
 -- Sazebnik je per sezona, a sezona per tym -> kazde druzstvo ma vlastni cenik.
@@ -439,15 +459,24 @@ CREATE TABLE audit_log (
   KEY ix_audit_entity (entity, entity_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_czech_ci;
 
+-- device_id je nahodny identifikator prohlizece z localStorage. Adresa odberu se
+-- pri kazde nove registraci service workera meni, takze bez nej po sobe jedno
+-- zarizeni zanechava mrtve radky a aplikace pak tvrdi, ze je odber jinde.
 CREATE TABLE push_subscription (
-  id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  user_id    BIGINT UNSIGNED NOT NULL,
-  endpoint   VARCHAR(500) NOT NULL,
-  p256dh     VARCHAR(255) NOT NULL,
-  auth       VARCHAR(255) NOT NULL,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  id               BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id          BIGINT UNSIGNED NOT NULL,
+  device_id        CHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  endpoint         VARCHAR(500) NOT NULL,
+  endpoint_hash    CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  p256dh           VARCHAR(255) NOT NULL,
+  auth             VARCHAR(255) NOT NULL,
+  content_encoding ENUM('aes128gcm','aesgcm') NOT NULL DEFAULT 'aes128gcm',
+  created_at       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_seen_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  failed_at        DATETIME NULL,
   PRIMARY KEY (id),
-  UNIQUE KEY uq_push_endpoint (endpoint(191)),
+  UNIQUE KEY uq_push_endpoint_hash (endpoint_hash),
+  UNIQUE KEY uq_push_device (user_id, device_id),
   KEY ix_push_user (user_id),
   CONSTRAINT fk_push_user FOREIGN KEY (user_id) REFERENCES `user` (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_czech_ci;
@@ -460,26 +489,33 @@ CREATE TABLE notification (
   body       VARCHAR(500) NOT NULL,
   link       VARCHAR(255) NULL,
   payload    JSON NULL,
+  dedupe_key VARCHAR(191) NOT NULL,
   read_at    DATETIME NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
+  UNIQUE KEY uq_notification_dedupe (user_id, type, dedupe_key),
   KEY ix_notification_user (user_id, read_at, created_at),
   CONSTRAINT fk_notification_user FOREIGN KEY (user_id) REFERENCES `user` (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_czech_ci;
 
--- Odesilaci fronta: selhani push serveru nesmi shodit zapis prohresku.
+-- Odesilaci fronta je po zarizenich: vypadek jednoho telefonu nesmi zpusobit
+-- opakovane doruceni na jiny. Odesila ji az chranena cron uloha.
 CREATE TABLE notification_queue (
-  id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  notification_id BIGINT UNSIGNED NOT NULL,
-  channel         ENUM('push','email') NOT NULL,
-  status          ENUM('pending','sent','failed') NOT NULL DEFAULT 'pending',
-  attempts        TINYINT UNSIGNED NOT NULL DEFAULT 0,
-  last_error      VARCHAR(255) NULL,
-  send_after      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  sent_at         DATETIME NULL,
+  id                   BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  notification_id      BIGINT UNSIGNED NOT NULL,
+  push_subscription_id BIGINT UNSIGNED NOT NULL,
+  channel              ENUM('push') NOT NULL DEFAULT 'push',
+  status               ENUM('pending','processing','sent','failed') NOT NULL DEFAULT 'pending',
+  attempts             TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  last_error           VARCHAR(255) NULL,
+  send_after           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  locked_at            DATETIME NULL,
+  sent_at              DATETIME NULL,
   PRIMARY KEY (id),
+  UNIQUE KEY uq_queue_delivery (notification_id, push_subscription_id),
   KEY ix_queue_pending (status, send_after),
-  CONSTRAINT fk_queue_notification FOREIGN KEY (notification_id) REFERENCES notification (id) ON DELETE CASCADE
+  CONSTRAINT fk_queue_notification FOREIGN KEY (notification_id) REFERENCES notification (id) ON DELETE CASCADE,
+  CONSTRAINT fk_queue_subscription FOREIGN KEY (push_subscription_id) REFERENCES push_subscription (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_czech_ci;
 
 CREATE TABLE notification_pref (
