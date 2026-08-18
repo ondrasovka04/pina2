@@ -120,6 +120,43 @@ export interface IssuedLink {
 	emailSent: boolean
 }
 
+/** Aktivní odběr kalendáře. Tajnou adresu tenhle seznam nikdy nevrací. */
+export interface CalendarFeed {
+	id: number
+	teamId: number
+	teamName: string
+	seasonId: number
+	seasonName: string
+	createdAt: string
+	lastUsedAt: string | null
+}
+
+export interface NotificationPreferences {
+	eventReminder: boolean
+	offenceBatch: boolean
+}
+
+export interface NotificationSettings {
+	available: boolean
+	publicKey: string | null
+	subscriptionCount: number
+	preferences: NotificationPreferences
+}
+
+export interface PushSubscriptionInput {
+	endpoint: string
+	p256dh: string
+	auth: string
+	contentEncoding: 'aes128gcm'
+	/** Trvalá identita prohlížeče — server podle ní nahradí starý odběr téhož zařízení. */
+	deviceId: string
+}
+
+/** Nově vydaný odběr; token se po zavření dialogu už nedá načíst. */
+export interface IssuedCalendarFeed extends CalendarFeed {
+	token: string
+}
+
 /** Výsledek hromadného rozeslání aktivačních e-mailů. */
 export interface ActivationBatch {
 	sent: number

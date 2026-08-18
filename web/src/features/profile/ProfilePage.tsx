@@ -17,6 +17,10 @@ import { themeLabels } from '@/lib/theme'
 import type { Membership } from '@/lib/types'
 import { roleLabels } from '@/lib/types'
 
+import { AppInstallCard } from './AppInstallCard'
+import { CalendarFeedsCard } from './CalendarFeedsCard'
+import { NotificationsCard } from './NotificationsCard'
+
 export function ProfilePage() {
 	const user = useCurrentUser()
 	const { signOut } = useSession()
@@ -29,6 +33,12 @@ export function ProfilePage() {
 			</div>
 
 			<MyTeamsCard />
+
+			<AppInstallCard />
+
+			<NotificationsCard />
+
+			<CalendarFeedsCard />
 
 			<AppearanceCard />
 

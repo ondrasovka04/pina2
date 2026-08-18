@@ -10,9 +10,11 @@ use Pina\Auth\PasswordService;
 use Pina\Auth\TeamScope;
 use Pina\Auth\TokenService;
 use Pina\Controller\AuthController;
+use Pina\Controller\CalendarFeedController;
 use Pina\Controller\EventController;
 use Pina\Controller\FinanceController;
 use Pina\Controller\LocationController;
+use Pina\Controller\NotificationController;
 use Pina\Controller\OffenceController;
 use Pina\Controller\OffenceTypeController;
 use Pina\Controller\SeasonController;
@@ -23,15 +25,20 @@ use Pina\Http\Router;
 use Pina\Mail\InvitationMail;
 use Pina\Mail\PasswordResetMail;
 use Pina\Mail\SmtpMailer;
+use Pina\Notification\DisabledPushGateway;
+use Pina\Notification\WebPushGateway;
+use Pina\Service\CalendarFeedService;
 use Pina\Service\EventService;
 use Pina\Service\FinanceService;
 use Pina\Service\LocationService;
+use Pina\Service\NotificationService;
 use Pina\Service\OffenceService;
 use Pina\Service\OffenceTypeService;
 use Pina\Service\SeasonService;
 use Pina\Service\TeamService;
 use Pina\Support\Config;
 use Pina\Support\Database;
+use Pina\Support\IcsCalendar;
 use Pina\Support\Logger;
 
 /** Složení aplikace. Bez DI kontejneru — závislostí je málo a jsou přehledné. */
@@ -69,7 +76,12 @@ final class App
             $passwords,
             new PasswordResetMail(SmtpMailer::fromConfig($this->logger), Config::get('APP_URL', '')),
         );
-        $authCtrl = new AuthController($auth, $this->tokens, $resets);
+        $notifications = $this->notificationService();
+        $authCtrl      = new AuthController($auth, $this->tokens, $resets, $notifications);
+        $calendarCtrl  = new CalendarFeedController(
+            new CalendarFeedService($this->db, $this->scope, new IcsCalendar()),
+        );
+        $notificationCtrl = new NotificationController($notifications, Config::get('CRON_TOKEN', ''));
 
         // Veřejné (auth: false)
         $router->post('/api/v1/auth/login', $authCtrl->login(...), auth: false);
@@ -78,14 +90,23 @@ final class App
         $router->post('/api/v1/invitations/accept', $authCtrl->acceptInvitation(...), auth: false);
         $router->post('/api/v1/auth/password/forgot', $authCtrl->forgotPassword(...), auth: false);
         $router->post('/api/v1/auth/password/reset', $authCtrl->resetPassword(...), auth: false);
+        $router->get('/api/v1/calendar/{token}.ics', $calendarCtrl->show(...), auth: false);
+        $router->post('/api/v1/cron/notifications/send', $notificationCtrl->sendQueue(...), auth: false);
 
         // Vyžadují přihlášení
         $router->get('/api/v1/me', $authCtrl->me(...));
         $router->post('/api/v1/auth/logout-everywhere', $authCtrl->logoutEverywhere(...));
         $router->post('/api/v1/auth/password', $authCtrl->changePassword(...));
+        $router->get('/api/v1/me/calendar-feeds', $calendarCtrl->index(...));
+        $router->post('/api/v1/seasons/{season}/calendar-feed', $calendarCtrl->issue(...));
+        $router->delete('/api/v1/calendar-feeds/{id}', $calendarCtrl->revoke(...));
+        $router->get('/api/v1/me/notifications/settings', $notificationCtrl->settings(...));
+        $router->put('/api/v1/me/notifications/preferences', $notificationCtrl->preferences(...));
+        $router->post('/api/v1/push/subscribe', $notificationCtrl->subscribe(...));
+        $router->post('/api/v1/push/unsubscribe', $notificationCtrl->unsubscribe(...));
 
         $this->teamRoutes($router);
-        $this->offenceRoutes($router);
+        $this->offenceRoutes($router, $notifications);
         $this->eventRoutes($router);
         $this->financeRoutes($router);
 
@@ -125,10 +146,10 @@ final class App
     }
 
     /** Sazebník a zápisy prohřešků — nejpoužívanější část aplikace. */
-    private function offenceRoutes(Router $router): void
+    private function offenceRoutes(Router $router, NotificationService $notifications): void
     {
         $typeCtrl    = new OffenceTypeController(new OffenceTypeService($this->db, $this->scope));
-        $offenceCtrl = new OffenceController(new OffenceService($this->db, $this->scope));
+        $offenceCtrl = new OffenceController(new OffenceService($this->db, $this->scope, notifications: $notifications));
 
         $router->get('/api/v1/seasons/{season}/offence-types', $typeCtrl->index(...));
         $router->post('/api/v1/seasons/{season}/offence-types', $typeCtrl->store(...));
@@ -188,5 +209,16 @@ final class App
         $router->post('/api/v1/seasons/{season}/travel-claims/sync', $controller->syncTravelClaims(...));
         $router->post('/api/v1/travel-claims/{id}/void', $controller->voidTravelClaim(...));
         $router->get('/api/v1/memberships/{id}/payment-qr', $controller->paymentQr(...));
+    }
+
+    private function notificationService(): NotificationService
+    {
+        $publicKey  = Config::get('VAPID_PUBLIC_KEY', '');
+        $privateKey = Config::get('VAPID_PRIVATE_KEY', '');
+        $gateway    = $publicKey !== '' && $privateKey !== ''
+            ? new WebPushGateway(Config::get('VAPID_SUBJECT', 'mailto:webmaster@pinaprosek.eu'), $publicKey, $privateKey)
+            : new DisabledPushGateway();
+
+        return new NotificationService($this->db, $gateway, $publicKey);
     }
 }

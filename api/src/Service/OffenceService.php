@@ -73,6 +73,7 @@ final class OffenceService
         private readonly Database $db,
         private readonly TeamScope $scope,
         ?FinancialAccess $financialAccess = null,
+        private readonly ?NotificationService $notifications = null,
     ) {
         $this->financialAccess = $financialAccess ?? new FinancialAccess($db);
     }
@@ -102,9 +103,12 @@ final class OffenceService
         $this->assertPricesUnchanged($input['items'], $types);
 
         try {
-            $batchId = $this->db->transaction(
-                fn (): int => $this->insertBatch($identity, $seasonId, $eventId, $input, $types),
-            );
+            $batchId = $this->db->transaction(function () use ($identity, $seasonId, $eventId, $input, $types): int {
+                $batchId = $this->insertBatch($identity, $seasonId, $eventId, $input, $types);
+                $this->notifications?->enqueueOffenceBatch($batchId);
+
+                return $batchId;
+            });
         } catch (PDOException $e) {
             // Souběh dvou stejných odeslání: unikátní index uq_batch_uuid pustí
             // jen jedno z nich, druhé si přečte výsledek toho prvního.

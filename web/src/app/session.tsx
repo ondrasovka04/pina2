@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { createContext, use, useCallback, useEffect, useMemo, useState } from 'react'
 
 import { api, setAccessToken, setUnauthenticatedHandler } from '@/lib/api'
+import { currentPushSubscription } from '@/lib/push'
 import type { CurrentUser, LoginResponse } from '@/lib/types'
 
 type SessionStatus = 'loading' | 'authenticated' | 'anonymous'
@@ -110,6 +111,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 	)
 
 	const signOut = useCallback(async () => {
+		try {
+			const subscription = await currentPushSubscription()
+			if (subscription !== null) {
+				try {
+					await api.post('/push/unsubscribe', { endpoint: subscription.endpoint })
+				} finally {
+					await subscription.unsubscribe()
+				}
+			}
+		} catch {
+			// Odběr prohlížeče se nemusí podařit zjistit; odhlášení tím neblokujeme.
+		}
+
 		try {
 			await api.post('/auth/logout')
 		} finally {

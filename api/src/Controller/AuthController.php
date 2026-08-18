@@ -10,6 +10,7 @@ use Pina\Auth\TokenService;
 use Pina\Http\ApiException;
 use Pina\Http\Request;
 use Pina\Http\Response;
+use Pina\Service\NotificationService;
 use Pina\Support\Config;
 
 final class AuthController
@@ -20,6 +21,7 @@ final class AuthController
         private readonly AuthService $auth,
         private readonly TokenService $tokens,
         private readonly PasswordResetService $resets,
+        private readonly NotificationService $notifications,
     ) {
     }
 
@@ -73,6 +75,7 @@ final class AuthController
 
         $this->tokens->revokeAllForUser($userId);
         $this->tokens->invalidateAccessTokens($userId);
+        $this->notifications->removeAllSubscriptions($userId);
 
         return Response::noContent()->withCookie($this->refreshCookie('', expired: true));
     }

@@ -10,11 +10,16 @@ import type {
 	BalanceList,
 	BatchInput,
 	BatchSummary,
+	CalendarFeed,
 	ClubLocation,
 	EventDetail,
 	EventSeries,
 	EventType,
 	IssuedLink,
+	IssuedCalendarFeed,
+	NotificationPreferences,
+	NotificationSettings,
+	PushSubscriptionInput,
 	MemberStatus,
 	Nomination,
 	OffenceCategory,
@@ -61,6 +66,59 @@ export const queryKeys = {
 	series: (seasonId: number) => ['seasons', seasonId, 'event-series'] as const,
 	attendance: (seasonId: number, type?: EventType) => ['seasons', seasonId, 'attendance', type ?? 'all'] as const,
 	locations: (clubId: number) => ['clubs', clubId, 'locations'] as const,
+	calendarFeeds: ['me', 'calendar-feeds'] as const,
+	notificationSettings: ['me', 'notifications', 'settings'] as const,
+}
+
+export function useNotificationSettings() {
+	return useQuery({
+		queryKey: queryKeys.notificationSettings,
+		queryFn: ({ signal }) => api.get<NotificationSettings>('/me/notifications/settings', signal),
+	})
+}
+
+export function useSubscribePush() {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: (subscription: PushSubscriptionInput) =>
+			api.post<NotificationSettings>('/push/subscribe', subscription),
+		onSuccess: (settings) => queryClient.setQueryData(queryKeys.notificationSettings, settings),
+	})
+}
+
+export function useUnsubscribePush() {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: (endpoint: string) => api.post<void>('/push/unsubscribe', { endpoint }),
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.notificationSettings }),
+	})
+}
+
+export function useSaveNotificationPreferences() {
+	const queryClient = useQueryClient()
+	const apply = (preferences: NotificationPreferences) =>
+		queryClient.setQueryData<NotificationSettings>(queryKeys.notificationSettings, (current) =>
+			current === undefined ? current : { ...current, preferences },
+		)
+
+	return useMutation({
+		mutationFn: (preferences: NotificationPreferences) =>
+			api.put<{ preferences: NotificationPreferences }>('/me/notifications/preferences', preferences),
+		// Přepínač se překlopí hned. Čekat na odpověď znamenalo, že cvaknutí chvíli
+		// nic nedělalo a celý seznam mezitím zešednul.
+		onMutate: (preferences) => {
+			const previous = queryClient.getQueryData<NotificationSettings>(queryKeys.notificationSettings)
+			apply(preferences)
+
+			return { previous }
+		},
+		onError: (_error, _preferences, context) => {
+			if (context?.previous !== undefined) apply(context.previous.preferences)
+		},
+		onSuccess: ({ preferences }) => apply(preferences),
+	})
 }
 
 // Seznamy přijdou zabalené pro budoucí stránkování — hooky je rozbalují
@@ -69,6 +127,31 @@ export function useTeams() {
 		queryKey: queryKeys.teams,
 		queryFn: async ({ signal }) => (await api.get<{ teams: TeamSummary[] }>('/me/teams', signal)).teams,
 		staleTime: 5 * 60_000,
+	})
+}
+
+export function useCalendarFeeds() {
+	return useQuery({
+		queryKey: queryKeys.calendarFeeds,
+		queryFn: async ({ signal }) => (await api.get<{ feeds: CalendarFeed[] }>('/me/calendar-feeds', signal)).feeds,
+	})
+}
+
+export function useIssueCalendarFeed() {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: (seasonId: number) => api.post<IssuedCalendarFeed>(`/seasons/${seasonId}/calendar-feed`),
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.calendarFeeds }),
+	})
+}
+
+export function useRevokeCalendarFeed() {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: (feedId: number) => api.delete<void>(`/calendar-feeds/${feedId}`),
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.calendarFeeds }),
 	})
 }
 
