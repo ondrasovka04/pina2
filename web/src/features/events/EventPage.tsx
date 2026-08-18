@@ -8,7 +8,6 @@ import { Card } from '@/components/ui/Card'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { ArrowLeftIcon, CarIcon, CheckIcon, MapPinIcon, XIcon } from '@/components/ui/icons'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States'
-import { AddToCalendarButton } from '@/features/events/AddToCalendarButton'
 import {
 	canAnswer,
 	driverSummary,
@@ -40,7 +39,7 @@ export function EventPage() {
 	const eventId = Number(params.eventId)
 	const validId = Number.isInteger(eventId) && eventId > 0
 
-	const { team, seasonId, isSeasonClosed, can } = useTeam()
+	const { seasonId, isSeasonClosed, can } = useTeam()
 	const query = useEvent(validId ? eventId : null)
 
 	if (!validId) {
@@ -71,14 +70,7 @@ export function EventPage() {
 				</p>
 			) : null}
 
-			<EventHeader
-				event={event}
-				teamName={team?.name ?? 'Družstvo'}
-				canManage={isTreasurer}
-				writable={writable}
-				eventId={eventId}
-				seasonId={seasonId}
-			/>
+			<EventHeader event={event} canManage={isTreasurer} writable={writable} eventId={eventId} seasonId={seasonId} />
 
 			{/* Sourozenci nesmí sdílet key, jinak si je React při překreslení splete a karta se zdvojí — projevilo se u zápasu, kde vedle sebe stojí odpověď i nominace. */}
 			{event.me === null ? null : (
@@ -170,14 +162,13 @@ const confirmLabels: Record<EventAction, string> = {
 
 interface EventHeaderProps {
 	event: TeamEvent
-	teamName: string
 	canManage: boolean
 	writable: boolean
 	eventId: number
 	seasonId: number | null
 }
 
-function EventHeader({ event, teamName, canManage, writable, eventId, seasonId }: EventHeaderProps) {
+function EventHeader({ event, canManage, writable, eventId, seasonId }: EventHeaderProps) {
 	const navigate = useNavigate()
 	const cancelEvent = useCancelEvent(eventId, seasonId)
 	const deleteEvent = useDeleteEvent(seasonId)
@@ -217,7 +208,6 @@ function EventHeader({ event, teamName, canManage, writable, eventId, seasonId }
 				</div>
 
 				<div className="flex shrink-0 flex-wrap items-center gap-2">
-					<AddToCalendarButton events={[event]} teamName={teamName} calendarName={event.title} label="Do kalendáře" />
 					{canManage ? (
 						<>
 							<Link

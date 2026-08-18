@@ -6,7 +6,6 @@ import { NoSeasonState } from '@/components/NoSeasonState'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { CalendarIcon, ChevronRightIcon, MapPinIcon, PlusIcon } from '@/components/ui/icons'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States'
-import { AddToCalendarButton } from '@/features/events/AddToCalendarButton'
 import { canAnswer, formatEventTime, groupByMonth, nextEvent, rsvpSummary } from '@/features/events/events'
 import type { EventMonth } from '@/features/events/events'
 import { EventsNav } from '@/features/events/EventsNav'
@@ -26,7 +25,7 @@ const stripeClass: Record<EventType, string> = {
 }
 
 export function CalendarPage() {
-	const { team, season, seasonId, isSeasonClosed, can } = useTeam()
+	const { seasonId, isSeasonClosed, can } = useTeam()
 	const { data, isPending, error, refetch } = useEvents(seasonId)
 	const [view, setView] = useState<View>(storedView)
 	const [month, setMonth] = useState<string | null>(null)
@@ -74,17 +73,7 @@ export function CalendarPage() {
 				</p>
 			) : null}
 
-			<div className="flex items-center justify-between gap-3">
-				<ViewSwitch value={view} onChange={(next) => setView(rememberView(next))} />
-				{events.length === 0 ? null : (
-					<AddToCalendarButton
-						events={events}
-						teamName={team?.name ?? 'Družstvo'}
-						calendarName={`${team?.name ?? 'Družstvo'} — ${season?.name ?? 'sezóna'}`}
-						label="Do kalendáře"
-					/>
-				)}
-			</div>
+			<ViewSwitch value={view} onChange={(next) => setView(rememberView(next))} />
 
 			{events.length === 0 ? (
 				<EmptyState
