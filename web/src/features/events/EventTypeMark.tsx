@@ -47,8 +47,3 @@ export function EventTypeDot({ type, className }: { type: EventType; className?:
 		</span>
 	)
 }
-
-/** Barva textu pro daný typ — pro nadpisy, kde by štítek byl navíc. */
-export function eventTypeTextClass(type: EventType): string {
-	return textClass[type]
-}

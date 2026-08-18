@@ -7,23 +7,21 @@ interface RsvpButtonsProps {
 	onChange: (rsvp: Rsvp) => void
 	/** Která odpověď se právě ukládá; obě tlačítka se mezitím zamknou. */
 	pending?: Rsvp | null
-	size?: 'md' | 'lg'
-	disabled?: boolean
 }
 
 /** Dvojice „Přijdu / Nepřijdu", schválně jedna komponenta — dřív byla v kalendáři zlatá a v detailu modrá. */
-export function RsvpButtons({ value, onChange, pending = null, size = 'lg', disabled = false }: RsvpButtonsProps) {
+export function RsvpButtons({ value, onChange, pending = null }: RsvpButtonsProps) {
 	const busy = pending !== null
 
 	return (
 		<div className="flex gap-2">
 			<Button
 				variant={value === 'yes' ? 'accent' : 'ghost'}
-				size={size}
+				size="lg"
 				fullWidth
 				aria-pressed={value === 'yes'}
 				loading={pending === 'yes'}
-				disabled={disabled || (busy && pending !== 'yes')}
+				disabled={busy && pending !== 'yes'}
 				onClick={() => onChange('yes')}
 			>
 				<CheckIcon className="size-5" />
@@ -31,11 +29,11 @@ export function RsvpButtons({ value, onChange, pending = null, size = 'lg', disa
 			</Button>
 			<Button
 				variant={value === 'no' ? 'danger' : 'ghost'}
-				size={size}
+				size="lg"
 				fullWidth
 				aria-pressed={value === 'no'}
 				loading={pending === 'no'}
-				disabled={disabled || (busy && pending !== 'no')}
+				disabled={busy && pending !== 'no'}
 				onClick={() => onChange('no')}
 			>
 				<XIcon className="size-5" />

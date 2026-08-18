@@ -429,15 +429,6 @@ export interface TravelSyncResult {
 
 // --- dávkový zápis -------------------------------------------------------
 
-export interface BatchItem {
-	offenceTypeId: number
-	name: string
-	amountCzk: number
-	count: number
-	voidedCount: number
-	totalCzk: number
-}
-
 export interface BatchMember {
 	membershipId: number
 	userId: number
@@ -448,7 +439,6 @@ export interface BatchMember {
 	totalCzk: number
 	/** Zůstatek hráče po započtení téhle dávky. */
 	balanceCzk: number
-	items: BatchItem[]
 }
 
 export interface Batch {
