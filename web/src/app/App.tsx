@@ -11,6 +11,7 @@ import {
 } from 'react-router'
 
 import { AppLayout } from '@/app/AppLayout'
+import { PwaUpdatePrompt } from '@/app/PwaUpdatePrompt'
 import { SessionProvider, useSession } from '@/app/session'
 import { TeamProvider } from '@/app/team'
 import { ClubMark } from '@/components/ClubMark'
@@ -96,6 +97,7 @@ export function App() {
 	return (
 		<QueryClientProvider client={queryClient}>
 			<RouterProvider router={router} />
+			<PwaUpdatePrompt />
 		</QueryClientProvider>
 	)
 }
