@@ -61,6 +61,7 @@ use Pina\Support\Recurrence;
  *     membershipId:int,
  *     userId:int,
  *     name:string,
+ *     avatarUrl:string|null,
  *     jerseyNumber:int|null,
  *     onRoster:bool,
  *     nomination:string,
@@ -95,6 +96,7 @@ use Pina\Support\Recurrence;
  *     membershipId:int,
  *     userId:int,
  *     name:string,
+ *     avatarUrl:string|null,
  *     jerseyNumber:int|null,
  *     present:int,
  *     absent:int,
@@ -1045,7 +1047,7 @@ final class EventService
         }
 
         $rows = $this->db->all(
-            "SELECT m.id AS membership_id, m.user_id, m.jersey_number, u.display_name,
+            "SELECT m.id AS membership_id, m.user_id, m.jersey_number, u.display_name, u.avatar_url,
                     SUM(state = 'present') AS present,
                     SUM(state = 'absent')  AS absent,
                     SUM(state = 'injured') AS injured
@@ -1063,7 +1065,7 @@ final class EventService
                JOIN membership m ON m.id = resolved.membership_id
                JOIN `user` u ON u.id = m.user_id
               WHERE (? = 1 OR m.id = ?)
-              GROUP BY m.id, m.user_id, m.jersey_number, u.display_name
+              GROUP BY m.id, m.user_id, m.jersey_number, u.display_name, u.avatar_url
               ORDER BY u.display_name",
             [$seasonId, $type, $type, $everyone ? 1 : 0, $myMembershipId ?? 0],
         );
@@ -1077,6 +1079,7 @@ final class EventService
                 'membershipId' => (int) $row['membership_id'],
                 'userId'       => (int) $row['user_id'],
                 'name'         => (string) $row['display_name'],
+                'avatarUrl'    => $row['avatar_url'] === null ? null : (string) $row['avatar_url'],
                 'jerseyNumber' => $row['jersey_number'] === null ? null : (int) $row['jersey_number'],
                 'present'      => $present,
                 'absent'       => $absent,
@@ -1246,7 +1249,7 @@ final class EventService
         $type      = (string) $event['type'];
 
         $rows = $this->db->all(
-            'SELECT m.id AS membership_id, m.user_id, m.jersey_number, u.display_name,
+            'SELECT m.id AS membership_id, m.user_id, m.jersey_number, u.display_name, u.avatar_url,
                     r.id IS NOT NULL AS on_roster,
                     p.nomination, p.rsvp, p.rsvp_note, p.transport, p.car_seats, p.attendance
                FROM membership m
@@ -1276,6 +1279,7 @@ final class EventService
                 'membershipId' => $membershipId,
                 'userId'       => (int) $row['user_id'],
                 'name'         => (string) $row['display_name'],
+                'avatarUrl'    => $row['avatar_url'] === null ? null : (string) $row['avatar_url'],
                 'jerseyNumber' => $row['jersey_number'] === null ? null : (int) $row['jersey_number'],
                 'onRoster'     => (bool) $row['on_roster'],
                 'nomination'   => $this->resolveNomination($type, $row['nomination']),

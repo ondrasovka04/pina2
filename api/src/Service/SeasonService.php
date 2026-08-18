@@ -31,6 +31,7 @@ use Pina\Support\Database;
  *     membershipId:int,
  *     userId:int,
  *     name:string,
+ *     avatarUrl:string|null,
  *     role:string,
  *     status:string,
  *     jerseyNumber:int|null,
@@ -310,7 +311,7 @@ final class SeasonService
     {
         $rows = $this->db->all(
             'SELECT r.membership_id, m.user_id, m.role, m.status, m.jersey_number, m.payment_reference,
-                    u.display_name
+                    u.display_name, u.avatar_url
                FROM roster_entry r
                JOIN membership m ON m.id = r.membership_id
                JOIN `user` u ON u.id = m.user_id
@@ -323,6 +324,7 @@ final class SeasonService
             'membershipId'     => (int) $row['membership_id'],
             'userId'           => (int) $row['user_id'],
             'name'             => (string) $row['display_name'],
+            'avatarUrl'        => $row['avatar_url'] === null ? null : (string) $row['avatar_url'],
             'role'             => (string) $row['role'],
             'status'           => (string) $row['status'],
             'jerseyNumber'     => $row['jersey_number'] === null ? null : (int) $row['jersey_number'],

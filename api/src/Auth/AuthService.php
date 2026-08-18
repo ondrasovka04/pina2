@@ -147,7 +147,7 @@ final class AuthService
     public function userPayload(int $userId): array
     {
         $user = $this->db->first(
-            'SELECT id, email, display_name, is_platform_admin FROM `user` WHERE id = ?',
+            'SELECT id, email, display_name, avatar_url, is_platform_admin FROM `user` WHERE id = ?',
             [$userId],
         );
 
@@ -170,6 +170,7 @@ final class AuthService
             'id'            => (int) $user['id'],
             'email'         => $user['email'],
             'name'          => $user['display_name'],
+            'avatarUrl'     => $user['avatar_url'] === null ? null : (string) $user['avatar_url'],
             'platformAdmin' => (bool) $user['is_platform_admin'],
             // Údaj o nasazení, ne o uživateli — musí být stále dostupný.
             'mailEnabled' => Config::bool('MAIL_ENABLED') && Config::get('MAIL_PASSWORD', '') !== '',

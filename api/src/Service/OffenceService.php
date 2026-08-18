@@ -21,7 +21,7 @@ use Pina\Support\Database;
  *     count: int, voidedCount: int, totalCzk: int
  * }
  * @phpstan-type BatchMemberPayload array{
- *     membershipId: int, userId: int, name: string,
+ *     membershipId: int, userId: int, name: string, avatarUrl: string|null,
  *     recordCount: int, voidedCount: int, totalCzk: int, balanceCzk: int,
  *     items: list<BatchItemPayload>
  * }
@@ -59,7 +59,7 @@ use Pina\Support\Database;
  * }
  * @phpstan-type Period array{key: string, label: string, from: string, to: string}
  * @phpstan-type MemberBalance array{
- *     membershipId: int, userId: int, name: string, jerseyNumber: int|null,
+ *     membershipId: int, userId: int, name: string, avatarUrl: string|null, jerseyNumber: int|null,
  *     status: string, onRoster: bool, recordCount: int,
  *     offencesCzk: int, bonusesCzk: int, paidCzk: int, travelCzk: int, balanceCzk: int,
  *     halves: array{first: Sums, second: Sums}|null
@@ -364,7 +364,7 @@ final class OffenceService
         $boundary = $season['half_year_on'] === null ? null : (string) $season['half_year_on'];
 
         $rows = $this->db->all(
-            'SELECT m.id AS membership_id, m.user_id, m.jersey_number, m.status, u.display_name,
+            'SELECT m.id AS membership_id, m.user_id, m.jersey_number, m.status, u.display_name, u.avatar_url,
                     re.membership_id IS NOT NULL AS on_roster
                FROM membership m
                JOIN `user` u ON u.id = m.user_id
@@ -405,6 +405,7 @@ final class OffenceService
                 'membershipId' => $membershipId,
                 'userId'       => (int) $row['user_id'],
                 'name'         => (string) $row['display_name'],
+                'avatarUrl'    => $row['avatar_url'] === null ? null : (string) $row['avatar_url'],
                 'jerseyNumber' => $row['jersey_number'] === null ? null : (int) $row['jersey_number'],
                 'status'       => (string) $row['status'],
                 'onRoster'     => (bool) $row['on_roster'],
@@ -771,7 +772,7 @@ final class OffenceService
         $rows = $this->db->all(
             'SELECT r.membership_id, r.offence_type_id, r.amount_czk,
                     t.name AS type_name, t.sort_order,
-                    m.user_id, u.display_name,
+                    m.user_id, u.display_name, u.avatar_url,
                     COUNT(*) AS record_count,
                     SUM(CASE WHEN r.voided_at IS NOT NULL THEN 1 ELSE 0 END) AS voided_count
                FROM offence_record r
@@ -780,12 +781,12 @@ final class OffenceService
                JOIN `user` u ON u.id = m.user_id
               WHERE r.batch_id = ? AND (? IS NULL OR r.membership_id = ?)
               GROUP BY r.membership_id, r.offence_type_id, r.amount_czk,
-                       t.name, t.sort_order, m.user_id, u.display_name
+                       t.name, t.sort_order, m.user_id, u.display_name, u.avatar_url
               ORDER BY u.display_name, t.sort_order, t.name',
             [$batchId, $membershipId, $membershipId],
         );
 
-        /** @var array<int,array{membershipId:int,userId:int,name:string,recordCount:int,voidedCount:int,totalCzk:int,balanceCzk:int,items:list<array{offenceTypeId:int,name:string,amountCzk:int,count:int,voidedCount:int,totalCzk:int}>}> $members */
+        /** @var array<int,array{membershipId:int,userId:int,name:string,avatarUrl:string|null,recordCount:int,voidedCount:int,totalCzk:int,balanceCzk:int,items:list<array{offenceTypeId:int,name:string,amountCzk:int,count:int,voidedCount:int,totalCzk:int}>}> $members */
         $members       = [];
         $total         = 0;
         $activeRecords = 0;
@@ -802,6 +803,7 @@ final class OffenceService
                 'membershipId' => $membershipId,
                 'userId'       => (int) $row['user_id'],
                 'name'         => (string) $row['display_name'],
+                'avatarUrl'    => $row['avatar_url'] === null ? null : (string) $row['avatar_url'],
                 'recordCount'  => 0,
                 'voidedCount'  => 0,
                 'totalCzk'     => 0,
