@@ -30,7 +30,6 @@ final class AuthController
         $result = $this->auth->login(
             $request->string('email'),
             $request->string('password'),
-            $request->header('user-agent'),
             $request->ip,
         );
 
@@ -49,7 +48,7 @@ final class AuthController
             throw ApiException::unauthenticated();
         }
 
-        $pair = $this->tokens->refresh($token, $request->header('user-agent'), $request->ip);
+        $pair = $this->tokens->refresh($token);
 
         return Response::ok([
             'accessToken' => $pair['accessToken'],
@@ -88,7 +87,7 @@ final class AuthController
             $request->string('name'),
         );
 
-        $pair = $this->tokens->issue($userId, $request->header('user-agent'), $request->ip);
+        $pair = $this->tokens->issue($userId);
 
         return Response::created([
             'accessToken' => $pair['accessToken'],
@@ -110,7 +109,7 @@ final class AuthController
     {
         $userId = $this->resets->complete($request->string('token'), $request->string('password'));
 
-        $pair = $this->tokens->issue($userId, $request->header('user-agent'), $request->ip);
+        $pair = $this->tokens->issue($userId);
 
         return Response::ok([
             'accessToken' => $pair['accessToken'],

@@ -26,7 +26,7 @@ final class TokenService
     /**
      * @return array{accessToken:string,refreshToken:string,expiresIn:int}
      */
-    public function issue(int $userId, ?string $userAgent, ?string $ip): array
+    public function issue(int $userId): array
     {
         $identity = $this->loadIdentity($userId);
         $ttl      = Config::int('JWT_ACCESS_TTL', 900);
@@ -45,7 +45,7 @@ final class TokenService
 
         return [
             'accessToken'  => JWT::encode($payload, Config::get('JWT_SECRET'), self::ALGORITHM),
-            'refreshToken' => $this->createRefreshToken($userId, $userAgent, $ip),
+            'refreshToken' => $this->createRefreshToken($userId),
             'expiresIn'    => $ttl,
         ];
     }
@@ -91,7 +91,7 @@ final class TokenService
      *
      * @return array{accessToken:string,refreshToken:string,expiresIn:int}
      */
-    public function refresh(string $refreshToken, ?string $userAgent, ?string $ip): array
+    public function refresh(string $refreshToken): array
     {
         $hash = $this->hash($refreshToken);
 
@@ -118,7 +118,7 @@ final class TokenService
 
         $this->db->run('UPDATE refresh_token SET revoked_at = NOW() WHERE id = ?', [$row['id']]);
 
-        return $this->issue($userId, $userAgent, $ip);
+        return $this->issue($userId);
     }
 
     public function revoke(string $refreshToken): void
@@ -149,21 +149,14 @@ final class TokenService
         $this->invalidateAccessTokens($userId);
     }
 
-    private function createRefreshToken(int $userId, ?string $userAgent, ?string $ip): string
+    private function createRefreshToken(int $userId): string
     {
-        $token    = bin2hex(random_bytes(32));
-        $packedIp = $ip === null ? false : @inet_pton($ip);
+        $token = bin2hex(random_bytes(32));
 
         $this->db->run(
-            'INSERT INTO refresh_token (user_id, token_hash, expires_at, user_agent, ip)
-             VALUES (?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND), ?, ?)',
-            [
-                $userId,
-                $this->hash($token),
-                Config::int('JWT_REFRESH_TTL', 2592000),
-                $userAgent === null ? null : mb_substr($userAgent, 0, 255),
-                $packedIp === false ? null : $packedIp,
-            ],
+            'INSERT INTO refresh_token (user_id, token_hash, expires_at)
+             VALUES (?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND))',
+            [$userId, $this->hash($token), Config::int('JWT_REFRESH_TTL', 2592000)],
         );
 
         return $token;

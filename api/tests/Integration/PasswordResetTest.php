@@ -152,7 +152,7 @@ final class PasswordResetTest extends DatabaseTestCase
 
     public function testCompletedResetLogsOutEverywhere(): void
     {
-        $pair = $this->tokens->issue($this->userId, 'Firefox', '192.0.2.10');
+        $pair = $this->tokens->issue($this->userId);
         $this->db->run("UPDATE `user` SET tokens_valid_from = '2020-01-01 00:00:00' WHERE id = ?", [$this->userId]);
 
         $this->service->request('hrac@prosek.cz', null);
@@ -160,7 +160,7 @@ final class PasswordResetTest extends DatabaseTestCase
 
         // Refresh token je pryč...
         try {
-            $this->tokens->refresh($pair['refreshToken'], 'Firefox', '192.0.2.10');
+            $this->tokens->refresh($pair['refreshToken']);
             self::fail('stará relace musí po obnově hesla skončit');
         } catch (ApiException $e) {
             self::assertSame(401, $e->status);

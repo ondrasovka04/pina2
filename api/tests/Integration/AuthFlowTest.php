@@ -49,7 +49,7 @@ final class AuthFlowTest extends DatabaseTestCase
         $token  = $this->invite('novy@prosek.cz', 'treasurer');
         $userId = $this->auth->acceptInvitation($token, 'opravdu-dlouhe-heslo', 'Nový Pínař');
 
-        $result = $this->auth->login('novy@prosek.cz', 'opravdu-dlouhe-heslo', null, '127.0.0.1');
+        $result = $this->auth->login('novy@prosek.cz', 'opravdu-dlouhe-heslo', '127.0.0.1');
 
         self::assertSame($userId, $result['user']['id']);
         self::assertSame('treasurer', $result['user']['memberships'][0]['role']);
@@ -82,7 +82,7 @@ final class AuthFlowTest extends DatabaseTestCase
 
         $this->auth->acceptInvitation($secondToken, 'uplne-jine-heslo', 'Obojživelník');
 
-        $result = $this->auth->login('obojziv@example.cz', 'opravdu-dlouhe-heslo', null, null);
+        $result = $this->auth->login('obojziv@example.cz', 'opravdu-dlouhe-heslo', null);
 
         self::assertCount(2, $result['user']['memberships']);
         self::assertSame(1, (int) $this->db->value('SELECT COUNT(*) FROM `user`'));
@@ -96,7 +96,7 @@ final class AuthFlowTest extends DatabaseTestCase
         $messages = [];
         foreach ([['existuje@prosek.cz', 'spatne-heslo'], ['neexistuje@prosek.cz', 'jakekoliv']] as [$email, $password]) {
             try {
-                $this->auth->login($email, $password, null, null);
+                $this->auth->login($email, $password, null);
                 self::fail('přihlášení mělo selhat');
             } catch (ApiException $e) {
                 $messages[] = $e->getMessage();
@@ -123,14 +123,14 @@ final class AuthFlowTest extends DatabaseTestCase
 
         for ($i = 0; $i < 5; $i++) {
             try {
-                $this->auth->login('obet@prosek.cz', 'spatne' . $i, null, '10.0.0.1');
+                $this->auth->login('obet@prosek.cz', 'spatne' . $i, '10.0.0.1');
             } catch (ApiException) {
                 // očekávaná chyba
             }
         }
 
         try {
-            $this->auth->login('obet@prosek.cz', 'opravdu-dlouhe-heslo', null, '10.0.0.1');
+            $this->auth->login('obet@prosek.cz', 'opravdu-dlouhe-heslo', '10.0.0.1');
             self::fail('po pěti pokusech musí přijít omezení');
         } catch (ApiException $e) {
             self::assertSame(429, $e->status);
@@ -142,23 +142,23 @@ final class AuthFlowTest extends DatabaseTestCase
         $token  = $this->invite('menic@prosek.cz');
         $userId = $this->auth->acceptInvitation($token, 'opravdu-dlouhe-heslo', 'Měnič');
 
-        $session = $this->tokens->issue($userId, null, null);
+        $session = $this->tokens->issue($userId);
         self::assertSame($userId, $this->tokens->verify($session['accessToken'])->userId);
 
         $this->db->run('UPDATE `user` SET tokens_valid_from = DATE_SUB(NOW(), INTERVAL 1 SECOND) WHERE id = ?', [$userId]);
         $this->auth->changePassword($userId, 'opravdu-dlouhe-heslo', 'zcela-nove-heslo-2026');
 
         try {
-            $this->tokens->refresh($session['refreshToken'], null, null);
+            $this->tokens->refresh($session['refreshToken']);
             self::fail('staré tokeny musí padnout');
         } catch (ApiException $e) {
             self::assertSame(401, $e->status);
         }
 
-        $this->auth->login('menic@prosek.cz', 'zcela-nove-heslo-2026', null, null);
+        $this->auth->login('menic@prosek.cz', 'zcela-nove-heslo-2026', null);
 
         $this->expectException(ApiException::class);
-        $this->auth->login('menic@prosek.cz', 'opravdu-dlouhe-heslo', null, null);
+        $this->auth->login('menic@prosek.cz', 'opravdu-dlouhe-heslo', null);
     }
 
     public function testRoleFromInvitationLandsInToken(): void
@@ -166,7 +166,7 @@ final class AuthFlowTest extends DatabaseTestCase
         $token  = $this->invite('admin@prosek.cz', 'admin');
         $userId = $this->auth->acceptInvitation($token, 'opravdu-dlouhe-heslo', 'Admin');
 
-        $pair     = $this->tokens->issue($userId, null, null);
+        $pair     = $this->tokens->issue($userId);
         $identity = $this->tokens->verify($pair['accessToken']);
 
         self::assertSame(Role::Admin, $identity->roleInTeam($this->teamId));

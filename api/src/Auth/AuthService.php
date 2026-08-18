@@ -24,7 +24,7 @@ final class AuthService
     /**
      * @return array{accessToken:string,refreshToken:string,expiresIn:int,user:array<string,mixed>}
      */
-    public function login(string $email, string $password, ?string $userAgent, ?string $ip): array
+    public function login(string $email, string $password, ?string $ip): array
     {
         $email = mb_strtolower(trim($email));
 
@@ -39,7 +39,7 @@ final class AuthService
         $valid = $this->passwords->verify($password, $hash);
 
         if (!$valid || $user === null) {
-            $this->limiter->record($email, $ip, false);
+            $this->limiter->recordFailure($email, $ip);
 
             // Stejná hláška pro neexistující účet i špatné heslo (brání enumeraci).
             throw new ApiException(401, 'INVALID_CREDENTIALS', 'Nesprávný e-mail nebo heslo.');
@@ -47,9 +47,7 @@ final class AuthService
 
         $userId = (int) $user['id'];
 
-        $this->limiter->record($email, $ip, true);
         $this->limiter->clear($email);
-        $this->db->run('UPDATE `user` SET last_login_at = NOW() WHERE id = ?', [$userId]);
 
         if ($hash !== null && $this->passwords->needsRehash($hash)) {
             $this->db->run(
@@ -58,7 +56,7 @@ final class AuthService
             );
         }
 
-        $pair = $this->tokens->issue($userId, $userAgent, $ip);
+        $pair = $this->tokens->issue($userId);
 
         return [...$pair, 'user' => $this->userPayload($userId)];
     }

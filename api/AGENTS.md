@@ -247,6 +247,17 @@ v `tests/Integration/DatabaseTestCase.php` a neobchází se.
   `audit_log` na provozní auditní stopu. `payment.method = 'gateway'`
   drží místo platební bráně. Nic jiného ve schématu ležet nemá — kdo přidá sloupec
   „na potom", vyrobí past: PHPStan ani testy nepoznají, že se nikdy neplní.
+
+  Stejná past má druhou podobu: sloupec, který se **zapisuje, ale nikdo ho nečte**.
+  Vypadá živě, a přitom je to jen osobní údaj bez účelu. Takhle zmizely
+  `refresh_token.user_agent` a `.ip` (měly sloužit obrazovce „přihlášená
+  zařízení", která nevznikla), `user.last_login_at`, `user.phone` a úspěšné
+  řádky v `login_attempt`. Co se má dochovat, patří do `audit_log`.
+- **`login_attempt` drží jen nepovedené pokusy a jen 24 hodin.** Limiter počítá
+  výhradně selhání, takže úspěšné přihlášení do žádného počtu nevstupuje — byl by
+  z něj trvalý seznam „kdo se odkud a kdy přihlásil". Staré řádky maže sám
+  `RateLimiter` při zápisu, plánovanou úlohu to nepotřebuje. Adresa se ukládá
+  zabalená (`inet_pton`) a čte se **jen** kvůli limitu 20 selhání za 15 minut.
 - **Kdo nevidí cizí dluhy, nevidí ani položky, ze kterých vznikají.**
   `team_settings.balances_visible_to_players` řeší `Service\FinancialAccess` na
   jednom místě a platí na zůstatky, zápisy, dávky, platby i cesťáky — jinak by

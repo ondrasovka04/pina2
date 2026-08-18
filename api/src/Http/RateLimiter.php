@@ -8,12 +8,19 @@ use Pina\Support\Database;
 
 /**
  * Rate limiting na login: per-email a per-IP (brání bruteforce i spraying).
+ *
+ * Ukládají se **jen nepovedené** pokusy. Úspěšný do žádného počítání nevstupuje,
+ * takže by z něj byl jen trvalý seznam „kdo se odkud a kdy přihlásil" — a na
+ * provozní stopu je ve schématu `audit_log`, ne tahle tabulka.
  */
 final class RateLimiter
 {
     private const MAX_PER_EMAIL = 5;
     private const MAX_PER_IP    = 20;
     private const WINDOW_MIN    = 15;
+
+    /** Po jak dlouhé době ztrácí pokus smysl i jako stopa. Delší zdržení nikoho nezajímá. */
+    private const KEEP_HOURS = 24;
 
     public function __construct(private readonly Database $db)
     {
@@ -23,7 +30,7 @@ final class RateLimiter
     {
         $byEmail = (int) $this->db->value(
             'SELECT COUNT(*) FROM login_attempt
-              WHERE email = ? AND succeeded = 0 AND created_at > DATE_SUB(NOW(), INTERVAL ? MINUTE)',
+              WHERE email = ? AND created_at > DATE_SUB(NOW(), INTERVAL ? MINUTE)',
             [$email, self::WINDOW_MIN],
         );
 
@@ -40,7 +47,7 @@ final class RateLimiter
 
         $byIp = (int) $this->db->value(
             'SELECT COUNT(*) FROM login_attempt
-              WHERE ip = ? AND succeeded = 0 AND created_at > DATE_SUB(NOW(), INTERVAL ? MINUTE)',
+              WHERE ip = ? AND created_at > DATE_SUB(NOW(), INTERVAL ? MINUTE)',
             [$this->packIp($ip), self::WINDOW_MIN],
         );
 
@@ -52,18 +59,22 @@ final class RateLimiter
         }
     }
 
-    public function record(string $email, ?string $ip, bool $succeeded): void
+    public function recordFailure(string $email, ?string $ip): void
     {
         $this->db->run(
-            'INSERT INTO login_attempt (email, ip, succeeded) VALUES (?, ?, ?)',
-            [$email, $ip === null ? null : $this->packIp($ip), $succeeded ? 1 : 0],
+            'INSERT INTO login_attempt (email, ip) VALUES (?, ?)',
+            [$email, $ip === null ? null : $this->packIp($ip)],
         );
+
+        // Úklid při zápisu, ne plánovanou úlohou: tabulka se plní jen při selhání,
+        // takže je to pár řádků za den a nemá pro co ležet dál.
+        $this->db->run('DELETE FROM login_attempt WHERE created_at < DATE_SUB(NOW(), INTERVAL ? HOUR)', [self::KEEP_HOURS]);
     }
 
     /** Úspěšné přihlášení — vymazat selhání (aby limit nenapadl majitele). */
     public function clear(string $email): void
     {
-        $this->db->run('DELETE FROM login_attempt WHERE email = ? AND succeeded = 0', [$email]);
+        $this->db->run('DELETE FROM login_attempt WHERE email = ?', [$email]);
     }
 
     private function packIp(string $ip): ?string

@@ -38,7 +38,6 @@ CREATE TABLE `user` (
   email             VARCHAR(190) NOT NULL,
   display_name      VARCHAR(120) NOT NULL,
   password_hash     VARCHAR(255) NULL COMMENT 'NULL = pozvany ucet, heslo si nastavi sam',
-  phone             VARCHAR(30) NULL,
   avatar_url        VARCHAR(255) NULL,
   is_platform_admin TINYINT(1) NOT NULL DEFAULT 0,
   -- Vydane JWT nelze zneplatnit (server si je nepamatuje). Posunutim tohoto
@@ -46,7 +45,6 @@ CREATE TABLE `user` (
   -- zmene role, zmene hesla a pri "odhlasit vsude".
   tokens_valid_from DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   email_verified_at DATETIME NULL,
-  last_login_at     DATETIME NULL,
   created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   legacy_id         INT NULL COMMENT 'id ze stare tabulky Uzivatel, jen pro migraci',
   PRIMARY KEY (id),
@@ -399,8 +397,6 @@ CREATE TABLE refresh_token (
   token_hash CHAR(64) NOT NULL,
   expires_at DATETIME NOT NULL,
   revoked_at DATETIME NULL,
-  user_agent VARCHAR(255) NULL,
-  ip         VARBINARY(16) NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_refresh_hash (token_hash),
@@ -437,11 +433,13 @@ CREATE TABLE password_reset (
   CONSTRAINT fk_reset_user FOREIGN KEY (user_id) REFERENCES `user` (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_czech_ci;
 
+-- Jen nepovedene pokusy, a jen po dobu, kdy maji vliv na limit. Uspesne
+-- prihlaseni se nezaznamenava -- do zadneho poctu nevstupuje a byl by z nej
+-- trvaly seznam "kdo se odkud a kdy prihlasil"; na provozni stopu je audit_log.
 CREATE TABLE login_attempt (
   id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   email      VARCHAR(190) NOT NULL,
   ip         VARBINARY(16) NULL,
-  succeeded  TINYINT(1) NOT NULL DEFAULT 0,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY ix_attempt (email, created_at),

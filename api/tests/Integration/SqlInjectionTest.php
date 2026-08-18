@@ -41,7 +41,7 @@ final class SqlInjectionTest extends DatabaseTestCase
         $this->makeMembership($userId, $teamId, 'player');
 
         try {
-            $auth->login($payload, 'jakekoliv-heslo', null, '127.0.0.1');
+            $auth->login($payload, 'jakekoliv-heslo', '127.0.0.1');
             self::fail('přihlášení podvrženým vstupem musí selhat');
         } catch (ApiException $e) {
             self::assertSame(401, $e->status);
@@ -73,7 +73,7 @@ final class SqlInjectionTest extends DatabaseTestCase
     {
         // Uložení jako text, ne jako část SQL.
         $limiter = new RateLimiter($this->db);
-        $limiter->record($payload, '127.0.0.1', false);
+        $limiter->recordFailure($payload, '127.0.0.1');
 
         self::assertSame(
             $payload,

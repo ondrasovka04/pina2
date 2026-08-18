@@ -27,7 +27,7 @@ final class TokenServiceTest extends DatabaseTestCase
 
     public function testIssuedTokenCarriesRoles(): void
     {
-        $pair     = $this->tokens->issue($this->userId, 'PHPUnit', '127.0.0.1');
+        $pair     = $this->tokens->issue($this->userId);
         $identity = $this->tokens->verify($pair['accessToken']);
 
         self::assertSame($this->userId, $identity->userId);
@@ -43,7 +43,7 @@ final class TokenServiceTest extends DatabaseTestCase
 
     public function testRoleChangeInvalidatesExistingTokens(): void
     {
-        $pair = $this->tokens->issue($this->userId, null, null);
+        $pair = $this->tokens->issue($this->userId);
         self::assertSame($this->userId, $this->tokens->verify($pair['accessToken'])->userId);
 
         // Tokeny nesou razítko v sekundách, proto se posune o vteřinu dopředu —
@@ -63,8 +63,8 @@ final class TokenServiceTest extends DatabaseTestCase
 
     public function testRefreshRotatesToken(): void
     {
-        $first  = $this->tokens->issue($this->userId, null, null);
-        $second = $this->tokens->refresh($first['refreshToken'], null, null);
+        $first  = $this->tokens->issue($this->userId);
+        $second = $this->tokens->refresh($first['refreshToken']);
 
         self::assertNotSame($first['refreshToken'], $second['refreshToken'], 'refresh token se musí měnit');
         self::assertSame($this->userId, $this->tokens->verify($second['accessToken'])->userId);
@@ -72,12 +72,12 @@ final class TokenServiceTest extends DatabaseTestCase
 
     public function testReusedRefreshTokenKillsAllSessions(): void
     {
-        $first  = $this->tokens->issue($this->userId, null, null);
-        $second = $this->tokens->refresh($first['refreshToken'], null, null);
+        $first  = $this->tokens->issue($this->userId);
+        $second = $this->tokens->refresh($first['refreshToken']);
 
         // Útočník zkusí použít token, který už byl vyměněn.
         try {
-            $this->tokens->refresh($first['refreshToken'], null, null);
+            $this->tokens->refresh($first['refreshToken']);
             self::fail('opakované použití refresh tokenu musí selhat');
         } catch (ApiException $e) {
             self::assertSame(401, $e->status);
@@ -85,7 +85,7 @@ final class TokenServiceTest extends DatabaseTestCase
 
         // Následkem se ruší i relace legitimního uživatele — nevíme, kdo je kdo.
         try {
-            $this->tokens->refresh($second['refreshToken'], null, null);
+            $this->tokens->refresh($second['refreshToken']);
             self::fail('po odhalení krádeže musí padnout všechny relace');
         } catch (ApiException $e) {
             self::assertSame(401, $e->status);
@@ -94,16 +94,16 @@ final class TokenServiceTest extends DatabaseTestCase
 
     public function testLogoutRevokesRefreshToken(): void
     {
-        $pair = $this->tokens->issue($this->userId, null, null);
+        $pair = $this->tokens->issue($this->userId);
         $this->tokens->revoke($pair['refreshToken']);
 
         $this->expectException(ApiException::class);
-        $this->tokens->refresh($pair['refreshToken'], null, null);
+        $this->tokens->refresh($pair['refreshToken']);
     }
 
     public function testRefreshTokenIsStoredOnlyAsHash(): void
     {
-        $pair = $this->tokens->issue($this->userId, null, null);
+        $pair = $this->tokens->issue($this->userId);
 
         $stored = $this->db->value('SELECT token_hash FROM refresh_token WHERE user_id = ?', [$this->userId]);
 
