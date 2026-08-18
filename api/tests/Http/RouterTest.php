@@ -96,4 +96,18 @@ final class RouterTest extends TestCase
         $this->expectException(ApiException::class);
         $router->match($this->request('GET', '/api/v1/seasons/1/offences'));
     }
+
+    public function testStaticDotInRouteIsLiteral(): void
+    {
+        $router = new Router();
+        $router->get('/api/v1/calendar/{token}.ics', static fn (): Response => Response::noContent(), auth: false);
+
+        $request = $this->request('GET', '/api/v1/calendar/abc.ics');
+        $router->match($request);
+
+        self::assertSame('abc', $request->routeString('token'));
+
+        $this->expectException(ApiException::class);
+        $router->match($this->request('GET', '/api/v1/calendar/abcXics'));
+    }
 }

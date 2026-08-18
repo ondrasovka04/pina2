@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Pina\Http;
 
-/** Odpověď API: vždy JSON, jednotný tvar chyby. */
+/** HTTP odpověď. Běžné API je JSON, veřejný kalendář používá surové tělo. */
 final class Response
 {
     /**
@@ -16,6 +16,8 @@ final class Response
         public readonly array|null $data = null,
         public readonly array $headers = [],
         public readonly ?string $cookie = null,
+        public readonly ?string $rawBody = null,
+        public readonly string $contentType = 'application/json; charset=utf-8',
     ) {
     }
 
@@ -36,6 +38,24 @@ final class Response
         return new self(204);
     }
 
+    /** @param array<string,string> $headers */
+    public static function raw(
+        string $body,
+        string $contentType,
+        int $status = 200,
+        array $headers = [],
+    ): self {
+        return new self($status, headers: $headers, rawBody: $body, contentType: $contentType);
+    }
+
+    /** @param array<string,string> $headers */
+    public static function notModified(
+        array $headers = [],
+        string $contentType = 'application/json; charset=utf-8',
+    ): self {
+        return new self(304, headers: $headers, contentType: $contentType);
+    }
+
     public static function error(ApiException $e): self
     {
         return new self($e->status, [
@@ -49,13 +69,20 @@ final class Response
 
     public function withCookie(string $cookie): self
     {
-        return new self($this->status, $this->data, $this->headers, $cookie);
+        return new self(
+            $this->status,
+            $this->data,
+            $this->headers,
+            $cookie,
+            $this->rawBody,
+            $this->contentType,
+        );
     }
 
     public function send(): void
     {
         http_response_code($this->status);
-        header('Content-Type: application/json; charset=utf-8');
+        header('Content-Type: ' . $this->contentType);
 
         foreach ($this->headers as $name => $value) {
             header("$name: $value");
@@ -65,7 +92,9 @@ final class Response
             header('Set-Cookie: ' . $this->cookie, false);
         }
 
-        if ($this->data !== null) {
+        if ($this->rawBody !== null) {
+            echo $this->rawBody;
+        } elseif ($this->data !== null) {
             echo json_encode($this->data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         }
     }

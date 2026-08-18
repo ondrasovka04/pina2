@@ -74,13 +74,13 @@ final class Router
     {
         $params = [];
         $regex  = preg_replace_callback(
-            '/\{(\w+)\}/',
+            '/\\\\\{(\w+)\\\\\}/',
             static function (array $m) use (&$params): string {
                 $params[] = $m[1];
 
                 return '([^/]+)';
             },
-            $pattern,
+            preg_quote($pattern, '#'),
         );
 
         $this->routes[] = [

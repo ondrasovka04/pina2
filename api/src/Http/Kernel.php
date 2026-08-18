@@ -45,6 +45,8 @@ final class Kernel
                 $response->data,
                 [...$this->corsHeaders(), ...$response->headers],
                 $response->cookie,
+                $response->rawBody,
+                $response->contentType,
             );
         } catch (ApiException $e) {
             return new Response(

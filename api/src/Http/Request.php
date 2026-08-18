@@ -84,6 +84,17 @@ final class Request
         return (int) $value;
     }
 
+    public function routeString(string $name): string
+    {
+        $value = $this->routeParams[$name] ?? '';
+
+        if ($value === '') {
+            throw ApiException::notFound();
+        }
+
+        return $value;
+    }
+
     public function string(string $key, ?string $default = null): string
     {
         $value = $this->body[$key] ?? $default;
