@@ -48,7 +48,8 @@ final class FinanceService
         }
 
         $rows = $this->db->all(
-            'SELECT p.*, u.display_name AS member_name, confirmer.display_name AS confirmer_name
+            'SELECT p.*, u.display_name AS member_name, u.avatar_url AS member_avatar_url,
+                    confirmer.display_name AS confirmer_name
                FROM payment p
                JOIN membership m ON m.id = p.membership_id
                JOIN `user` u ON u.id = m.user_id
@@ -134,7 +135,7 @@ final class FinanceService
         }
 
         $rows = $this->db->all(
-            'SELECT tc.*, u.display_name AS member_name, e.title AS event_title
+            'SELECT tc.*, u.display_name AS member_name, u.avatar_url AS member_avatar_url, e.title AS event_title
                FROM travel_claim tc
                JOIN membership m ON m.id = tc.membership_id
                JOIN `user` u ON u.id = m.user_id
@@ -328,10 +329,10 @@ final class FinanceService
 
         $row = $this->db->first(
             'SELECT s.name AS season_name, s.starts_on, s.ends_on, s.half_year_on,
-                    t.name AS team_name, c.bank_account, m.payment_reference
+                    t.name AS team_name, ts.bank_account, m.payment_reference
                FROM season s
                JOIN team t ON t.id = s.team_id
-               JOIN club c ON c.id = t.club_id
+               LEFT JOIN team_settings ts ON ts.team_id = t.id
                JOIN membership m ON m.id = ? AND m.team_id = t.id
               WHERE s.id = ?',
             [$membershipId, $seasonId],
@@ -350,7 +351,8 @@ final class FinanceService
         // koruny stejné číslo, jaké hráč vidí na kontě, jinak si po zaplacení nebude
         // vědět rady. Období určuje jen název platby a rytmus zúčtování; datum zápisu
         // se nefiltruje, protože klidně padne mimo rozsah sezóny (turnaj před startem).
-        $amount  = $this->seasonBalance($seasonId, $membershipId);
+        $amount = $this->seasonBalance($seasonId, $membershipId);
+        // Družstvo bez uloženého nastavení řádek nemá, proto LEFT JOIN a NULL.
         $account = $row['bank_account'] === null ? null : (string) $row['bank_account'];
         $spayd   = null;
 
@@ -431,7 +433,8 @@ final class FinanceService
     private function payment(int $paymentId): array
     {
         $row = $this->db->first(
-            'SELECT p.*, u.display_name AS member_name, confirmer.display_name AS confirmer_name
+            'SELECT p.*, u.display_name AS member_name, u.avatar_url AS member_avatar_url,
+                    confirmer.display_name AS confirmer_name
                FROM payment p
                JOIN membership m ON m.id = p.membership_id
                JOIN `user` u ON u.id = m.user_id
@@ -454,16 +457,17 @@ final class FinanceService
     private function paymentPayload(array $row): array
     {
         return [
-            'id'             => (int) $row['id'],
-            'seasonId'       => (int) $row['season_id'],
-            'membershipId'   => (int) $row['membership_id'],
-            'memberName'     => (string) $row['member_name'],
-            'amountCzk'      => (int) $row['amount_czk'],
-            'paidOn'         => (string) $row['paid_on'],
-            'method'         => (string) $row['method'],
-            'variableSymbol' => $row['variable_symbol'] === null ? null : (string) $row['variable_symbol'],
-            'note'           => $row['note'] === null ? null : (string) $row['note'],
-            'confirmedBy'    => $row['confirmed_by'] === null ? null : [
+            'id'              => (int) $row['id'],
+            'seasonId'        => (int) $row['season_id'],
+            'membershipId'    => (int) $row['membership_id'],
+            'memberName'      => (string) $row['member_name'],
+            'memberAvatarUrl' => $row['member_avatar_url'] === null ? null : (string) $row['member_avatar_url'],
+            'amountCzk'       => (int) $row['amount_czk'],
+            'paidOn'          => (string) $row['paid_on'],
+            'method'          => (string) $row['method'],
+            'variableSymbol'  => $row['variable_symbol'] === null ? null : (string) $row['variable_symbol'],
+            'note'            => $row['note'] === null ? null : (string) $row['note'],
+            'confirmedBy'     => $row['confirmed_by'] === null ? null : [
                 'id'   => (int) $row['confirmed_by'],
                 'name' => (string) $row['confirmer_name'],
             ],
@@ -476,7 +480,7 @@ final class FinanceService
     private function travelClaim(int $claimId): array
     {
         $row = $this->db->first(
-            'SELECT tc.*, u.display_name AS member_name, e.title AS event_title
+            'SELECT tc.*, u.display_name AS member_name, u.avatar_url AS member_avatar_url, e.title AS event_title
                FROM travel_claim tc
                JOIN membership m ON m.id = tc.membership_id
                JOIN `user` u ON u.id = m.user_id
@@ -499,19 +503,20 @@ final class FinanceService
     private function travelPayload(array $row): array
     {
         return [
-            'id'           => (int) $row['id'],
-            'seasonId'     => (int) $row['season_id'],
-            'membershipId' => (int) $row['membership_id'],
-            'memberName'   => (string) $row['member_name'],
-            'eventId'      => $row['event_id'] === null ? null : (int) $row['event_id'],
-            'eventTitle'   => $row['event_title'] === null ? null : (string) $row['event_title'],
-            'occurredOn'   => (string) $row['occurred_on'],
-            'distanceKm'   => (int) $row['distance_km'],
-            'rateCzkKm'    => (float) $row['rate_czk_km'],
-            'amountCzk'    => (int) $row['amount_czk'],
-            'note'         => $row['note'] === null ? null : (string) $row['note'],
-            'createdAt'    => (string) $row['created_at'],
-            'voidedAt'     => $row['voided_at'] === null ? null : (string) $row['voided_at'],
+            'id'              => (int) $row['id'],
+            'seasonId'        => (int) $row['season_id'],
+            'membershipId'    => (int) $row['membership_id'],
+            'memberName'      => (string) $row['member_name'],
+            'memberAvatarUrl' => $row['member_avatar_url'] === null ? null : (string) $row['member_avatar_url'],
+            'eventId'         => $row['event_id'] === null ? null : (int) $row['event_id'],
+            'eventTitle'      => $row['event_title'] === null ? null : (string) $row['event_title'],
+            'occurredOn'      => (string) $row['occurred_on'],
+            'distanceKm'      => (int) $row['distance_km'],
+            'rateCzkKm'       => (float) $row['rate_czk_km'],
+            'amountCzk'       => (int) $row['amount_czk'],
+            'note'            => $row['note'] === null ? null : (string) $row['note'],
+            'createdAt'       => (string) $row['created_at'],
+            'voidedAt'        => $row['voided_at'] === null ? null : (string) $row['voided_at'],
         ];
     }
 

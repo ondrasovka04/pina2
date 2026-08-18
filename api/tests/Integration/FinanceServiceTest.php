@@ -229,7 +229,7 @@ final class FinanceServiceTest extends DatabaseTestCase
 
     public function testQrAmountMatchesShownBalanceEvenMimoObdobiSezony(): void
     {
-        $this->db->run('UPDATE club SET bank_account = ? WHERE id = ?', ['19-2000145399/0800', $this->club]);
+        $this->setBankAccount('19-2000145399/0800');
         $this->makeRecord($this->season, $this->playerMembership, 250);
         // Datum zápisu mimo rozsah sezóny se stává: pínař zapíše turnaj před jejím začátkem.
         $this->db->run(
@@ -245,7 +245,7 @@ final class FinanceServiceTest extends DatabaseTestCase
 
     public function testQrContainsCurrentDebtAccountAndReference(): void
     {
-        $this->db->run('UPDATE club SET bank_account = ? WHERE id = ?', ['19-2000145399/0800', $this->club]);
+        $this->setBankAccount('19-2000145399/0800');
         $this->makeRecord($this->season, $this->playerMembership, 250);
 
         $qr = $this->service->paymentQr($this->player, $this->season, $this->playerMembership);
@@ -262,7 +262,7 @@ final class FinanceServiceTest extends DatabaseTestCase
      */
     public function testQrNameNeverPromisesOnlyHalfOfTheSeason(): void
     {
-        $this->db->run('UPDATE club SET bank_account = ? WHERE id = ?', ['19-2000145399/0800', $this->club]);
+        $this->setBankAccount('19-2000145399/0800');
         $this->db->run('UPDATE season SET half_year_on = \'2026-07-01\' WHERE id = ?', [$this->season]);
 
         $this->makeRecord($this->season, $this->playerMembership, 250);
@@ -277,6 +277,16 @@ final class FinanceServiceTest extends DatabaseTestCase
         self::assertSame('Nedoplatek 2026', $qr['period']['name']);
         // Zápis je z 1. pololetí, dnešek z druhého — QR ho přesto musí obsahovat.
         self::assertSame(250, $qr['amountCzk']);
+    }
+
+    /** Účet je nastavení družstva, ne klubu — `ON DUPLICATE` kvůli `enableTravel`. */
+    private function setBankAccount(string $account): void
+    {
+        $this->db->run(
+            'INSERT INTO team_settings (team_id, bank_account) VALUES (?, ?)
+             ON DUPLICATE KEY UPDATE bank_account = VALUES(bank_account)',
+            [$this->team, $account],
+        );
     }
 
     private function enableTravel(float $rate = 5.0, bool $roundTrip = true): void

@@ -88,9 +88,15 @@ abstract class DatabaseTestCase extends TestCase
         $this->db->run('INSERT INTO club (name, slug) VALUES (?, ?)', [$slug, $slug]);
         $clubId = $this->db->lastInsertId();
 
+        return [$clubId, $this->makeTeamInClub($clubId, $teamName)];
+    }
+
+    /** Druhé družstvo téhož klubu — na ověření, že se nastavení nesdílí. */
+    protected function makeTeamInClub(int $clubId, string $teamName): int
+    {
         $this->db->run('INSERT INTO team (club_id, name) VALUES (?, ?)', [$clubId, $teamName]);
 
-        return [$clubId, $this->db->lastInsertId()];
+        return $this->db->lastInsertId();
     }
 
     protected function makeUser(string $email): int

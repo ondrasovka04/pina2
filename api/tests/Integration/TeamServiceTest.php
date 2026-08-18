@@ -788,7 +788,32 @@ final class TeamServiceTest extends DatabaseTestCase
         self::assertFalse($second['travelEnabled']);
         self::assertSame(8.0, $second['travelRateCzkKm']);
         self::assertSame(1, (int) $this->db->value('SELECT COUNT(*) FROM team_settings'));
-        self::assertNull($this->db->value('SELECT bank_account FROM club WHERE id = ?', [$this->prosekClub]));
+        self::assertNull($this->db->value('SELECT bank_account FROM team_settings WHERE team_id = ?', [$this->prosekTeam]));
+    }
+
+    /**
+     * Účet patří družstvu, ne klubu. Do F4 ležel na klubu a editoval se v nastavení
+     * družstva, takže změna u mužů tiše přepsala účet juniorům i kadetům.
+     */
+    public function testBankAccountIsNotSharedWithSiblingTeam(): void
+    {
+        $juniors = $this->makeTeamInClub($this->prosekClub, 'Junioři');
+        $this->makeMembership($this->admin->userId, $juniors, 'admin');
+        $admin = new Identity($this->admin->userId, 'admin@prosek.cz', 'admin', false, [
+            $this->prosekTeam => Role::Admin,
+            $juniors          => Role::Admin,
+        ]);
+
+        $this->service->saveSettings($admin, $this->prosekTeam, $this->settings([
+            'bankAccount' => '19-2000145399/0800',
+        ]));
+        $this->service->saveSettings($admin, $juniors, $this->settings([
+            'bankAccount' => '2702016516/2010',
+        ]));
+
+        // Uložení juniorům nesmí přepsat muže — dřív šlo obojí do jednoho řádku klubu.
+        self::assertSame('19-2000145399/0800', $this->service->detail($admin, $this->prosekTeam)['settings']['bankAccount']);
+        self::assertSame('2702016516/2010', $this->service->detail($admin, $juniors)['settings']['bankAccount']);
     }
 
     public function testInvalidBankAccountIsRejected(): void

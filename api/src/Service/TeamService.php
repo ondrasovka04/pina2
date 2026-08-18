@@ -34,6 +34,7 @@ use Pina\Support\PaymentReference;
  *     id:int,
  *     name:string,
  *     color:string|null,
+ *     logoUrl:string|null,
  *     archivedAt:string|null,
  *     clubId:int,
  *     clubName:string,
@@ -44,6 +45,7 @@ use Pina\Support\PaymentReference;
  *     id:int,
  *     userId:int,
  *     name:string,
+ *     avatarUrl:string|null,
  *     email:string,
  *     role:string,
  *     status:string,
@@ -90,6 +92,7 @@ final class TeamService
      *     id:int,
      *     name:string,
      *     color:string|null,
+     *     logoUrl:string|null,
      *     clubId:int,
      *     clubName:string,
      *     membershipId:int,
@@ -102,6 +105,7 @@ final class TeamService
     {
         $rows = $this->db->all(
             "SELECT t.id, t.name, t.color, t.archived_at,
+                    t.logo_url,
                     c.id AS club_id, c.name AS club_name,
                     m.id AS membership_id, m.role,
                     s.id AS season_id, s.name AS season_name
@@ -118,6 +122,7 @@ final class TeamService
             'id'            => (int) $row['id'],
             'name'          => (string) $row['name'],
             'color'         => $row['color'] === null ? null : (string) $row['color'],
+            'logoUrl'       => $row['logo_url'] === null ? null : (string) $row['logo_url'],
             'clubId'        => (int) $row['club_id'],
             'clubName'      => (string) $row['club_name'],
             'membershipId'  => (int) $row['membership_id'],
@@ -339,7 +344,7 @@ final class TeamService
 
         $rows = $this->db->all(
             'SELECT m.id, m.user_id, m.role, m.status, m.jersey_number, m.payment_reference, m.joined_at,
-                    u.display_name, u.email, u.password_hash IS NOT NULL AS has_password
+                    u.display_name, u.email, u.avatar_url, u.password_hash IS NOT NULL AS has_password
                FROM membership m
                JOIN `user` u ON u.id = m.user_id
               WHERE m.team_id = ?
@@ -351,6 +356,7 @@ final class TeamService
             'id'               => (int) $row['id'],
             'userId'           => (int) $row['user_id'],
             'name'             => (string) $row['display_name'],
+            'avatarUrl'        => $row['avatar_url'] === null ? null : (string) $row['avatar_url'],
             'email'            => (string) $row['email'],
             'role'             => (string) $row['role'],
             'status'           => (string) $row['status'],
@@ -756,35 +762,32 @@ final class TeamService
             }
         }
 
-        $this->db->transaction(function () use ($teamId, $settings, $bankAccount): void {
-            $this->db->run(
-                'UPDATE club c JOIN team t ON t.club_id = c.id SET c.bank_account = ? WHERE t.id = ?',
-                [$bankAccount, $teamId],
-            );
-
-            $this->db->run(
-                'INSERT INTO team_settings
-                 (team_id, home_location_id, travel_enabled, travel_rate_czk_km, travel_round_trip,
-                  attendance_visible_to_players, balances_visible_to_players)
-             VALUES (?, ?, ?, ?, ?, ?, ?)
-             ON DUPLICATE KEY UPDATE
-                 home_location_id              = VALUES(home_location_id),
-                 travel_enabled                = VALUES(travel_enabled),
-                 travel_rate_czk_km            = VALUES(travel_rate_czk_km),
-                 travel_round_trip             = VALUES(travel_round_trip),
-                 attendance_visible_to_players = VALUES(attendance_visible_to_players),
-                 balances_visible_to_players   = VALUES(balances_visible_to_players)',
-                [
-                    $teamId,
-                    $settings['homeLocationId'],
-                    (int) $settings['travelEnabled'],
-                    number_format($settings['travelRateCzkKm'], 2, '.', ''),
-                    (int) $settings['travelRoundTrip'],
-                    (int) $settings['attendanceVisibleToPlayers'],
-                    (int) $settings['balancesVisibleToPlayers'],
-                ],
-            );
-        });
+        // Účet leží ve stejném řádku jako ostatní nastavení, takže jeden příkaz
+        // stačí — dřív se zapisoval na klub a transakce držela dvě tabulky pohromadě.
+        $this->db->run(
+            'INSERT INTO team_settings
+             (team_id, bank_account, home_location_id, travel_enabled, travel_rate_czk_km, travel_round_trip,
+              attendance_visible_to_players, balances_visible_to_players)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+             bank_account                  = VALUES(bank_account),
+             home_location_id              = VALUES(home_location_id),
+             travel_enabled                = VALUES(travel_enabled),
+             travel_rate_czk_km            = VALUES(travel_rate_czk_km),
+             travel_round_trip             = VALUES(travel_round_trip),
+             attendance_visible_to_players = VALUES(attendance_visible_to_players),
+             balances_visible_to_players   = VALUES(balances_visible_to_players)',
+            [
+                $teamId,
+                $bankAccount,
+                $settings['homeLocationId'],
+                (int) $settings['travelEnabled'],
+                number_format($settings['travelRateCzkKm'], 2, '.', ''),
+                (int) $settings['travelRoundTrip'],
+                (int) $settings['attendanceVisibleToPlayers'],
+                (int) $settings['balancesVisibleToPlayers'],
+            ],
+        );
 
         return $this->settings($teamId);
     }
@@ -885,7 +888,8 @@ final class TeamService
     private function teamPayload(int $teamId): array
     {
         $team = $this->db->first(
-            'SELECT t.id, t.name, t.color, t.archived_at, c.id AS club_id, c.name AS club_name,
+            'SELECT t.id, t.name, t.color, t.logo_url, t.archived_at,
+                    c.id AS club_id, c.name AS club_name,
                     (SELECT COUNT(*) FROM membership m WHERE m.team_id = t.id AND m.status <> \'left\') AS member_count
                FROM team t
                JOIN club c ON c.id = t.club_id
@@ -901,6 +905,7 @@ final class TeamService
             'id'          => (int) $team['id'],
             'name'        => (string) $team['name'],
             'color'       => $team['color'] === null ? null : (string) $team['color'],
+            'logoUrl'     => $team['logo_url'] === null ? null : (string) $team['logo_url'],
             'archivedAt'  => $team['archived_at'] === null ? null : (string) $team['archived_at'],
             'clubId'      => (int) $team['club_id'],
             'clubName'    => (string) $team['club_name'],
@@ -915,11 +920,10 @@ final class TeamService
     private function settings(int $teamId): array
     {
         $row = $this->db->first(
-            'SELECT c.bank_account, ts.home_location_id, ts.travel_enabled, ts.travel_rate_czk_km,
+            'SELECT ts.bank_account, ts.home_location_id, ts.travel_enabled, ts.travel_rate_czk_km,
                     ts.travel_round_trip, ts.attendance_visible_to_players,
                     ts.balances_visible_to_players
                FROM team t
-               JOIN club c ON c.id = t.club_id
                LEFT JOIN team_settings ts ON ts.team_id = t.id
               WHERE t.id = ?',
             [$teamId],
@@ -948,7 +952,7 @@ final class TeamService
     {
         $row = $this->db->first(
             'SELECT m.id, m.user_id, m.role, m.status, m.jersey_number, m.payment_reference, m.joined_at,
-                    u.display_name, u.email, u.password_hash IS NOT NULL AS has_password
+                    u.display_name, u.email, u.avatar_url, u.password_hash IS NOT NULL AS has_password
                FROM membership m
                JOIN `user` u ON u.id = m.user_id
               WHERE m.id = ?',
@@ -963,6 +967,7 @@ final class TeamService
             'id'               => (int) $row['id'],
             'userId'           => (int) $row['user_id'],
             'name'             => (string) $row['display_name'],
+            'avatarUrl'        => $row['avatar_url'] === null ? null : (string) $row['avatar_url'],
             'email'            => (string) $row['email'],
             'role'             => (string) $row['role'],
             'status'           => (string) $row['status'],
