@@ -7,11 +7,12 @@ SET time_zone = '+02:00';
 
 -- ---------------------------------------------------------------- organizace
 
+-- Klub drzi jen identitu. Ucet i znak patri druzstvu -- kazde ma vlastni kasu
+-- a admin jednoho druzstva nema co menit nastaveni druhemu.
 CREATE TABLE club (
   id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   name        VARCHAR(120) NOT NULL,
   slug        VARCHAR(60)  NOT NULL,
-  bank_account VARCHAR(50) NULL COMMENT 'pro QR platby (IBAN nebo cislo uctu)',
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_club_slug (slug)
@@ -22,6 +23,7 @@ CREATE TABLE team (
   club_id     BIGINT UNSIGNED NOT NULL,
   name        VARCHAR(120) NOT NULL,
   color       VARCHAR(7) NULL,
+  logo_url    VARCHAR(255) NULL COMMENT 'nahrany znak druzstva; bez nej se kresli znak klubu',
   archived_at DATETIME NULL,
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
@@ -307,6 +309,7 @@ CREATE TABLE offence_record (
 -- maji rozdilnou delku a prelom nebyva v jejich polovine.
 CREATE TABLE team_settings (
   team_id             BIGINT UNSIGNED NOT NULL,
+  bank_account        VARCHAR(50) NULL COMMENT 'pro QR platby (IBAN nebo cislo uctu)',
   home_location_id    BIGINT UNSIGNED NULL COMMENT 'domaci hala -- od ni se meri vzdalenost k souperi',
   travel_enabled      TINYINT(1) NOT NULL DEFAULT 0,
   travel_rate_czk_km  DECIMAL(5,2) NOT NULL DEFAULT 5.00,

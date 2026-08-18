@@ -13,6 +13,7 @@ use Pina\Controller\AuthController;
 use Pina\Controller\CalendarFeedController;
 use Pina\Controller\EventController;
 use Pina\Controller\FinanceController;
+use Pina\Controller\ImageController;
 use Pina\Controller\LocationController;
 use Pina\Controller\NotificationController;
 use Pina\Controller\OffenceController;
@@ -30,6 +31,7 @@ use Pina\Notification\WebPushGateway;
 use Pina\Service\CalendarFeedService;
 use Pina\Service\EventService;
 use Pina\Service\FinanceService;
+use Pina\Service\ImageService;
 use Pina\Service\LocationService;
 use Pina\Service\NotificationService;
 use Pina\Service\OffenceService;
@@ -49,7 +51,7 @@ final class App
     public readonly TokenService $tokens;
     public readonly TeamScope $scope;
 
-    public function __construct(string $rootPath)
+    public function __construct(private readonly string $rootPath)
     {
         Config::load($rootPath);
 
@@ -82,6 +84,7 @@ final class App
             new CalendarFeedService($this->db, $this->scope, new IcsCalendar()),
         );
         $notificationCtrl = new NotificationController($notifications, Config::get('CRON_TOKEN', ''));
+        $imageCtrl        = new ImageController(new ImageService($this->db, $this->scope, $this->rootPath));
 
         // Veřejné (auth: false)
         $router->post('/api/v1/auth/login', $authCtrl->login(...), auth: false);
@@ -92,6 +95,7 @@ final class App
         $router->post('/api/v1/auth/password/reset', $authCtrl->resetPassword(...), auth: false);
         $router->get('/api/v1/calendar/{token}.ics', $calendarCtrl->show(...), auth: false);
         $router->post('/api/v1/cron/notifications/send', $notificationCtrl->sendQueue(...), auth: false);
+        $router->get('/api/v1/images/{kind}/{file}', $imageCtrl->show(...), auth: false);
 
         // Vyžadují přihlášení
         $router->get('/api/v1/me', $authCtrl->me(...));
@@ -104,6 +108,10 @@ final class App
         $router->put('/api/v1/me/notifications/preferences', $notificationCtrl->preferences(...));
         $router->post('/api/v1/push/subscribe', $notificationCtrl->subscribe(...));
         $router->post('/api/v1/push/unsubscribe', $notificationCtrl->unsubscribe(...));
+        $router->put('/api/v1/me/avatar', $imageCtrl->saveUser(...));
+        $router->delete('/api/v1/me/avatar', $imageCtrl->removeUser(...));
+        $router->put('/api/v1/teams/{team}/logo', $imageCtrl->saveTeam(...));
+        $router->delete('/api/v1/teams/{team}/logo', $imageCtrl->removeTeam(...));
 
         $this->teamRoutes($router);
         $this->offenceRoutes($router, $notifications);

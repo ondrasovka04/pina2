@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Pina\Http;
 
-/** HTTP odpověď. Běžné API je JSON, veřejný kalendář používá surové tělo. */
+/** HTTP odpověď. Běžné API je JSON, kalendář a obrázky používají surové tělo. */
 final class Response
 {
     /**
@@ -54,6 +54,19 @@ final class Response
         string $contentType = 'application/json; charset=utf-8',
     ): self {
         return new self(304, headers: $headers, contentType: $contentType);
+    }
+
+    /**
+     * Uložený obrázek. Název souboru je náhodný a po výměně vzniká nový, takže
+     * se dá cachovat natrvalo — a `nosniff` drží prohlížeč u toho, že je to PNG,
+     * i kdyby v souboru bylo cokoli jiného.
+     */
+    public static function image(string $contents): self
+    {
+        return self::raw($contents, 'image/png', headers: [
+            'Cache-Control'          => 'public, max-age=31536000, immutable',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
     public static function error(ApiException $e): self
