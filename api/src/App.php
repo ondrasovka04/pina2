@@ -94,7 +94,10 @@ final class App
         $router->post('/api/v1/auth/password/forgot', $authCtrl->forgotPassword(...), auth: false);
         $router->post('/api/v1/auth/password/reset', $authCtrl->resetPassword(...), auth: false);
         $router->get('/api/v1/calendar/{token}.ics', $calendarCtrl->show(...), auth: false);
-        $router->post('/api/v1/cron/notifications/send', $notificationCtrl->sendQueue(...), auth: false);
+        // Zápis přes GET je proti zvyku, ale plánovač Zoneru umí u úlohy zadat
+        // jen adresu — metodu nevybírá a pošle GET. Chrání to token, ne metoda:
+        // bez správného tokenu endpoint vrací 404.
+        $router->get('/api/v1/cron/notifications/send', $notificationCtrl->sendQueue(...), auth: false);
         $router->get('/api/v1/images/{kind}/{file}', $imageCtrl->show(...), auth: false);
 
         // Vyžadují přihlášení

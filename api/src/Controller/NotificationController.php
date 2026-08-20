@@ -60,10 +60,13 @@ final class NotificationController
         $this->assertCron($request);
         $reminders = $this->notifications->enqueueEventReminders();
 
-        return Response::ok([
+        // Úloha visí na GET, protože plánovač hostingu jinou metodu nenabízí.
+        // GET se ale smí kešovat, a kdyby odpověď někdo mezi tím uložil, plánovač
+        // by dál dostával 200 a oznámení by se tiše přestala odesílat.
+        return new Response(200, [
             'eventRemindersCreated' => $reminders,
             'delivery'              => $this->notifications->flush(limit: 50),
-        ]);
+        ], ['Cache-Control' => 'no-store']);
     }
 
     private function assertCron(Request $request): void
