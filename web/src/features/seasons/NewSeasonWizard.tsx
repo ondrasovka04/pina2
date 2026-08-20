@@ -19,12 +19,14 @@ import {
 	useOffenceTypes,
 	useRoster,
 	useSaveRoster,
+	useTeamDetail,
 	useTeamMembers,
 } from '@/lib/queries'
 import { useScrollTopOnChange } from '@/lib/scroll'
 import type { Season } from '@/lib/types'
 import { roleLabels, today } from '@/lib/types'
 
+import { missingTeamSetup } from './setup'
 import { suggestSeason } from './suggest'
 
 type Step = 'basics' | 'pricelist' | 'roster' | 'done'
@@ -63,6 +65,7 @@ export function NewSeasonWizard() {
 	const sourceTypes = useOffenceTypes(sourceSeasonId)
 	const sourceRoster = useRoster(sourceSeasonId)
 	const members = useTeamMembers(team?.id ?? null)
+	const detail = useTeamDetail(team?.id ?? null)
 
 	const createSeason = useCreateSeason(team?.id ?? 0)
 	const copyTypes = useCopyOffenceTypes()
@@ -136,6 +139,11 @@ export function NewSeasonWizard() {
 	}
 
 	if (step === 'done' && created !== null) {
+		// Nastavení nese detail družstva, ne souhrn v `useTeam()`. Dokud nedojde,
+		// se hláškou se čeká — tvrdit „ještě chybí účet" bez dat by bylo horší
+		// než mlčet.
+		const missing = detail.data === undefined ? [] : missingTeamSetup(detail.data.settings)
+
 		return (
 			<div className="flex flex-col gap-4">
 				<Card className="flex flex-col items-center gap-3 px-6 py-8 text-center">
@@ -150,6 +158,22 @@ export function NewSeasonWizard() {
 					</div>
 					<p className="text-ink-faint text-sm">Aplikace je přepnutá na novou sezónu, můžete začít zapisovat.</p>
 				</Card>
+
+				{missing.length === 0 ? null : (
+					<Card>
+						<CardHeader title="Ještě chybí" subtitle="Sezóna je hotová, tohle leží v nastavení družstva." />
+						<ul className="text-ink-muted flex flex-col gap-2 px-4 py-3 text-sm">
+							{missing.map((item) => (
+								<li key={item}>{item}</li>
+							))}
+						</ul>
+						<div className="border-line/60 border-t px-4 py-3">
+							<Link to="/druzstvo" className="text-accent inline-flex items-center text-sm">
+								Otevřít nastavení družstva
+							</Link>
+						</div>
+					</Card>
+				)}
 
 				<div className="flex gap-3">
 					<Button variant="accent" size="lg" fullWidth onClick={() => void navigate('/zapsat')}>

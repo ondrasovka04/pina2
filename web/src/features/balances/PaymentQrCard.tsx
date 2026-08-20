@@ -79,7 +79,7 @@ export function PaymentQrCard({ seasonId, membershipId, title = 'Zaplatit pínu'
 
 			{data.bankAccount === null ? (
 				<p className="border-line/60 text-ink-muted border-t px-4 py-3 text-sm">
-					Klub zatím nenastavil účet pro QR platby.
+					Družstvo zatím nemá nastavený účet pro QR platby.
 				</p>
 			) : revealed ? (
 				<div className="border-line/60 flex flex-col items-center gap-3 border-t px-4 py-4 text-center">
