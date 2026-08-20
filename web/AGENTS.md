@@ -263,5 +263,14 @@ npm run typecheck && npm run lint && npm test && npm run format
   **Kde to nejde, tlačítko se nevykresluje a stojí tam důvod.** Vypnuté tlačítko
   na kliknutí nic neudělá ani nenapíše, takže vypadá jako rozbitá aplikace —
   přesně tak to jednou skončilo. Na počítači instalace potřeba není ani v Safari;
-  brání jen iPhone a iPad, kde iOS push povolí až aplikaci na ploše
-  (`needsInstallForPush()`).
+  brání jen iPhone a iPad, kde Safari zpřístupní `PushManager` až aplikaci
+  na ploše.
+
+  **Zařízení se nepoznává, ptá se na schopnost** (`needsInstallForPush()`).
+  Rozhoduje `supportsPush()` a `display-mode: standalone`, ne `navigator.userAgent`:
+  iPadOS se hlásí jako macOS, takže seznam systémů musel iPad dodatečně
+  zachraňovat podmínkou na dotyk — a odpovídal na jinou otázku, než se ptáme.
+  Až Apple push v kartě povolí, tahle verze přestane radit instalaci sama.
+  Dotyk (`isHandheld()` v `lib/device.ts`) zůstává jako pojistka proti počítači,
+  kde by instalace nepomohla. Stejnou funkci používá `AppInstallCard`, aby na
+  „je to mobil?" neexistovaly v aplikaci dvě různé odpovědi.

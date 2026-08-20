@@ -80,11 +80,37 @@ Hosting nemá SSH, deploy jde přes FTP a rozděluje se na dvě místa:
 
 | Odkud | Kam |
 |---|---|
-| `api/src`, `api/vendor`, `api/.env` | `/www/sites/8/site92718/app/` — mimo web |
+| `api/src`, `api/vendor`, `api/db`, `api/tools`, `api/.env` | `data/app/` — mimo web |
 | `api/public/*` | `public_html/api/` |
-| `web/dist/*` | `public_html/` |
+| `web/dist/*` bez `*.map` | `public_html/` |
 
-`open_basedir` sahá nad web root, takže `.env` ani `vendor/` nejsou z internetu dostupné.
+Kořen FTP je `/www/sites/8/site92718` a **není zapisovatelný** — ani pro PHP, ani
+přes FTP. Aplikace proto nebydlí v `app/` vedle web rootu, jak se původně počítalo,
+ale v `data/app/`: ten uživateli webu patří, takže do `storage/images/` jde zapisovat.
+`open_basedir` je nastavený právě na kořen FTP, takže `data/app` je pro PHP dosažitelný,
+zatímco z internetu vidět není. `.env` se po nahrání zamkne na `chmod 600`.
+
+`index.php` kořen nehledá pevně relativně, ale zkusí `..` (vývoj) a `../../data/app`
+(hosting) — vybere první, kde najde `vendor/autoload.php`.
+
+Zdrojové mapy se nenahrávají: service worker je v precache seznamu nemá, takže
+jejich vynechání nic nerozbije a nezveřejní zdrojáky.
+
+Závislosti se instalují bez vývojových nástrojů:
+
+```bash
+composer install --no-dev --optimize-autoloader
+```
+
+**Migrace při prvním nasazení.** MySQL Zoneru je zvenčí nedostupná (práva má
+uživatel omezená na IP hostingu) a hosting nemá SSH, takže se `001_init.sql`
+ani `tools/migrate_legacy.php` nedá spustit z lokálu. Nasazení proto proběhlo
+přes jednorázový skript v `public_html`, chráněný tokenem, který si údaje bral
+z `data/app/.env` a po použití se smazal. Stará i nová schémata leží v jedné
+databázi `pinaprosek` — hosting druhou nedává a jména tabulek se nekryjí
+(`Uzivatel`, `Tym`, … vs. `user`, `team`, …), takže se nic nepřepisuje.
+Nástroje v `tools/` píšou do `STDOUT`/`STDERR`, které ve webovém SAPI neexistují;
+spouštěč je musel nejdřív nadefinovat.
 
 Nahrané obrázky leží v `api/storage/images/`, tedy **na disku, ne v databázi**.
 Adresář musí být zapisovatelný pro PHP a **nesmí se při nasazení přepsat** —
@@ -97,8 +123,9 @@ obrázek vejde s rezervou, protože ho prohlížeč zmenší dřív, než ho ode
 Pro Web Push se před nasazením přes `cd api && composer vapid:generate` vytvoří
 `VAPID_PUBLIC_KEY` a `VAPID_PRIVATE_KEY`; spolu s `VAPID_SUBJECT` a náhodným
 `CRON_TOKEN` se doplní do `api/.env` podle příkladu. Plánovač hostingu pak volá
-každých 15 minut jedinou úlohu `POST /api/v1/cron/notifications/send?token=...`,
-která založí připomínky na zítřejší akce a odešle frontu.
+každých 15 minut jedinou úlohu `GET /api/v1/cron/notifications/send?token=...`,
+která založí připomínky na zítřejší akce a odešle frontu. Že jde o GET, si
+vynutil plánovač Zoneru — u úlohy se zadává jen adresa, metoda se nevybírá.
 
 ## Fáze
 
@@ -114,7 +141,6 @@ která založí připomínky na zítřejší akce a odešle frontu.
 
 Cíl: F1 + F2 na start sezóny 26/27 (září 2026), pak vypnout starou aplikaci.
 
-Rozhodnutí a bezpečnostní omezení F5 jsou v [docs/F5-PREDANI.md](docs/F5-PREDANI.md).
 Aplikaci lze nainstalovat na plochu, spustí se i bez signálu (dál než na
 přihlášení se ale bez sítě nedostane) a nová verze se aktivuje až po potvrzení.
 Data se do zařízení neukládají. Web Push
@@ -181,16 +207,29 @@ platbách i cesťácích. Kdo žádný nemá, má dál iniciály nebo číslo dr
 320 testů na backendu, 195 na frontendu, PHPStan level 8 čistý. Část testů
 formátu ICS se s jeho generátorem přesunula z TypeScriptu na server.
 
+**Nasazeno 20. 8. 2026.** Na `pinaprosek.eu` běží nová verze, stará je smazaná
+(záloha celého FTP i databáze je mimo repo). Migrace proběhla nad ostrými daty
+a `verify_migration.php` na produkci hlásí, že vše sedí: 91 uživatelů, 118 členství,
+8 sezón, 176 soupiskových řádků a 6 116 prohřešků, 165 008 Kč do koruny.
+Hosting má PHP 8.5.9 a GD s JPEG i WebP, takže obrázky fungují.
+
 **Před spuštěním zbývá:**
 
-1. **Nasazení.** Na hostingu pořád běží verze z roku 2023. Deploy zatím nikdo
-   neautomatizoval, dělá se ručně přes FTP podle tabulky výš.
-2. **Rozeslat aktivační odkazy.** Hesla se ze staré verze nepřenášela (byly to
-   SHA-256 otisky bez soli), takže se 90 z 91 účtů nemá čím přihlásit. Rozesílá
-   se po družstvech, po 25 zprávách na kliknutí. Začít je potřeba u adminů —
-   kadeti ani VK Benátky nemají zatím jediného přihlášeného člena včetně svých.
-3. **Zkontrolovat aktuální sezóny.** Kadeti mají označenou „Kadeti 24/25“, dva
-   roky starou. Junioři mají 25/26.
+1. **Založit sezónu 26/27** u každého družstva. Migrace označuje jako aktuální
+   jen sezónu, která zahrnuje dnešek, a skončené rovnou zavírá — všechny staré
+   skončily do 30. 6. 2026, takže po nasazení žádné družstvo aktuální sezónu nemá.
+   Ke každé nové sezóně pak nastavit soupisku a zkopírovat sazebník z loňska
+   (u mužů je tam 45 položek). Doplnit taky **číslo účtu u každého družstva** —
+   bez něj nebude QR a stará aplikace ho nikdy neměla, takže se nemělo co migrovat.
+2. **Naplánovat cron.** V administraci hostingu úloha na
+   `/api/v1/cron/notifications/send?token=…` každých 15 minut.
+3. **Rozeslat aktivační odkazy.** Hesla se ze staré verze nepřenášela (byly to
+   SHA-256 otisky bez soli), takže se žádný z 91 účtů nemá čím přihlásit —
+   a obnova hesla účty bez hesla zamítá, aby jí nešlo obsadit nepřevzatý účet.
+   První odkaz pro správce platformy proto musel vzniknout z jednorázového skriptu;
+   dál se rozesílá z aplikace po družstvech, po 25 zprávách na kliknutí.
+   Než se rozešle hromadně, **vyprázdnit `MAIL_ALLOWLIST`** — zatím je omezený
+   na tři vlastní adresy, takže ostatním by se pošta jen zapsala do logu.
 4. **Vyzkoušet odběr kalendáře na ostré adrese.** Lokálně to jde jen ručně
    vloženou `http://` adresou: macOS Kalendář si `webcal://` přeloží na
    **https**, a dev server certifikát nemá. Google kalendář navíc načítá adresu

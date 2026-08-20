@@ -1,7 +1,11 @@
 -- Pryc s udaji, ktere se zapisovaly a nikdo je necetl.
 --
 -- Osobni udaj, se kterym aplikace nic nedela, neni zaloha do budoucna, ale zbytecne
--- riziko -- a u kadetu jde o data nezletilych. Co se ma dochovat, patri do audit_log.
+-- riziko -- a u kadetu jde o data nezletilych.
+--
+-- Puvodne tu stalo "co se ma dochovat, patri do audit_log". To neni pravda:
+-- audit_log je ve schematu, ale nic do nej nepise. Nic se tedy nepresouva,
+-- tyhle udaje se prestavaji sbirat -- a zadny z nich nikdo necetl.
 --
 -- Pro koho to je: pro databazi, ktera uz v novem schematu bezi (vyvojova).
 -- Nove zalozena to nepotrebuje, 001_init.sql uz tyhle sloupce nema.

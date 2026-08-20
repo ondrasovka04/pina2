@@ -663,6 +663,10 @@ multi-tenant aplikace (IDOR: "změním v URL id a vidím cizí klub").
 
 REST, verzované, JSON, jeden front controller.
 
+Níže je **výběr, ne úplný seznam** — hotových tras je přes šedesát a jediný
+závazný přehled je `api/src/App.php`. Co se nakonec nepostavilo, je označené,
+aby seznam nevypadal jako slib.
+
 ```apache
 # /api/.htaccess
 RewriteEngine On
@@ -673,7 +677,7 @@ RewriteRule ^ index.php [QSA,L]
 ```
 POST   /api/v1/auth/login | refresh | logout
 POST   /api/v1/auth/password/forgot | reset
-POST   /api/v1/invitations/{token}/accept
+POST   /api/v1/invitations/accept              -- token v těle, ne v adrese
 GET    /api/v1/me
 
 GET    /api/v1/clubs/{club}/teams
@@ -706,20 +710,20 @@ PATCH  /api/v1/events/{id}
 PUT    /api/v1/events/{id}/nominations         -- hromadná nominace
 PUT    /api/v1/events/{id}/rsvp                -- odpověď hráče (jen za sebe)
 PUT    /api/v1/events/{id}/attendance          -- zápis docházky
-GET    /api/v1/seasons/{s}/attendance/summary  -- procenta účasti
+GET    /api/v1/seasons/{s}/attendance          -- procenta účasti
 
 GET    /api/v1/seasons/{s}/balances            -- kdo kolik dluží
 POST   /api/v1/seasons/{s}/payments
 GET    /api/v1/memberships/{id}/payment-qr     -- SPAYD řetězec pro QR
-GET    /api/v1/clubs/{c}/bank-transactions     -- fáze 2
-POST   /api/v1/bank-transactions/{id}/match
+GET    /api/v1/clubs/{c}/bank-transactions     -- nevznikl, F6 (párování plateb)
+POST   /api/v1/bank-transactions/{id}/match    -- nevznikl, F6
 
 GET    /api/v1/me/notifications/settings
 PUT    /api/v1/me/notifications/preferences
 POST   /api/v1/push/subscribe
 POST   /api/v1/push/unsubscribe
-POST   /api/v1/cron/notifications/send?token=...
-GET    /api/v1/seasons/{s}/export?format=csv|xlsx
+GET    /api/v1/cron/notifications/send?token=...
+GET    /api/v1/seasons/{s}/export?format=csv|xlsx  -- nevznikl
 ```
 
 **Jednotný tvar chyby** (starý systém vracel 400 na všechno):

@@ -99,9 +99,7 @@ a čísla se dělí na pololetí podle data u sezóny. Hotová je i **F5**: inst
 PWA, Web Push se dvěma osobními volbami a odběr kalendáře přes `webcal://`.
 Nad rámec fází mají hráči i kluby **obrázky** — normalizované PNG na disku
 v `api/storage/images/`, ne v databázi.
-**F6** (párování plateb z banky) teprve bude; rozhodnutí F5 jsou v
-[docs/F5-PREDANI.md](docs/F5-PREDANI.md).
-Tabulka fází je v README.
+**F6** (párování plateb z banky) teprve bude. Tabulka fází je v README.
 
 **Uzávěrka se nedělá.** Snímek zúčtovacího období (`settlement`, `settlement_line`)
 byl ve schématu od F1, ale tým zamykání odmítl — tabulky jsou proto zrušené.
@@ -113,4 +111,10 @@ zápis za ty, kdo chyběli, a on ho potvrdí nebo upraví. Který prohřešek to
 u všech družstev liší. Vazba `offence_batch.event_id` je tím pádem konečně plněná;
 do té doby byla ve schématu naprázdno.
 
-Nasazení je odložené záměrně až na konec — na hostingu pořád běží verze z roku 2023.
+**Nasazeno 20. 8. 2026.** Na `pinaprosek.eu` běží nová verze, stará je smazaná
+a data jsou zmigrovaná (ověřeno `verify_migration.php` proti ostré databázi).
+Postup a pasti hostingu jsou v [README](README.md), kapitola Nasazení.
+
+Ve schématu zbývá **`audit_log`, do kterého nic nepíše** — provozní stopa
+(kdo změnil sazebník, kdo stornoval platbu) je zatím jen prázdné místo. Dokud
+nevznikne, nelze se na ni odvolávat jako na náhradu smazaných údajů.

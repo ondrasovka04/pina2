@@ -434,8 +434,8 @@ CREATE TABLE password_reset (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_czech_ci;
 
 -- Jen nepovedene pokusy, a jen po dobu, kdy maji vliv na limit. Uspesne
--- prihlaseni se nezaznamenava -- do zadneho poctu nevstupuje a byl by z nej
--- trvaly seznam "kdo se odkud a kdy prihlasil"; na provozni stopu je audit_log.
+-- prihlaseni se nezaznamenava: do zadneho poctu nevstupuje a byl by z nej
+-- trvaly seznam "kdo se odkud a kdy prihlasil", ktery nikdo nepotrebuje.
 CREATE TABLE login_attempt (
   id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   email      VARCHAR(190) NOT NULL,
@@ -446,6 +446,11 @@ CREATE TABLE login_attempt (
   KEY ix_attempt_ip (ip, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_czech_ci;
 
+-- POZOR: zatim se do ni nic nepise a nic z ni necte -- na produkci ma 0 radku.
+-- Stoji tu jako pripravene misto pro provozni stopu (kdo zmenil sazebnik, kdo
+-- stornoval platbu), ale ta zaznamova vrstva jeste nevznikla. Az bude jasne, ze
+-- se do ni nikdo nechysta, patri zrusit stejne jako settlement -- schema nema
+-- slibovat, co aplikace nedela.
 CREATE TABLE audit_log (
   id             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   club_id        BIGINT UNSIGNED NULL,

@@ -10,8 +10,9 @@ use Pina\Support\Database;
  * Rate limiting na login: per-email a per-IP (brání bruteforce i spraying).
  *
  * Ukládají se **jen nepovedené** pokusy. Úspěšný do žádného počítání nevstupuje,
- * takže by z něj byl jen trvalý seznam „kdo se odkud a kdy přihlásil" — a na
- * provozní stopu je ve schématu `audit_log`, ne tahle tabulka.
+ * takže by z něj byl jen trvalý seznam „kdo se odkud a kdy přihlásil", který
+ * nikdo nečte. Provozní stopu aplikace zatím nevede vůbec — tabulka `audit_log`
+ * ve schématu je, ale nic do ní nepíše.
  */
 final class RateLimiter
 {
