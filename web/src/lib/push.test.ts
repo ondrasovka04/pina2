@@ -1,6 +1,75 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { createPushSubscription, pushSubscriptionInput } from '@/lib/push'
+import { createPushSubscription, needsInstallForPush, pushSubscriptionInput } from '@/lib/push'
+
+/**
+ * Prohlížeč se popisuje třemi nezávislými věcmi: umí push, běží z plochy,
+ * má dotyk. Podle systému se nerozhoduje schválně — viz `needsInstallForPush`.
+ */
+function pretendBrowser({ push, standalone, touch }: { push: boolean; standalone: boolean; touch: boolean }) {
+	Object.defineProperty(navigator, 'maxTouchPoints', { value: touch ? 5 : 0, configurable: true })
+	vi.stubGlobal('Notification', { requestPermission: () => Promise.resolve('granted') })
+
+	// `supportsPush()` chce tři věci naráz; jsdom nemá ani service workera.
+	if (push) {
+		vi.stubGlobal('PushManager', function PushManager() {})
+		Object.defineProperty(navigator, 'serviceWorker', { value: {}, configurable: true })
+	} else {
+		Reflect.deleteProperty(globalThis, 'PushManager')
+		Reflect.deleteProperty(navigator, 'serviceWorker')
+	}
+
+	window.matchMedia = ((query: string) =>
+		({
+			matches: query.includes('display-mode: standalone') ? standalone : query.includes('any-pointer: coarse') && touch,
+			media: query,
+			addEventListener: () => undefined,
+			removeEventListener: () => undefined,
+		}) as unknown as MediaQueryList) as typeof window.matchMedia
+}
+
+describe('needsInstallForPush', () => {
+	afterEach(() => {
+		vi.unstubAllGlobals()
+	})
+
+	/**
+	 * iPad v Safari: `PushManager` v kartě neexistuje a iPadOS se přitom hlásí
+	 * jako macOS, takže podle user agenta bychom instalaci neporadili právě
+	 * tam, kde je povinná.
+	 */
+	it('poradí instalaci dotykovému zařízení bez push v kartě', () => {
+		pretendBrowser({ push: false, standalone: false, touch: true })
+		vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(
+			'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/17.0 Safari/605.1.15',
+		)
+
+		expect(needsInstallForPush()).toBe(true)
+	})
+
+	it('v nainstalované aplikaci už instalaci neradí', () => {
+		pretendBrowser({ push: true, standalone: true, touch: true })
+
+		expect(needsInstallForPush()).toBe(false)
+	})
+
+	/** Android i počítače push v kartě umí — instalace by byla rada pro nic. */
+	it('neradí nic tam, kde push v kartě funguje', () => {
+		pretendBrowser({ push: true, standalone: false, touch: true })
+
+		expect(needsInstallForPush()).toBe(false)
+	})
+
+	/**
+	 * Na počítači bez push instalace nepomůže: takový prohlížeč push neumí
+	 * vůbec, a nabídnout tam „přidejte na plochu" by byla lež.
+	 */
+	it('neradí instalaci počítači, který push neumí', () => {
+		pretendBrowser({ push: false, standalone: false, touch: false })
+
+		expect(needsInstallForPush()).toBe(false)
+	})
+})
 
 describe('pushSubscriptionInput', () => {
 	it('převede klíče prohlížeče do base64url bez výplně', () => {

@@ -1,3 +1,4 @@
+import { isHandheld, isStandalone } from '@/lib/device'
 import type { PushSubscriptionInput } from '@/lib/types'
 
 const READY_TIMEOUT_MS = 5000
@@ -7,20 +8,25 @@ export function supportsPush(): boolean {
 }
 
 /**
- * iPhone a iPad pustí Web Push jedině aplikaci přidané na plochu — v Safari na
- * webu `subscribe()` skončí chybou. Na počítači to platí i pro Safari naopak:
- * tam instalace potřeba není. iPadOS se hlásí jako Macintosh, takže se pozná
- * podle dotykové obrazovky.
+ * Chybí k oznámením už jen instalace na plochu?
+ *
+ * Neptáme se, jaké je to zařízení, ale co prohlížeč umí. Safari na iPhonu
+ * a iPadu zpřístupní `PushManager` teprve aplikaci přidané na plochu — v běžné
+ * kartě ten objekt vůbec neexistuje. Když tedy push chybí a nejsme
+ * v nainstalované aplikaci, je instalace právě ta chybějící podmínka.
+ *
+ * Dřív se to hádalo z `navigator.userAgent` a byla to past: iPadOS se hlásí
+ * jako macOS, takže iPad musela dodatečně zachraňovat podmínka na dotyk. Navíc
+ * to odpovídalo na jinou otázku — až Apple push v kartě povolí, tahle verze
+ * přestane radit instalaci sama, kdežto seznam systémů by se musel hlídat.
+ *
+ * Dotyk zůstává jako pojistka proti počítači: tam, kde push chybí a zařízení
+ * není dotykové, instalace nepomůže, protože takový prohlížeč push neumí vůbec.
  */
 export function needsInstallForPush(): boolean {
-	const apple =
-		/iPad|iPhone|iPod/.test(navigator.userAgent) ||
-		(/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1)
-	if (!apple) return false
+	if (supportsPush() || isStandalone()) return false
 
-	const standalone = window.matchMedia('(display-mode: standalone)').matches
-
-	return !standalone
+	return isHandheld()
 }
 
 export async function currentPushSubscription(): Promise<PushSubscription | null> {

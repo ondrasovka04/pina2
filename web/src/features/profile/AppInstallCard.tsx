@@ -2,21 +2,12 @@ import { useSyncExternalStore } from 'react'
 
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader } from '@/components/ui/Card'
+import { isHandheld, isStandalone } from '@/lib/device'
 import { clearInstallPrompt, getInstallPrompt, subscribeToInstallPrompt } from '@/lib/pwa-install'
-
-/**
- * Dotyk, ne user agent: iPadOS se v Safari hlásí jako macOS, takže podle textu UA
- * bychom kartu schovali právě tam, kde je instalace k oznámením povinná.
- * `any-pointer` proto, že myš vedle dotyku (iPad s trackpadem) instalaci nevylučuje —
- * radši ji nabídnout i dotykovému notebooku než ji sebrat iPadu.
- */
-function isHandheld(): boolean {
-	return navigator.maxTouchPoints > 0 && window.matchMedia('(any-pointer: coarse)').matches
-}
 
 export function AppInstallCard() {
 	const prompt = useSyncExternalStore(subscribeToInstallPrompt, getInstallPrompt, () => null)
-	const standalone = window.matchMedia('(display-mode: standalone)').matches
+	const standalone = isStandalone()
 
 	// Na počítači push funguje i bez instalace, karta by radila zbytečně.
 	if (!isHandheld()) return null
