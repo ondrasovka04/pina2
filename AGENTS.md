@@ -115,6 +115,7 @@ do té doby byla ve schématu naprázdno.
 a data jsou zmigrovaná (ověřeno `verify_migration.php` proti ostré databázi).
 Postup a pasti hostingu jsou v [README](README.md), kapitola Nasazení.
 
-Ve schématu zbývá **`audit_log`, do kterého nic nepíše** — provozní stopa
-(kdo změnil sazebník, kdo stornoval platbu) je zatím jen prázdné místo. Dokud
-nevznikne, nelze se na ni odvolávat jako na náhradu smazaných údajů.
+**Provozní stopa je hotová.** `audit_log` je svázaný s družstvem, atomicky
+zachycuje citlivé změny peněz, oprávnění, sazebníku a sezón a admin ji čte
+v `/druzstvo`. Payload obsahuje jen identifikátory a snapshoty hodnot, ne jména,
+e-maily ani tokeny; lidské názvy se dohledávají až při čtení.

@@ -540,7 +540,7 @@ invitation      (id, team_id, email, role, token_hash, expires_at, accepted_at, 
 password_reset  (id, user_id, token_hash, expires_at, used_at)
 login_attempt   (id, email, ip, succeeded, created_at)          -- rate limiting
 calendar_feed   (id, user_id, team_id, season_id, token_hash, created_at, last_used_at, revoked_at)
-audit_log       (id, club_id, actor_user_id, action, entity, entity_id, payload JSON, created_at)
+audit_log       (id, club_id, team_id, actor_user_id, action, entity, entity_id, payload JSON, created_at)
 push_subscription (id, user_id, device_id, endpoint, endpoint_hash, p256dh, auth, content_encoding, created_at, last_seen_at, failed_at)
 notification_pref (user_id, channel, event_type, enabled)
 notification      (id, user_id, type, title, body, link, payload JSON, dedupe_key, read_at, created_at)
@@ -558,7 +558,10 @@ ukazovat, a přišlo by na ni jen to, co člověk už dostal na displej. Sloupce
 sloupce na potom" — čekají na tu obrazovku, ne na doplnění chybějícího chování.
 Úplný výčet povolených výjimek je v `api/AGENTS.md`.
 
-`audit_log` je nový — u peněz a docházky je "kdo to změnil a kdy" požadavek, ne luxus.
+`audit_log` zachycuje citlivé změny peněz, oprávnění, sazebníku a sezón.
+Váže se na družstvo, zapisuje se ve stejné transakci jako změna a čte ho jen
+admin daného družstva. Payload drží identifikátory a snapshoty hodnot, ne
+kopie osobních údajů ani tokeny.
 
 ---
 

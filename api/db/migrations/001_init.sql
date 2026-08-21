@@ -1,6 +1,15 @@
--- Pína 2.0 — počáteční schéma
+-- Pína 2.0 — schéma databáze
 -- MySQL 8, InnoDB, utf8mb4_czech_ci
--- Na produkci běží vedle starých tabulek (Uzivatel, Tym, ...), které zůstávají nedotčené.
+--
+-- Jediný soubor, který popisuje schéma. Cílový tvar je tenhle, ne výsledek
+-- řetězu migrací: `pina_test` se z něj staví před každým během testů
+-- (`DatabaseTestCase`) a stejně se zakládá i produkce. Průběžné migrace
+-- (účet a znak na družstvo, zrušení nečtených osobních údajů, `audit_log`
+-- na družstvo) jsou zapracované sem a jejich soubory zrušené — dva popisy
+-- téhož schématu se vždycky rozejdou. Historie změn je v gitu.
+--
+-- Na produkci to běží vedle starých tabulek (Uzivatel, Tym, ...), které
+-- zůstávají nedotčené; jména se nekryjí.
 
 SET NAMES utf8mb4;
 SET time_zone = '+02:00';
@@ -446,14 +455,13 @@ CREATE TABLE login_attempt (
   KEY ix_attempt_ip (ip, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_czech_ci;
 
--- POZOR: zatim se do ni nic nepise a nic z ni necte -- na produkci ma 0 radku.
--- Stoji tu jako pripravene misto pro provozni stopu (kdo zmenil sazebnik, kdo
--- stornoval platbu), ale ta zaznamova vrstva jeste nevznikla. Az bude jasne, ze
--- se do ni nikdo nechysta, patri zrusit stejne jako settlement -- schema nema
--- slibovat, co aplikace nedela.
+-- Provozni stopa citlivych zmen: kdo stornoval platbu, zdrazil prohresek nebo
+-- odebral roli. Vaze se na druzstvo, protoze druzstvu patri kasa i opravneni --
+-- klub drzi jen identitu. Zapisuje ji `Service\AuditLog` ve stejne transakci
+-- jako samotnou zmenu; cte ji admin daneho druzstva.
 CREATE TABLE audit_log (
   id             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  club_id        BIGINT UNSIGNED NULL,
+  team_id        BIGINT UNSIGNED NULL,
   actor_user_id  BIGINT UNSIGNED NULL,
   action         VARCHAR(60) NOT NULL,
   entity         VARCHAR(60) NOT NULL,
@@ -461,7 +469,7 @@ CREATE TABLE audit_log (
   payload        JSON NULL,
   created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  KEY ix_audit_club (club_id, created_at),
+  KEY ix_audit_team (team_id, created_at, id),
   KEY ix_audit_entity (entity, entity_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_czech_ci;
 
