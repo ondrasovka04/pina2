@@ -76,12 +76,16 @@ final class TeamService
      */
     private const MEMBER_STATUSES = ['active', 'left'];
 
+    private readonly AuditLog $audit;
+
     public function __construct(
         private readonly Database $db,
         private readonly TeamScope $scope,
         private readonly TokenService $tokens,
         private readonly InvitationMail $mails,
+        ?AuditLog $audit = null,
     ) {
+        $this->audit = $audit ?? new AuditLog($db, $scope);
     }
 
     /**
@@ -513,7 +517,14 @@ final class TeamService
 
         foreach ($batch as $row) {
             $email  = (string) $row['email'];
-            $issued = $this->issueToken($teamId, $email, (string) $row['role'], $identity->userId);
+            $issued = $this->db->transaction(function () use ($email, $identity, $row, $teamId): array {
+                $issued = $this->issueToken($teamId, $email, (string) $row['role'], $identity->userId);
+                $this->audit->record($identity, $teamId, 'activation_link_issued', 'invitation', $issued['id'], [
+                    'membershipId' => (int) $row['id'],
+                ]);
+
+                return $issued;
+            });
 
             if ($this->mails->sendActivation($email, (string) $row['display_name'], $issued['token'], $teamName)) {
                 $sent++;
@@ -629,7 +640,14 @@ final class TeamService
         }
 
         $role   = (string) $member['role'];
-        $issued = $this->issueToken($teamId, $email, $role, $identity->userId);
+        $issued = $this->db->transaction(function () use ($email, $identity, $membershipId, $role, $teamId): array {
+            $issued = $this->issueToken($teamId, $email, $role, $identity->userId);
+            $this->audit->record($identity, $teamId, 'activation_link_issued', 'invitation', $issued['id'], [
+                'membershipId' => $membershipId,
+            ]);
+
+            return $issued;
+        });
 
         $sent = $sendEmail && $this->mails->sendActivation(
             $email,
@@ -668,6 +686,7 @@ final class TeamService
 
         $sets   = [];
         $params = [];
+        $name   = null;
 
         // Jméno je na uživateli, ne na členství — projeví se všude.
         // Admin opravuje přezdívky ze staré verze.
@@ -677,11 +696,6 @@ final class TeamService
             if ($name === '') {
                 throw ApiException::validation('Jméno nesmí být prázdné.', ['field' => 'name']);
             }
-
-            $this->db->run(
-                'UPDATE `user` SET display_name = ? WHERE id = ?',
-                [$name, $current['user_id']],
-            );
         }
 
         if (isset($changes['role'])) {
@@ -709,20 +723,53 @@ final class TeamService
             throw ApiException::validation('Není co upravit — pošlete alespoň jedno pole.');
         }
 
-        if ($sets !== []) {
-            // Do dotazu se skládají jen literály vypsané výše, hodnoty jdou parametrem.
-            $params[] = $membershipId;
-            $this->db->run('UPDATE membership SET ' . implode(', ', $sets) . ' WHERE id = ?', $params);
-        }
-
         $roleChanged   = isset($changes['role']) && $changes['role']->value !== (string) $current['role'];
         $statusChanged = isset($changes['status']) && $changes['status'] !== (string) $current['status'];
 
-        // Oprávnění nese vydaný JWT, který platí ještě 15 minut. Odebranou roli
-        // (i pozastavené členství) je proto nutné promítnout do už vydaných tokenů.
-        if ($roleChanged || $statusChanged) {
-            $this->tokens->onRoleChanged((int) $current['user_id']);
-        }
+        $this->db->transaction(function () use (
+            $changes,
+            $current,
+            $identity,
+            $membershipId,
+            $name,
+            $params,
+            $roleChanged,
+            $sets,
+            $statusChanged,
+        ): void {
+            if ($name !== null) {
+                $this->db->run(
+                    'UPDATE `user` SET display_name = ? WHERE id = ?',
+                    [$name, $current['user_id']],
+                );
+            }
+
+            if ($sets !== []) {
+                // Do dotazu se skládají jen literály vypsané výše, hodnoty jdou parametrem.
+                $params[] = $membershipId;
+                $this->db->run('UPDATE membership SET ' . implode(', ', $sets) . ' WHERE id = ?', $params);
+            }
+
+            if ($roleChanged) {
+                $this->audit->record($identity, (int) $current['team_id'], 'role_changed', 'membership', $membershipId, [
+                    'oldRole' => (string) $current['role'],
+                    'newRole' => $changes['role']->value,
+                ]);
+            }
+
+            if ($statusChanged) {
+                $this->audit->record($identity, (int) $current['team_id'], 'status_changed', 'membership', $membershipId, [
+                    'oldStatus' => (string) $current['status'],
+                    'newStatus' => (string) $changes['status'],
+                ]);
+            }
+
+            // Oprávnění nese vydaný JWT, který platí ještě 15 minut. Změna
+            // role nebo stavu proto zneplatní už vydané tokeny ve stejné transakci.
+            if ($roleChanged || $statusChanged) {
+                $this->tokens->onRoleChanged((int) $current['user_id']);
+            }
+        });
 
         return $this->memberPayload($membershipId);
     }
@@ -737,6 +784,7 @@ final class TeamService
     public function saveSettings(Identity $identity, int $teamId, array $settings): array
     {
         $this->scope->team($identity, $teamId, Role::Admin);
+        $current = $this->settings($teamId);
 
         try {
             $bankAccount = $settings['bankAccount'] === null
@@ -762,32 +810,49 @@ final class TeamService
             }
         }
 
-        // Účet leží ve stejném řádku jako ostatní nastavení, takže jeden příkaz
-        // stačí — dřív se zapisoval na klub a transakce držela dvě tabulky pohromadě.
-        $this->db->run(
-            'INSERT INTO team_settings
-             (team_id, bank_account, home_location_id, travel_enabled, travel_rate_czk_km, travel_round_trip,
-              attendance_visible_to_players, balances_visible_to_players)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE
-             bank_account                  = VALUES(bank_account),
-             home_location_id              = VALUES(home_location_id),
-             travel_enabled                = VALUES(travel_enabled),
-             travel_rate_czk_km            = VALUES(travel_rate_czk_km),
-             travel_round_trip             = VALUES(travel_round_trip),
-             attendance_visible_to_players = VALUES(attendance_visible_to_players),
-             balances_visible_to_players   = VALUES(balances_visible_to_players)',
-            [
-                $teamId,
-                $bankAccount,
-                $settings['homeLocationId'],
-                (int) $settings['travelEnabled'],
-                number_format($settings['travelRateCzkKm'], 2, '.', ''),
-                (int) $settings['travelRoundTrip'],
-                (int) $settings['attendanceVisibleToPlayers'],
-                (int) $settings['balancesVisibleToPlayers'],
-            ],
-        );
+        $auditChanges = [];
+        if ($current['bankAccount'] !== $bankAccount) {
+            $auditChanges['bankAccount'] = ['old' => $current['bankAccount'], 'new' => $bankAccount];
+        }
+        if ($current['travelRateCzkKm'] !== $settings['travelRateCzkKm']) {
+            $auditChanges['travelRateCzkKm'] = [
+                'old' => $current['travelRateCzkKm'],
+                'new' => $settings['travelRateCzkKm'],
+            ];
+        }
+
+        $this->db->transaction(function () use ($auditChanges, $bankAccount, $identity, $settings, $teamId): void {
+            // Účet leží ve stejném řádku jako ostatní nastavení, takže jeden příkaz
+            // stačí — dřív se zapisoval na klub a transakce držela dvě tabulky pohromadě.
+            $this->db->run(
+                'INSERT INTO team_settings
+                 (team_id, bank_account, home_location_id, travel_enabled, travel_rate_czk_km, travel_round_trip,
+                  attendance_visible_to_players, balances_visible_to_players)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+                 bank_account                  = VALUES(bank_account),
+                 home_location_id              = VALUES(home_location_id),
+                 travel_enabled                = VALUES(travel_enabled),
+                 travel_rate_czk_km            = VALUES(travel_rate_czk_km),
+                 travel_round_trip             = VALUES(travel_round_trip),
+                 attendance_visible_to_players = VALUES(attendance_visible_to_players),
+                 balances_visible_to_players   = VALUES(balances_visible_to_players)',
+                [
+                    $teamId,
+                    $bankAccount,
+                    $settings['homeLocationId'],
+                    (int) $settings['travelEnabled'],
+                    number_format($settings['travelRateCzkKm'], 2, '.', ''),
+                    (int) $settings['travelRoundTrip'],
+                    (int) $settings['attendanceVisibleToPlayers'],
+                    (int) $settings['balancesVisibleToPlayers'],
+                ],
+            );
+
+            if ($auditChanges !== []) {
+                $this->audit->record($identity, $teamId, 'settings_changed', 'team_settings', $teamId, $auditChanges);
+            }
+        });
 
         return $this->settings($teamId);
     }

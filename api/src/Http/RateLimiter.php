@@ -11,8 +11,8 @@ use Pina\Support\Database;
  *
  * Ukládají se **jen nepovedené** pokusy. Úspěšný do žádného počítání nevstupuje,
  * takže by z něj byl jen trvalý seznam „kdo se odkud a kdy přihlásil", který
- * nikdo nečte. Provozní stopu aplikace zatím nevede vůbec — tabulka `audit_log`
- * ve schématu je, ale nic do ní nepíše.
+ * nikdo nečte. Provozní stopa proto zachycuje citlivé změny peněz a
+ * oprávnění, ne přihlašování a IP adresy.
  */
 final class RateLimiter
 {

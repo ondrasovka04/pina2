@@ -46,10 +46,14 @@ final class OffenceTypeService
      */
     public const AUTO_EVENT_TYPES = ['any', 'training', 'match', 'other'];
 
+    private readonly AuditLog $audit;
+
     public function __construct(
         private readonly Database $db,
         private readonly TeamScope $scope,
+        ?AuditLog $audit = null,
     ) {
+        $this->audit = $audit ?? new AuditLog($db, $scope);
     }
 
     /**
@@ -112,7 +116,12 @@ final class OffenceTypeService
      */
     public function update(Identity $identity, int $typeId, array $changes): array
     {
-        $this->authorizeType($identity, $typeId, Role::Treasurer);
+        $teamId  = $this->authorizeType($identity, $typeId, Role::Treasurer);
+        $current = $this->db->first('SELECT amount_czk FROM offence_type WHERE id = ?', [$typeId]);
+
+        if ($current === null) {
+            throw ApiException::notFound();
+        }
 
         /** @var array<string,string> $columns název pole v požadavku => sloupec */
         $columns = [
@@ -145,7 +154,18 @@ final class OffenceTypeService
         }
 
         $params[] = $typeId;
-        $this->db->run('UPDATE offence_type SET ' . implode(', ', $sets) . ' WHERE id = ?', $params);
+        $this->db->transaction(function () use ($changes, $current, $identity, $params, $sets, $teamId, $typeId): void {
+            $this->db->run('UPDATE offence_type SET ' . implode(', ', $sets) . ' WHERE id = ?', $params);
+
+            $oldAmount = (int) $current['amount_czk'];
+            $newAmount = $changes['amountCzk'] ?? $oldAmount;
+            if ($newAmount !== $oldAmount) {
+                $this->audit->record($identity, $teamId, 'price_changed', 'offence_type', $typeId, [
+                    'oldAmountCzk' => $oldAmount,
+                    'newAmountCzk' => $newAmount,
+                ]);
+            }
+        });
 
         return $this->find($typeId);
     }
@@ -319,9 +339,7 @@ final class OffenceTypeService
             throw ApiException::notFound();
         }
 
-        $this->scope->writableSeason($identity, (int) $seasonId, $required);
-
-        return (int) $seasonId;
+        return $this->scope->writableSeason($identity, (int) $seasonId, $required);
     }
 
     /** @return OffenceType */

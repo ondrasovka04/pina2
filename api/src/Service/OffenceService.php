@@ -68,14 +68,17 @@ use Pina\Support\Database;
 final class OffenceService
 {
     private readonly FinancialAccess $financialAccess;
+    private readonly AuditLog $audit;
 
     public function __construct(
         private readonly Database $db,
         private readonly TeamScope $scope,
         ?FinancialAccess $financialAccess = null,
         private readonly ?NotificationService $notifications = null,
+        ?AuditLog $audit = null,
     ) {
         $this->financialAccess = $financialAccess ?? new FinancialAccess($db);
+        $this->audit           = $audit ?? new AuditLog($db, $scope);
     }
 
     /**
@@ -213,11 +216,22 @@ final class OffenceService
     public function voidBatch(Identity $identity, int $batchId): array
     {
         $seasonId = $this->batchSeasonId($batchId);
-        $this->scope->writableSeason($identity, $seasonId, Role::Treasurer);
+        $teamId   = $this->scope->writableSeason($identity, $seasonId, Role::Treasurer);
 
         $userId = $identity->userId;
 
-        $this->db->transaction(function () use ($batchId, $userId): void {
+        $this->db->transaction(function () use ($batchId, $identity, $teamId, $userId): void {
+            $batch = $this->db->first('SELECT voided_at FROM offence_batch WHERE id = ? FOR UPDATE', [$batchId]);
+            if ($batch === null || $batch['voided_at'] !== null) {
+                return;
+            }
+
+            $summary = $this->db->first(
+                'SELECT COUNT(*) AS record_count, COALESCE(SUM(amount_czk), 0) AS total_czk
+                   FROM offence_record WHERE batch_id = ? AND voided_at IS NULL',
+                [$batchId],
+            );
+
             $this->db->run(
                 'UPDATE offence_record
                     SET voided_at = NOW(), voided_by = ?
@@ -227,11 +241,15 @@ final class OffenceService
 
             $this->db->run(
                 'UPDATE offence_batch
-                    SET voided_at = COALESCE(voided_at, NOW()),
-                        voided_by = COALESCE(voided_by, ?)
-                  WHERE id = ?',
+                    SET voided_at = NOW(), voided_by = ?
+                  WHERE id = ? AND voided_at IS NULL',
                 [$userId, $batchId],
             );
+
+            $this->audit->record($identity, $teamId, 'voided', 'offence_batch', $batchId, [
+                'recordCount' => (int) ($summary['record_count'] ?? 0),
+                'totalCzk'    => (int) ($summary['total_czk'] ?? 0),
+            ]);
         });
 
         return $this->batchSummary($batchId);
@@ -245,7 +263,7 @@ final class OffenceService
     public function voidRecord(Identity $identity, int $recordId): array
     {
         $row = $this->db->first(
-            'SELECT season_id, membership_id FROM offence_record WHERE id = ?',
+            'SELECT season_id, membership_id, offence_type_id, amount_czk FROM offence_record WHERE id = ?',
             [$recordId],
         );
 
@@ -254,12 +272,24 @@ final class OffenceService
         }
 
         $seasonId = (int) $row['season_id'];
-        $this->scope->writableSeason($identity, $seasonId, Role::Treasurer);
+        $teamId   = $this->scope->writableSeason($identity, $seasonId, Role::Treasurer);
 
-        $this->db->run(
-            'UPDATE offence_record SET voided_at = NOW(), voided_by = ? WHERE id = ? AND voided_at IS NULL',
-            [$identity->userId, $recordId],
-        );
+        $this->db->transaction(function () use ($identity, $recordId, $row, $teamId): void {
+            $changed = $this->db->run(
+                'UPDATE offence_record SET voided_at = NOW(), voided_by = ? WHERE id = ? AND voided_at IS NULL',
+                [$identity->userId, $recordId],
+            )->rowCount();
+
+            if ($changed === 0) {
+                return;
+            }
+
+            $this->audit->record($identity, $teamId, 'voided', 'offence_record', $recordId, [
+                'amountCzk'     => (int) $row['amount_czk'],
+                'offenceTypeId' => (int) $row['offence_type_id'],
+                'membershipId'  => (int) $row['membership_id'],
+            ]);
+        });
 
         $membershipId = (int) $row['membership_id'];
 

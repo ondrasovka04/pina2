@@ -38,7 +38,11 @@ final class FinanceController
 
     public function voidPayment(Request $request): Response
     {
-        return Response::ok($this->finance->voidPayment($request->identity(), $request->routeId('id')));
+        return Response::ok($this->finance->voidPayment(
+            $request->identity(),
+            $request->routeId('id'),
+            $request->string('reason'),
+        ));
     }
 
     public function travelClaims(Request $request): Response

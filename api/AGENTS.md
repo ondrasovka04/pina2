@@ -243,8 +243,8 @@ v `tests/Integration/DatabaseTestCase.php` a neobchází se.
 - **Prázdné tabulky ve schématu jsou schválně, ale jen tyhle.** `bank_transaction`
   (+ `payment.bank_transaction_id`) čeká na F6 párování plateb z banky,
   `notification.read_at` a `notification.payload` na schránku oznámení
-  v aplikaci (F5 dodala jen push, ne obrazovku pro čtení zpětně) a
-  `audit_log` na provozní auditní stopu. `payment.method = 'gateway'`
+  v aplikaci (F5 dodala jen push, ne obrazovku pro čtení zpětně).
+  `payment.method = 'gateway'`
   drží místo platební bráně. Nic jiného ve schématu ležet nemá — kdo přidá sloupec
   „na potom", vyrobí past: PHPStan ani testy nepoznají, že se nikdy neplní.
 
@@ -252,7 +252,14 @@ v `tests/Integration/DatabaseTestCase.php` a neobchází se.
   Vypadá živě, a přitom je to jen osobní údaj bez účelu. Takhle zmizely
   `refresh_token.user_agent` a `.ip` (měly sloužit obrazovce „přihlášená
   zařízení", která nevznikla), `user.last_login_at`, `user.phone` a úspěšné
-  řádky v `login_attempt`. Co se má dochovat, patří do `audit_log`.
+  řádky v `login_attempt`. Nic z toho `audit_log` nenahradil a nemá nahrazovat:
+  ten zaznamenává rozhodnutí o penězích a oprávněních, ne přihlašování.
+- **Audit patří do stejné transakce jako změna.** Volá se viditelně ze
+  služeb přes `Service\AuditLog`; controller ani databázový obal ho nedoplňuje.
+  Peníze a oprávnění se vážou na `team_id`, ne na klub. JSON payload nesmí
+  kopírovat jména, e-maily, telefony ani tokeny — ukládá ID a starou i novou
+  hodnotu, lidské názvy se dohledávají při čtení. Stopa je jen pro skutečného
+  admina daného družstva; samotná platformní role ji neotevírá.
 - **`login_attempt` drží jen nepovedené pokusy a jen 24 hodin.** Limiter počítá
   výhradně selhání, takže úspěšné přihlášení do žádného počtu nevstupuje — byl by
   z něj trvalý seznam „kdo se odkud a kdy přihlásil". Staré řádky maže sám

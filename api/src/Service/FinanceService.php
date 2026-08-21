@@ -18,13 +18,16 @@ final class FinanceService
     private const PAYMENT_METHODS = ['cash', 'transfer', 'qr', 'gateway'];
 
     private readonly FinancialAccess $access;
+    private readonly AuditLog $audit;
 
     public function __construct(
         private readonly Database $db,
         private readonly TeamScope $scope,
         ?FinancialAccess $access = null,
+        ?AuditLog $audit = null,
     ) {
         $this->access = $access ?? new FinancialAccess($db);
+        $this->audit  = $audit ?? new AuditLog($db, $scope);
     }
 
     /** @return array{items:list<array<string,mixed>>} */
@@ -101,15 +104,42 @@ final class FinanceService
     }
 
     /** @return array<string,mixed> */
-    public function voidPayment(Identity $identity, int $paymentId): array
+    public function voidPayment(Identity $identity, int $paymentId, string $reason): array
     {
-        $row = $this->db->first('SELECT season_id FROM payment WHERE id = ?', [$paymentId]);
+        $reason = trim($reason);
+        if ($reason === '') {
+            throw ApiException::validation('Uveďte důvod storna platby.', ['field' => 'reason']);
+        }
+        if (mb_strlen($reason) > 500) {
+            throw ApiException::validation('Důvod storna může mít nejvýše 500 znaků.', ['field' => 'reason']);
+        }
+
+        $row = $this->db->first(
+            'SELECT season_id, membership_id, amount_czk FROM payment WHERE id = ?',
+            [$paymentId],
+        );
         if ($row === null) {
             throw ApiException::notFound();
         }
 
-        $this->scope->writableSeason($identity, (int) $row['season_id'], Role::Treasurer);
-        $this->db->run('UPDATE payment SET voided_at = COALESCE(voided_at, NOW()) WHERE id = ?', [$paymentId]);
+        $teamId = $this->scope->writableSeason($identity, (int) $row['season_id'], Role::Treasurer);
+
+        $this->db->transaction(function () use ($identity, $paymentId, $reason, $row, $teamId): void {
+            $changed = $this->db->run(
+                'UPDATE payment SET voided_at = NOW() WHERE id = ? AND voided_at IS NULL',
+                [$paymentId],
+            )->rowCount();
+
+            if ($changed === 0) {
+                return;
+            }
+
+            $this->audit->record($identity, $teamId, 'voided', 'payment', $paymentId, [
+                'amountCzk'    => (int) $row['amount_czk'],
+                'reason'       => $reason,
+                'membershipId' => (int) $row['membership_id'],
+            ]);
+        });
 
         return $this->payment($paymentId);
     }
@@ -183,7 +213,7 @@ final class FinanceService
         // Stornované nároky se čtou taky, aby je sync nezaložil znovu.
         // Řazení dá otevřenému řádku přednost, pokud jich u termínu leží víc.
         $existingRows = $this->db->all(
-            'SELECT id, event_id, membership_id, distance_km, rate_czk_km, voided_at
+            'SELECT id, event_id, membership_id, distance_km, rate_czk_km, amount_czk, voided_at
                FROM travel_claim
               WHERE season_id = ? AND event_id IS NOT NULL
               ORDER BY voided_at IS NULL, id',
@@ -200,6 +230,7 @@ final class FinanceService
             $settings,
             $seasonId,
             $identity,
+            $teamId,
         ): array {
             $created    = 0;
             $updated    = 0;
@@ -251,7 +282,13 @@ final class FinanceService
                     continue;
                 }
 
-                $this->db->run('UPDATE travel_claim SET voided_at = NOW() WHERE id = ?', [(int) $row['id']]);
+                $claimId = (int) $row['id'];
+                $this->db->run('UPDATE travel_claim SET voided_at = NOW() WHERE id = ?', [$claimId]);
+                $this->audit->record($identity, $teamId, 'voided', 'travel_claim', $claimId, [
+                    'amountCzk'    => (int) $row['amount_czk'],
+                    'eventId'      => $row['event_id'] === null ? null : (int) $row['event_id'],
+                    'membershipId' => (int) $row['membership_id'],
+                ]);
                 $voided++;
             }
 
@@ -305,13 +342,32 @@ final class FinanceService
     /** @return array<string,mixed> */
     public function voidTravelClaim(Identity $identity, int $claimId): array
     {
-        $seasonId = $this->db->value('SELECT season_id FROM travel_claim WHERE id = ?', [$claimId]);
-        if ($seasonId === null) {
+        $row = $this->db->first(
+            'SELECT season_id, membership_id, event_id, amount_czk FROM travel_claim WHERE id = ?',
+            [$claimId],
+        );
+        if ($row === null) {
             throw ApiException::notFound();
         }
 
-        $this->scope->writableSeason($identity, (int) $seasonId, Role::Treasurer);
-        $this->db->run('UPDATE travel_claim SET voided_at = COALESCE(voided_at, NOW()) WHERE id = ?', [$claimId]);
+        $teamId = $this->scope->writableSeason($identity, (int) $row['season_id'], Role::Treasurer);
+
+        $this->db->transaction(function () use ($claimId, $identity, $row, $teamId): void {
+            $changed = $this->db->run(
+                'UPDATE travel_claim SET voided_at = NOW() WHERE id = ? AND voided_at IS NULL',
+                [$claimId],
+            )->rowCount();
+
+            if ($changed === 0) {
+                return;
+            }
+
+            $this->audit->record($identity, $teamId, 'voided', 'travel_claim', $claimId, [
+                'amountCzk'    => (int) $row['amount_czk'],
+                'eventId'      => $row['event_id'] === null ? null : (int) $row['event_id'],
+                'membershipId' => (int) $row['membership_id'],
+            ]);
+        });
 
         return $this->travelClaim($claimId);
     }

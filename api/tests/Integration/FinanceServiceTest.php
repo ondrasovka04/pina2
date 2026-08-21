@@ -75,7 +75,7 @@ final class FinanceServiceTest extends DatabaseTestCase
         self::assertSame(40, $payment['amountCzk']);
         self::assertSame(60, $this->balance($this->playerMembership));
 
-        $this->service->voidPayment($this->treasurer, (int) $payment['id']);
+        $this->service->voidPayment($this->treasurer, (int) $payment['id'], 'Platba byla zapsána dvakrát.');
         self::assertSame(100, $this->balance($this->playerMembership));
         self::assertSame(1, (int) $this->db->value('SELECT COUNT(*) FROM payment'));
     }

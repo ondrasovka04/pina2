@@ -40,10 +40,14 @@ use Pina\Support\Database;
  */
 final class SeasonService
 {
+    private readonly AuditLog $audit;
+
     public function __construct(
         private readonly Database $db,
         private readonly TeamScope $scope,
+        ?AuditLog $audit = null,
     ) {
+        $this->audit = $audit ?? new AuditLog($db, $scope);
     }
 
     /**
@@ -187,10 +191,28 @@ final class SeasonService
             }
         }
 
-        $this->db->run(
-            'UPDATE season SET name = ?, starts_on = ?, ends_on = ?, half_year_on = ? WHERE id = ?',
-            [$name, $startsOn, $endsOn, $halfYearOn, $seasonId],
-        );
+        $this->db->transaction(function () use (
+            $endsOn,
+            $halfYearOn,
+            $identity,
+            $name,
+            $seasonId,
+            $startsOn,
+            $stored,
+            $teamId,
+        ): void {
+            $this->db->run(
+                'UPDATE season SET name = ?, starts_on = ?, ends_on = ?, half_year_on = ? WHERE id = ?',
+                [$name, $startsOn, $endsOn, $halfYearOn, $seasonId],
+            );
+
+            if ($halfYearOn !== $stored) {
+                $this->audit->record($identity, $teamId, 'half_year_changed', 'season', $seasonId, [
+                    'oldHalfYearOn' => $stored,
+                    'newHalfYearOn' => $halfYearOn,
+                ]);
+            }
+        });
 
         return $this->detail($seasonId);
     }
@@ -202,9 +224,16 @@ final class SeasonService
      */
     public function close(Identity $identity, int $seasonId): array
     {
-        $this->scope->writableSeason($identity, $seasonId, Role::Admin);
+        $teamId = $this->scope->writableSeason($identity, $seasonId, Role::Admin);
 
-        $this->db->run('UPDATE season SET closed_at = NOW() WHERE id = ?', [$seasonId]);
+        $this->db->transaction(function () use ($identity, $seasonId, $teamId): void {
+            $this->db->run('UPDATE season SET closed_at = NOW() WHERE id = ?', [$seasonId]);
+            $closedAt = (string) $this->db->value('SELECT closed_at FROM season WHERE id = ?', [$seasonId]);
+
+            $this->audit->record($identity, $teamId, 'closed', 'season', $seasonId, [
+                'closedAt' => $closedAt,
+            ]);
+        });
 
         return $this->detail($seasonId);
     }

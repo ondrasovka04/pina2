@@ -9,6 +9,7 @@ use Pina\Auth\PasswordResetService;
 use Pina\Auth\PasswordService;
 use Pina\Auth\TeamScope;
 use Pina\Auth\TokenService;
+use Pina\Controller\AuditLogController;
 use Pina\Controller\AuthController;
 use Pina\Controller\CalendarFeedController;
 use Pina\Controller\EventController;
@@ -28,6 +29,7 @@ use Pina\Mail\PasswordResetMail;
 use Pina\Mail\SmtpMailer;
 use Pina\Notification\DisabledPushGateway;
 use Pina\Notification\WebPushGateway;
+use Pina\Service\AuditLog;
 use Pina\Service\CalendarFeedService;
 use Pina\Service\EventService;
 use Pina\Service\FinanceService;
@@ -79,6 +81,7 @@ final class App
             new PasswordResetMail(SmtpMailer::fromConfig($this->logger), Config::get('APP_URL', '')),
         );
         $notifications = $this->notificationService();
+        $auditLog      = new AuditLog($this->db, $this->scope);
         $authCtrl      = new AuthController($auth, $this->tokens, $resets, $notifications);
         $calendarCtrl  = new CalendarFeedController(
             new CalendarFeedService($this->db, $this->scope, new IcsCalendar()),
@@ -116,20 +119,21 @@ final class App
         $router->put('/api/v1/teams/{team}/logo', $imageCtrl->saveTeam(...));
         $router->delete('/api/v1/teams/{team}/logo', $imageCtrl->removeTeam(...));
 
-        $this->teamRoutes($router);
-        $this->offenceRoutes($router, $notifications);
+        $this->teamRoutes($router, $auditLog);
+        $this->offenceRoutes($router, $notifications, $auditLog);
         $this->eventRoutes($router);
-        $this->financeRoutes($router);
+        $this->financeRoutes($router, $auditLog);
 
         return $router;
     }
 
     /** Družstva, členové, sezóny a soupisky. */
-    private function teamRoutes(Router $router): void
+    private function teamRoutes(Router $router, AuditLog $auditLog): void
     {
         $mails      = new InvitationMail(SmtpMailer::fromConfig($this->logger), Config::get('APP_URL', ''));
-        $teamCtrl   = new TeamController(new TeamService($this->db, $this->scope, $this->tokens, $mails));
-        $seasonCtrl = new SeasonController(new SeasonService($this->db, $this->scope));
+        $teamCtrl   = new TeamController(new TeamService($this->db, $this->scope, $this->tokens, $mails, $auditLog));
+        $seasonCtrl = new SeasonController(new SeasonService($this->db, $this->scope, $auditLog));
+        $auditCtrl  = new AuditLogController($auditLog);
 
         $router->get('/api/v1/admin/clubs', $teamCtrl->platformOverview(...));
         $router->post('/api/v1/clubs', $teamCtrl->createClub(...));
@@ -139,6 +143,7 @@ final class App
         $router->get('/api/v1/teams/{team}', $teamCtrl->show(...));
         $router->patch('/api/v1/teams/{team}', $teamCtrl->update(...));
         $router->get('/api/v1/teams/{team}/members', $teamCtrl->members(...));
+        $router->get('/api/v1/teams/{team}/audit-log', $auditCtrl->index(...));
         $router->post('/api/v1/teams/{team}/members', $teamCtrl->invite(...));
         $router->get('/api/v1/teams/{team}/invitations', $teamCtrl->invitations(...));
         $router->delete('/api/v1/invitations/{id}', $teamCtrl->revokeInvitation(...));
@@ -157,10 +162,15 @@ final class App
     }
 
     /** Sazebník a zápisy prohřešků — nejpoužívanější část aplikace. */
-    private function offenceRoutes(Router $router, NotificationService $notifications): void
+    private function offenceRoutes(Router $router, NotificationService $notifications, AuditLog $auditLog): void
     {
-        $typeCtrl    = new OffenceTypeController(new OffenceTypeService($this->db, $this->scope));
-        $offenceCtrl = new OffenceController(new OffenceService($this->db, $this->scope, notifications: $notifications));
+        $typeCtrl    = new OffenceTypeController(new OffenceTypeService($this->db, $this->scope, $auditLog));
+        $offenceCtrl = new OffenceController(new OffenceService(
+            $this->db,
+            $this->scope,
+            notifications: $notifications,
+            audit: $auditLog,
+        ));
 
         $router->get('/api/v1/seasons/{season}/offence-types', $typeCtrl->index(...));
         $router->post('/api/v1/seasons/{season}/offence-types', $typeCtrl->store(...));
@@ -208,9 +218,9 @@ final class App
     }
 
     /** Platby, QR a cesťáky. */
-    private function financeRoutes(Router $router): void
+    private function financeRoutes(Router $router, AuditLog $auditLog): void
     {
-        $controller = new FinanceController(new FinanceService($this->db, $this->scope));
+        $controller = new FinanceController(new FinanceService($this->db, $this->scope, audit: $auditLog));
 
         $router->get('/api/v1/seasons/{season}/payments', $controller->payments(...));
         $router->post('/api/v1/seasons/{season}/payments', $controller->createPayment(...));
