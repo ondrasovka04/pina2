@@ -14,6 +14,7 @@ import { Money } from '@/components/ui/Money'
 import { Select } from '@/components/ui/Select'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States'
 import { PaymentQrCard } from '@/features/balances/PaymentQrCard'
+import { PaymentVoidDialog } from '@/features/balances/PaymentVoidDialog'
 import { periodByKey } from '@/features/balances/period'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
@@ -97,14 +98,10 @@ export function MemberPage() {
 				}}
 				onCancel={() => setVoidingRecordId(null)}
 			/>
-			<ConfirmDialog
+			<PaymentVoidDialog
 				open={voidingPaymentId !== null}
-				title="Stornovat platbu?"
-				description="Platba zůstane v historii, ale znovu se přičte k dluhu."
-				confirmLabel="Stornovat"
-				danger
-				onConfirm={() => {
-					if (voidingPaymentId !== null) voidPayment.mutate(voidingPaymentId)
+				onConfirm={(reason) => {
+					if (voidingPaymentId !== null) voidPayment.mutate({ paymentId: voidingPaymentId, reason })
 					setVoidingPaymentId(null)
 				}}
 				onCancel={() => setVoidingPaymentId(null)}

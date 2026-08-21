@@ -114,6 +114,35 @@ export interface TeamInvitation {
 	createdAt: string
 }
 
+export type AuditAction =
+	| 'voided'
+	| 'price_changed'
+	| 'settings_changed'
+	| 'role_changed'
+	| 'status_changed'
+	| 'activation_link_issued'
+	| 'half_year_changed'
+	| 'closed'
+
+export interface AuditEntry {
+	id: number
+	action: AuditAction
+	entity: string
+	entityId: number | null
+	payload: Record<string, unknown>
+	createdAt: string
+	actor: { id: number; name: string } | null
+	membershipName: string | null
+	offenceTypeName: string | null
+	eventTitle: string | null
+	seasonName: string | null
+}
+
+export interface AuditPage {
+	items: AuditEntry[]
+	pagination: { limit: number; offset: number; total: number; hasMore: boolean }
+}
+
 /** Odkaz vydaný na jedno použití — po zavření dialogu už ho nelze znovu zobrazit. */
 export interface IssuedLink {
 	email: string

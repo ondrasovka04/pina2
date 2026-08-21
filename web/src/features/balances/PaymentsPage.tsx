@@ -11,6 +11,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { ArrowLeftIcon, XIcon } from '@/components/ui/icons'
 import { Money } from '@/components/ui/Money'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States'
+import { PaymentVoidDialog } from '@/features/balances/PaymentVoidDialog'
 import { itemsInPeriod, periodByKey, teamSums } from '@/features/balances/period'
 import { PeriodTabs } from '@/features/balances/PeriodTabs'
 import { cn } from '@/lib/cn'
@@ -74,14 +75,10 @@ export function PaymentsPage() {
 
 	return (
 		<div className="flex flex-col gap-4">
-			<ConfirmDialog
+			<PaymentVoidDialog
 				open={voidingPaymentId !== null}
-				title="Stornovat platbu?"
-				description="Platba zůstane v historii, ale znovu se přičte k dluhu."
-				confirmLabel="Stornovat"
-				danger
-				onConfirm={() => {
-					if (voidingPaymentId !== null) voidPayment.mutate(voidingPaymentId)
+				onConfirm={(reason) => {
+					if (voidingPaymentId !== null) voidPayment.mutate({ paymentId: voidingPaymentId, reason })
 					setVoidingPaymentId(null)
 				}}
 				onCancel={() => setVoidingPaymentId(null)}

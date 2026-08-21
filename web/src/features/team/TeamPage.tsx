@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/Card'
 import { Field } from '@/components/ui/Field'
 import { ImageUpload } from '@/components/ui/ImageUpload'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States'
+import { AuditLogSection } from '@/features/team/AuditLogSection'
 import { InvitationsSection } from '@/features/team/InvitationsSection'
 import { MemberRow } from '@/features/team/MemberRow'
 import { describeBatch, needsActivation, sortMembers } from '@/features/team/members'
@@ -131,6 +132,8 @@ export function TeamPage() {
 			<InvitationsSection teamId={team.id} onIssued={(link) => setIssued({ kind: 'invitation', link })} />
 
 			{detail.data === undefined ? null : <TeamSettingsSection team={detail.data} />}
+
+			<AuditLogSection teamId={team.id} />
 
 			<NewTeamSection clubId={team.clubId} clubName={team.clubName} />
 

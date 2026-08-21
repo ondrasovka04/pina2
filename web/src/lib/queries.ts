@@ -1,8 +1,9 @@
-import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { api } from '@/lib/api'
 import type {
 	ActivationBatch,
+	AuditPage,
 	Attendance,
 	AutoEventType,
 	AutoRule,
@@ -61,6 +62,7 @@ export const queryKeys = {
 	batch: (batchId: number) => ['batches', batchId] as const,
 	members: (teamId: number) => ['teams', teamId, 'members'] as const,
 	invitations: (teamId: number) => ['teams', teamId, 'invitations'] as const,
+	auditLog: (teamId: number) => ['teams', teamId, 'audit-log'] as const,
 	events: (seasonId: number) => ['seasons', seasonId, 'events'] as const,
 	event: (eventId: number) => ['events', eventId] as const,
 	series: (seasonId: number) => ['seasons', seasonId, 'event-series'] as const,
@@ -208,7 +210,8 @@ export function useVoidPayment(seasonId: number) {
 	const queryClient = useQueryClient()
 
 	return useMutation({
-		mutationFn: (paymentId: number) => api.post<Payment>(`/payments/${paymentId}/void`),
+		mutationFn: ({ paymentId, reason }: { paymentId: number; reason: string }) =>
+			api.post<Payment>(`/payments/${paymentId}/void`, { reason }),
 		onSuccess: (payment) => {
 			void queryClient.invalidateQueries({ queryKey: queryKeys.balances(seasonId) })
 			void queryClient.invalidateQueries({ queryKey: queryKeys.payments(seasonId, payment.membershipId) })
@@ -376,6 +379,7 @@ export function useSaveTeamSettings(teamId: number) {
 		mutationFn: (settings: TeamSettings) => api.put<TeamSettings>(`/teams/${teamId}/settings`, settings),
 		onSuccess: () => {
 			void queryClient.invalidateQueries({ queryKey: ['teams', teamId, 'detail'] })
+			void queryClient.invalidateQueries({ queryKey: queryKeys.auditLog(teamId) })
 			// Domácí hala rozhoduje, co je domácí zápas — kalendář to musí přečíst znovu.
 			void queryClient.invalidateQueries({ queryKey: ['seasons'] })
 		},
@@ -410,6 +414,7 @@ export function useUpdateMembership(teamId: number) {
 			api.patch<TeamMember>(`/memberships/${membershipId}`, changes),
 		onSuccess: () => {
 			void queryClient.invalidateQueries({ queryKey: queryKeys.members(teamId) })
+			void queryClient.invalidateQueries({ queryKey: queryKeys.auditLog(teamId) })
 			void queryClient.invalidateQueries({ queryKey: queryKeys.teams })
 			void queryClient.invalidateQueries({ queryKey: ['admin', 'clubs'] })
 		},
@@ -421,6 +426,20 @@ export function useInvitations(teamId: number | null, enabled: boolean) {
 		queryKey: queryKeys.invitations(teamId ?? 0),
 		queryFn: async ({ signal }) =>
 			(await api.get<{ invitations: TeamInvitation[] }>(`/teams/${teamId}/invitations`, signal)).invitations,
+		enabled: teamId !== null && enabled,
+	})
+}
+
+export function useAuditLog(teamId: number | null, enabled: boolean) {
+	const limit = 20
+
+	return useInfiniteQuery({
+		queryKey: queryKeys.auditLog(teamId ?? 0),
+		queryFn: ({ signal, pageParam }) =>
+			api.get<AuditPage>(`/teams/${teamId}/audit-log?limit=${limit}&offset=${pageParam}`, signal),
+		initialPageParam: 0,
+		getNextPageParam: (lastPage) =>
+			lastPage.pagination.hasMore ? lastPage.pagination.offset + lastPage.pagination.limit : undefined,
 		enabled: teamId !== null && enabled,
 	})
 }
@@ -459,6 +478,7 @@ export function useSendActivationEmails(teamId: number) {
 		mutationFn: () => api.post<ActivationBatch>(`/teams/${teamId}/activation-emails`),
 		onSuccess: () => {
 			void queryClient.invalidateQueries({ queryKey: queryKeys.invitations(teamId) })
+			void queryClient.invalidateQueries({ queryKey: queryKeys.auditLog(teamId) })
 		},
 	})
 }
@@ -483,6 +503,7 @@ export function useActivationLink(teamId: number) {
 			api.post<{ activation: IssuedLink }>(`/memberships/${membershipId}/activation`),
 		onSuccess: () => {
 			void queryClient.invalidateQueries({ queryKey: queryKeys.invitations(teamId) })
+			void queryClient.invalidateQueries({ queryKey: queryKeys.auditLog(teamId) })
 		},
 	})
 }
@@ -512,6 +533,7 @@ export function useCloseSeason(teamId: number) {
 		mutationFn: (seasonId: number) => api.post<Season>(`/seasons/${seasonId}/close`),
 		onSuccess: () => {
 			void queryClient.invalidateQueries({ queryKey: queryKeys.seasons(teamId) })
+			void queryClient.invalidateQueries({ queryKey: queryKeys.auditLog(teamId) })
 		},
 	})
 }
@@ -528,6 +550,7 @@ export function useSetHalfYear(teamId: number) {
 			api.patch<Season>(`/seasons/${seasonId}`, { halfYearOn }),
 		onSuccess: (season) => {
 			void queryClient.invalidateQueries({ queryKey: queryKeys.seasons(teamId) })
+			void queryClient.invalidateQueries({ queryKey: queryKeys.auditLog(teamId) })
 			void queryClient.invalidateQueries({ queryKey: queryKeys.balances(season.id) })
 			void queryClient.invalidateQueries({ queryKey: ['payment-qr', season.id] })
 		},

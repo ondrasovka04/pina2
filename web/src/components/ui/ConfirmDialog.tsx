@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { useEffect, useId, useRef } from 'react'
 
 import { Button } from '@/components/ui/Button'
@@ -12,6 +13,8 @@ interface ConfirmDialogProps {
 	cancelLabel?: string
 	/** Potvrzovací tlačítko červeně — pro nevratné akce. */
 	danger?: boolean
+	confirmDisabled?: boolean
+	children?: ReactNode
 	onConfirm: () => void
 	onCancel: () => void
 }
@@ -24,6 +27,8 @@ export function ConfirmDialog({
 	confirmLabel = 'Potvrdit',
 	cancelLabel = 'Zrušit',
 	danger = false,
+	confirmDisabled = false,
+	children,
 	onConfirm,
 	onCancel,
 }: ConfirmDialogProps) {
@@ -67,6 +72,7 @@ export function ConfirmDialog({
 					{description}
 				</p>
 			)}
+			{children === undefined ? null : <div className="mt-4">{children}</div>}
 			<div className="mt-5 flex justify-end gap-2">
 				{/* autoFocus: past by jinak sedla na potvrzení a Enter by u nevratné
 				akce omylem potvrdil. Prohlížeč fokus nastaví při showModal(), pokud
@@ -74,7 +80,7 @@ export function ConfirmDialog({
 				<Button autoFocus variant="ghost" onClick={onCancel}>
 					{cancelLabel}
 				</Button>
-				<Button variant={danger ? 'danger' : 'primary'} onClick={onConfirm}>
+				<Button variant={danger ? 'danger' : 'primary'} disabled={confirmDisabled} onClick={onConfirm}>
 					{confirmLabel}
 				</Button>
 			</div>
