@@ -12,6 +12,8 @@ import { Money } from '@/components/ui/Money'
 import { ReorderableList } from '@/components/ui/ReorderableList'
 import { Select } from '@/components/ui/Select'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States'
+import type { AutoRuleConflict } from '@/features/offences/autoRule'
+import { findAutoRuleConflict } from '@/features/offences/autoRule'
 import { ApiError } from '@/lib/api'
 import {
 	useArchivedOffenceTypes,
@@ -117,11 +119,14 @@ export function OffenceTypesPage() {
 			</div>
 
 			<p className="text-ink-faint text-sm">
-				Označený prohřešek aplikace po akci sama předvyplní těm, kdo chyběli. Omluvenou absenci pozná podle toho, že
-				hráč předem řekl, že nepřijde. U tréninku a zápasu bývá jiná sazba — proto se u pravidla vybírá i druh akce.
+				Označený prohřešek aplikace po akci sama předvyplní. Omluvenou absenci pozná podle toho, že hráč předem řekl, že
+				nepřijde, pozdní zápis podle toho, že se ozval až po termínu družstva. U tréninku a zápasu bývá jiná sazba —
+				proto se u pravidla vybírá i druh akce.
 			</p>
 
-			{canEdit && formOpen ? <CreateOffenceTypeForm seasonId={seasonId} onDone={() => setFormOpen(false)} /> : null}
+			{canEdit && formOpen ? (
+				<CreateOffenceTypeForm seasonId={seasonId} allItems={active} onDone={() => setFormOpen(false)} />
+			) : null}
 
 			{reordering ? (
 				<Card className="overflow-hidden">
@@ -268,11 +273,80 @@ function generalMessage(error: unknown): string | undefined {
 	return 'Něco se pokazilo. Zkuste to prosím znovu.'
 }
 
-function CreateOffenceTypeForm({ seasonId, onDone }: { seasonId: number; onDone: () => void }) {
+interface AutoRuleFieldsProps {
+	rule: AutoRule
+	eventType: AutoEventType
+	/** Ostatní položky sazebníku, tedy bez té právě upravované. */
+	others: OffenceType[]
+	onRuleChange: (rule: AutoRule) => void
+	onEventTypeChange: (eventType: AutoEventType) => void
+}
+
+/**
+ * „Navrhovat z docházky" pro zakládání i úpravu. Jeden blok pro obě formy, aby
+ * se pravidlo nedalo nastavit na jednom místě jinak než na druhém.
+ *
+ * Na druh akce se ptá až po zvolení pravidla — dokud se nic nenavrhuje, je to
+ * pole bez následku.
+ */
+function AutoRuleFields({ rule, eventType, others, onRuleChange, onEventTypeChange }: AutoRuleFieldsProps) {
+	const conflict = findAutoRuleConflict(others, rule, eventType)
+
+	return (
+		<>
+			<label className="flex flex-col gap-1.5">
+				<span className="text-ink-muted text-sm font-medium">Navrhovat z docházky</span>
+				<Select value={rule} onChange={(event) => onRuleChange(toAutoRule(event.target.value))}>
+					{autoRuleOptions.map((option) => (
+						<option key={option.value} value={option.value}>
+							{option.label}
+						</option>
+					))}
+				</Select>
+				{conflict === null ? null : <span className="text-ink-faint text-xs">{conflictMessage(conflict)}</span>}
+			</label>
+
+			{rule === 'none' ? null : (
+				<label className="flex flex-col gap-1.5">
+					<span className="text-ink-muted text-sm font-medium">U kterých akcí</span>
+					<Select value={eventType} onChange={(event) => onEventTypeChange(toAutoEventType(event.target.value))}>
+						{autoEventTypeOptions.map((option) => (
+							<option key={option.value} value={option.value}>
+								{option.label}
+							</option>
+						))}
+					</Select>
+				</label>
+			)}
+		</>
+	)
+}
+
+/** Konkurenci mezi položkami jen hlásíme, nezakazujeme — sazebník patří družstvu. */
+function conflictMessage(conflict: AutoRuleConflict): string {
+	if (!conflict.soft) {
+		return `Stejné pravidlo už má „${conflict.name}" — předvyplní se jen jedna z položek.`
+	}
+
+	return conflict.otherIsAny
+		? `Stejné pravidlo má i „${conflict.name}" pro všechny akce — použije se ta konkrétnější.`
+		: `Stejné pravidlo má i „${conflict.name}" pro konkrétní akci — použije se ta konkrétnější.`
+}
+
+interface CreateOffenceTypeFormProps {
+	seasonId: number
+	/** Sazebník bez archivovaných — podle něj se hlídá, jestli si pravidla nekonkurují. */
+	allItems: OffenceType[]
+	onDone: () => void
+}
+
+function CreateOffenceTypeForm({ seasonId, allItems, onDone }: CreateOffenceTypeFormProps) {
 	const create = useCreateOffenceType(seasonId)
 	const [name, setName] = useState('')
 	const [amount, setAmount] = useState('')
 	const [category, setCategory] = useState<OffenceCategory | ''>('')
+	const [autoRule, setAutoRule] = useState<AutoRule>('none')
+	const [autoEventType, setAutoEventType] = useState<AutoEventType>('any')
 
 	function submit(event: SubmitEvent<HTMLFormElement>) {
 		event.preventDefault()
@@ -281,12 +355,14 @@ function CreateOffenceTypeForm({ seasonId, onDone }: { seasonId: number; onDone:
 		if (Number.isNaN(amountCzk)) return
 
 		create.mutate(
-			{ name: name.trim(), amountCzk, category: category === '' ? null : category },
+			{ name: name.trim(), amountCzk, category: category === '' ? null : category, autoRule, autoEventType },
 			{
 				onSuccess: () => {
 					setName('')
 					setAmount('')
 					setCategory('')
+					setAutoRule('none')
+					setAutoEventType('any')
 					onDone()
 				},
 			},
@@ -324,6 +400,14 @@ function CreateOffenceTypeForm({ seasonId, onDone }: { seasonId: number; onDone:
 						))}
 					</Select>
 				</label>
+
+				<AutoRuleFields
+					rule={autoRule}
+					eventType={autoEventType}
+					others={allItems}
+					onRuleChange={setAutoRule}
+					onEventTypeChange={setAutoEventType}
+				/>
 
 				{generalMessage(create.error) === undefined ? null : (
 					<p role="alert" className="text-debt text-sm">
@@ -366,28 +450,6 @@ function EditOffenceTypeForm({ item, allItems, saving, error, onCancel, onSave }
 	const [autoRule, setAutoRule] = useState<AutoRule>(toAutoRule(item.autoRule))
 	const [autoEventType, setAutoEventType] = useState<AutoEventType>(toAutoEventType(item.autoEventType))
 
-	// Dvě položky se stejným pravidlem a druhem akce si konkurují; konkrétní druh akce má přednost
-	// před „u každé akce". Jen upozorníme, neblokujeme.
-	const conflictingItem =
-		autoRule === 'none'
-			? undefined
-			: allItems.find((other) => {
-					if (other.id === item.id) return false
-					if (toAutoRule(other.autoRule) !== autoRule) return false
-
-					const otherEventType = toAutoEventType(other.autoEventType)
-
-					return otherEventType === autoEventType || otherEventType === 'any' || autoEventType === 'any'
-				})
-
-	const conflictingOtherIsAny =
-		conflictingItem !== undefined && toAutoEventType(conflictingItem.autoEventType) === 'any'
-
-	const conflictIsSoft =
-		conflictingItem !== undefined &&
-		toAutoEventType(conflictingItem.autoEventType) !== autoEventType &&
-		(conflictingOtherIsAny || autoEventType === 'any')
-
 	function submit(event: SubmitEvent<HTMLFormElement>) {
 		event.preventDefault()
 
@@ -429,38 +491,13 @@ function EditOffenceTypeForm({ item, allItems, saving, error, onCancel, onSave }
 					</Select>
 				</label>
 
-				<label className="flex flex-col gap-1.5">
-					<span className="text-ink-muted text-sm font-medium">Navrhovat z docházky</span>
-					<Select value={autoRule} onChange={(event) => setAutoRule(toAutoRule(event.target.value))}>
-						{autoRuleOptions.map((option) => (
-							<option key={option.value} value={option.value}>
-								{option.label}
-							</option>
-						))}
-					</Select>
-					{conflictingItem === undefined ? null : (
-						<span className="text-ink-faint text-xs">
-							{conflictIsSoft
-								? conflictingOtherIsAny
-									? `Stejné pravidlo má i „${conflictingItem.name}" pro všechny akce — použije se ta konkrétnější.`
-									: `Stejné pravidlo má i „${conflictingItem.name}" pro konkrétní akci — použije se ta konkrétnější.`
-								: `Stejné pravidlo už má „${conflictingItem.name}" — předvyplní se jen jedna z položek.`}
-						</span>
-					)}
-				</label>
-
-				{autoRule === 'none' ? null : (
-					<label className="flex flex-col gap-1.5">
-						<span className="text-ink-muted text-sm font-medium">U kterých akcí</span>
-						<Select value={autoEventType} onChange={(event) => setAutoEventType(toAutoEventType(event.target.value))}>
-							{autoEventTypeOptions.map((option) => (
-								<option key={option.value} value={option.value}>
-									{option.label}
-								</option>
-							))}
-						</Select>
-					</label>
-				)}
+				<AutoRuleFields
+					rule={autoRule}
+					eventType={autoEventType}
+					others={allItems.filter((other) => other.id !== item.id)}
+					onRuleChange={setAutoRule}
+					onEventTypeChange={setAutoEventType}
+				/>
 
 				{generalMessage(error) === undefined ? null : (
 					<p role="alert" className="text-debt text-sm">
