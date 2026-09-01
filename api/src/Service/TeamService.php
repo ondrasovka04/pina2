@@ -14,6 +14,7 @@ use Pina\Mail\InvitationMail;
 use Pina\Support\CzechBankAccount;
 use Pina\Support\Database;
 use Pina\Support\PaymentReference;
+use Pina\Support\RsvpDeadline;
 
 /**
  * Družstva, jejich členové a nastavení.
@@ -28,6 +29,8 @@ use Pina\Support\PaymentReference;
  *     homeLocationId:int|null,
  *     attendanceVisibleToPlayers:bool,
  *     balancesVisibleToPlayers:bool,
+ *     rsvpDeadlineTrainingHours:int|null,
+ *     rsvpDeadlineMatchHours:int|null,
  *     bankAccount:string|null
  * }
  * @phpstan-type TeamDetail array{
@@ -794,6 +797,9 @@ final class TeamService
             throw ApiException::validation($e->getMessage(), ['field' => 'bankAccount']);
         }
 
+        $this->assertRsvpDeadlineHours($settings['rsvpDeadlineTrainingHours'], 'rsvpDeadlineTrainingHours');
+        $this->assertRsvpDeadlineHours($settings['rsvpDeadlineMatchHours'], 'rsvpDeadlineMatchHours');
+
         // Domácí hala musí patřit témuž klubu, jinak by šlo přes cizí ID zjistit,
         // jaká místa mají ostatní kluby.
         if ($settings['homeLocationId'] !== null) {
@@ -820,6 +826,11 @@ final class TeamService
                 'new' => $settings['travelRateCzkKm'],
             ];
         }
+        foreach (['rsvpDeadlineTrainingHours', 'rsvpDeadlineMatchHours'] as $field) {
+            if ($current[$field] !== $settings[$field]) {
+                $auditChanges[$field] = ['old' => $current[$field], 'new' => $settings[$field]];
+            }
+        }
 
         $this->db->transaction(function () use ($auditChanges, $bankAccount, $identity, $settings, $teamId): void {
             // Účet leží ve stejném řádku jako ostatní nastavení, takže jeden příkaz
@@ -827,8 +838,9 @@ final class TeamService
             $this->db->run(
                 'INSERT INTO team_settings
                  (team_id, bank_account, home_location_id, travel_enabled, travel_rate_czk_km, travel_round_trip,
-                  attendance_visible_to_players, balances_visible_to_players)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                  attendance_visible_to_players, balances_visible_to_players,
+                  rsvp_deadline_training_hours, rsvp_deadline_match_hours)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
              ON DUPLICATE KEY UPDATE
                  bank_account                  = VALUES(bank_account),
                  home_location_id              = VALUES(home_location_id),
@@ -836,7 +848,9 @@ final class TeamService
                  travel_rate_czk_km            = VALUES(travel_rate_czk_km),
                  travel_round_trip             = VALUES(travel_round_trip),
                  attendance_visible_to_players = VALUES(attendance_visible_to_players),
-                 balances_visible_to_players   = VALUES(balances_visible_to_players)',
+                 balances_visible_to_players   = VALUES(balances_visible_to_players),
+                 rsvp_deadline_training_hours  = VALUES(rsvp_deadline_training_hours),
+                 rsvp_deadline_match_hours     = VALUES(rsvp_deadline_match_hours)',
                 [
                     $teamId,
                     $bankAccount,
@@ -846,6 +860,8 @@ final class TeamService
                     (int) $settings['travelRoundTrip'],
                     (int) $settings['attendanceVisibleToPlayers'],
                     (int) $settings['balancesVisibleToPlayers'],
+                    $settings['rsvpDeadlineTrainingHours'],
+                    $settings['rsvpDeadlineMatchHours'],
                 ],
             );
 
@@ -987,7 +1003,8 @@ final class TeamService
         $row = $this->db->first(
             'SELECT ts.bank_account, ts.home_location_id, ts.travel_enabled, ts.travel_rate_czk_km,
                     ts.travel_round_trip, ts.attendance_visible_to_players,
-                    ts.balances_visible_to_players
+                    ts.balances_visible_to_players, ts.rsvp_deadline_training_hours,
+                    ts.rsvp_deadline_match_hours, ts.team_id AS settings_team_id
                FROM team t
                LEFT JOIN team_settings ts ON ts.team_id = t.id
               WHERE t.id = ?',
@@ -1006,8 +1023,26 @@ final class TeamService
             'homeLocationId'             => $row['home_location_id'] === null ? null : (int) $row['home_location_id'],
             'attendanceVisibleToPlayers' => (bool) ($row['attendance_visible_to_players'] ?? false),
             'balancesVisibleToPlayers'   => (bool) ($row['balances_visible_to_players'] ?? true),
-            'bankAccount'                => $row['bank_account'] === null ? null : (string) $row['bank_account'],
+            // Družstvo bez řádku nastavení termín má — výchozí stav je zapnuto.
+            // Prázdná hodnota v existujícím řádku ho naopak vypíná.
+            'rsvpDeadlineTrainingHours' => $row['settings_team_id'] === null
+                ? RsvpDeadline::DEFAULT_TRAINING_HOURS
+                : ($row['rsvp_deadline_training_hours'] === null ? null : (int) $row['rsvp_deadline_training_hours']),
+            'rsvpDeadlineMatchHours' => $row['settings_team_id'] === null
+                ? RsvpDeadline::DEFAULT_MATCH_HOURS
+                : ($row['rsvp_deadline_match_hours'] === null ? null : (int) $row['rsvp_deadline_match_hours']),
+            'bankAccount' => $row['bank_account'] === null ? null : (string) $row['bank_account'],
         ];
+    }
+
+    private function assertRsvpDeadlineHours(?int $hours, string $field): void
+    {
+        if ($hours !== null && ($hours < 1 || $hours > 720)) {
+            throw ApiException::validation(
+                'Termín pro zápis musí být 1 až 720 hodin před začátkem.',
+                ['field' => $field],
+            );
+        }
     }
 
     /**

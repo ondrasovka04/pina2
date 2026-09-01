@@ -117,15 +117,15 @@ final class OffenceTypeServiceTest extends DatabaseTestCase
         // Každé družstvo má jinou sazbu za trénink a za zápas, takže bez druhu
         // akce by návrh z docházky strhl částku o stovky vedle.
         $type = $this->service->create($this->treasurer, $this->season, [
-            'name'          => 'Omluvený zápas',
+            'name'          => 'Pozdní zápis na zápas',
             'amountCzk'     => 100,
             'sortOrder'     => 0,
             'category'      => 'attendance',
-            'autoRule'      => 'excused_absence',
+            'autoRule'      => 'late_rsvp',
             'autoEventType' => 'match',
         ]);
 
-        self::assertSame('excused_absence', $type['autoRule']);
+        self::assertSame('late_rsvp', $type['autoRule']);
         self::assertSame('match', $type['autoEventType']);
 
         $changed = $this->service->update($this->treasurer, $type['id'], ['autoEventType' => 'training']);

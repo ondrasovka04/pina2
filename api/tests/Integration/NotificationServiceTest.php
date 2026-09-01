@@ -64,6 +64,53 @@ final class NotificationServiceTest extends DatabaseTestCase
         self::assertSame(0, $this->notifications->flush($this->time('today 20:01'))['claimed']);
     }
 
+    public function testDeadlineReminderIsQueuedWithinTwelveHoursOnlyForUnknownAnswer(): void
+    {
+        $eventId = $this->makeTomorrowEvent(withDeadline: true);
+
+        self::assertSame(0, $this->notifications->enqueueEventReminders($this->time('today 07:59')));
+        self::assertSame(1, $this->notifications->enqueueEventReminders($this->time('today 08:00')));
+        self::assertSame(0, $this->notifications->enqueueEventReminders($this->time('today 08:01')));
+
+        self::assertSame('Blíží se termín zápisu na akci', $this->db->value(
+            'SELECT title FROM notification WHERE dedupe_key = ?',
+            ['event:' . $eventId],
+        ));
+        self::assertSame('Odpověz do 18:00, pak už to bude pozdní zápis.', $this->db->value(
+            'SELECT body FROM notification WHERE dedupe_key = ?',
+            ['event:' . $eventId],
+        ));
+    }
+
+    /** Připomínka chodí dvanáct hodin předem, takže termín přeteče přes půlnoc. */
+    public function testDeadlineReminderNamesTheDayWhenItIsNotToday(): void
+    {
+        $eventId = $this->makeTomorrowEvent(withDeadline: true);
+        $this->db->run(
+            'UPDATE event SET starts_at = ? WHERE id = ?',
+            [$this->time('tomorrow 08:00')->modify('+1 day')->format('Y-m-d H:i:s'), $eventId],
+        );
+
+        self::assertSame(1, $this->notifications->enqueueEventReminders($this->time('today 21:00')));
+        self::assertSame('Odpověz do zítřejších 08:00, pak už to bude pozdní zápis.', $this->db->value(
+            'SELECT body FROM notification WHERE dedupe_key = ?',
+            ['event:' . $eventId],
+        ));
+    }
+
+    public function testDeadlineReminderSkipsPlayerWhoAlreadyAnswered(): void
+    {
+        $eventId      = $this->makeTomorrowEvent(withDeadline: true);
+        $membershipId = (int) $this->db->value('SELECT id FROM membership WHERE user_id = ?', [$this->userId]);
+        $this->db->run(
+            "INSERT INTO event_participant (event_id, membership_id, rsvp, rsvp_at)
+             VALUES (?, ?, 'yes', NOW())",
+            [$eventId, $membershipId],
+        );
+
+        self::assertSame(0, $this->notifications->enqueueEventReminders($this->time('today 08:00')));
+    }
+
     public function testDisablingCategoryRemovesPendingDeliveryImmediately(): void
     {
         $this->makeTomorrowEvent();
@@ -211,12 +258,21 @@ final class NotificationServiceTest extends DatabaseTestCase
         ]);
     }
 
-    private function makeTomorrowEvent(): int
+    private function makeTomorrowEvent(bool $withDeadline = false): int
     {
         [, $teamId]   = $this->makeTeam('prosek', 'Muži');
         $membershipId = $this->makeMembership($this->userId, $teamId, 'player');
         $seasonId     = $this->makeSeason($teamId, '26/27');
         $this->makeRoster($seasonId, [$membershipId]);
+
+        if (!$withDeadline) {
+            $this->db->run(
+                'INSERT INTO team_settings
+                     (team_id, rsvp_deadline_training_hours, rsvp_deadline_match_hours)
+                 VALUES (?, NULL, NULL)',
+                [$teamId],
+            );
+        }
 
         $this->db->run(
             'INSERT INTO event (season_id, type, title, starts_at) VALUES (?, ?, ?, ?)',

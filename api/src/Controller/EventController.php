@@ -37,16 +37,16 @@ final class EventController
     public function store(Request $request): Response
     {
         $event = $this->events->create($request->identity(), $request->routeId('season'), [
-            'type'               => $request->string('type', 'training'),
-            'title'              => $this->title($request),
-            'startsAt'           => $this->dateTime($request, 'startsAt'),
-            'endsAt'             => $this->optionalDateTime($request, 'endsAt'),
-            'meetAt'             => $this->optionalDateTime($request, 'meetAt'),
-            'locationId'         => $request->optionalSignedInt('locationId'),
-            'opponent'           => $request->optionalString('opponent'),
-            'note'               => $request->optionalString('note'),
-            'distanceKm'         => $this->distance($request),
-            'nominationDeadline' => $this->optionalDateTime($request, 'nominationDeadline'),
+            'type'           => $request->string('type', 'training'),
+            'title'          => $this->title($request),
+            'startsAt'       => $this->dateTime($request, 'startsAt'),
+            'endsAt'         => $this->optionalDateTime($request, 'endsAt'),
+            'meetAt'         => $this->optionalDateTime($request, 'meetAt'),
+            'locationId'     => $request->optionalSignedInt('locationId'),
+            'opponent'       => $request->optionalString('opponent'),
+            'note'           => $request->optionalString('note'),
+            'distanceKm'     => $this->distance($request),
+            'rsvpDeadlineAt' => $this->optionalDateTime($request, 'rsvpDeadlineAt'),
         ]);
 
         return Response::created($event);
@@ -62,7 +62,7 @@ final class EventController
             }
         }
 
-        foreach (['startsAt', 'endsAt', 'meetAt', 'nominationDeadline'] as $key) {
+        foreach (['startsAt', 'endsAt', 'meetAt', 'rsvpDeadlineAt'] as $key) {
             if (array_key_exists($key, $request->body)) {
                 $changes[$key] = $this->optionalDateTime($request, $key);
             }

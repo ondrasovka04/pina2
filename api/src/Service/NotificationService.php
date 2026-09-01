@@ -11,6 +11,7 @@ use Pina\Http\ApiException;
 use Pina\Notification\PushDelivery;
 use Pina\Notification\PushGateway;
 use Pina\Support\Database;
+use Pina\Support\RsvpDeadline;
 use Throwable;
 
 /** Uživatelské volby, in-app záznamy a odolná fronta Web Push. */
@@ -34,6 +35,9 @@ final class NotificationService
      * nikdo nedozvěděl nic nového — první označení náhradníka rozeslalo „jsi
      * v nominaci" všem ostatním a pozdější vyřazení už se neopravilo.
      *
+     * Majitel 31. 8. 2026 schválil posun existující připomínky akce před termín
+     * zápisu; kategorie zůstává `event_reminder`.
+     *
      * @var array<string,array{type:string,default:bool}>
      */
     private const PREFERENCES = [
@@ -54,6 +58,9 @@ final class NotificationService
 
     /** Připomínka na zítřejší akci se zakládá až večer, ať vychází z aktuálních RSVP. */
     private const REMINDER_FROM_HOUR = 18;
+
+    /** Stejných 12 hodin používá varovný stav ve frontendu. */
+    private const REMINDER_LEAD_HOURS = 12;
 
     /**
      * Hosting zabije skript po svém limitu a plánovač nemá jak se dozvědět, kde
@@ -209,42 +216,82 @@ final class NotificationService
         return $created;
     }
 
-    /** Připomínky se zakládají jen večer před akcí a pokaždé z aktuálních RSVP. */
+    /** Připomínky se zakládají před termínem, bez termínu zůstává večer před akcí. */
     public function enqueueEventReminders(?DateTimeImmutable $now = null): int
     {
         $local = ($now ?? new DateTimeImmutable('now', $this->timeZone))->setTimezone($this->timeZone);
         $hour  = (int) $local->format('G');
-        if ($hour < self::REMINDER_FROM_HOUR || $hour >= self::QUIET_FROM_HOUR) {
+        if ($hour < self::QUIET_UNTIL_HOUR || $hour >= self::QUIET_FROM_HOUR) {
             return 0;
         }
 
-        $tomorrow = $local->modify('+1 day')->format('Y-m-d');
-        $rows     = $this->db->all(
-            "SELECT e.id AS event_id, m.user_id
-               FROM event e
-               JOIN season s ON s.id = e.season_id
-               JOIN roster_entry re ON re.season_id = s.id AND re.active = 1
-               JOIN membership m ON m.id = re.membership_id AND m.status = 'active'
-               LEFT JOIN event_participant ep ON ep.event_id = e.id AND ep.membership_id = m.id
-              WHERE DATE(e.starts_at) = ? AND e.status = 'planned'
-                AND COALESCE(ep.rsvp, 'unknown') = 'unknown'",
-            [$tomorrow],
+        $nowSql             = $local->format('Y-m-d H:i:s');
+        $tomorrow           = $local->modify('+1 day')->format('Y-m-d');
+        $deadlineExpression = RsvpDeadline::sqlExpression();
+        $rows               = $this->db->all(
+            "SELECT candidates.event_id, candidates.user_id, candidates.rsvp_deadline_at
+               FROM (
+                    SELECT e.id AS event_id, e.starts_at, m.user_id,
+                           $deadlineExpression AS rsvp_deadline_at
+                      FROM event e
+                      JOIN season s ON s.id = e.season_id
+                      LEFT JOIN team_settings ts ON ts.team_id = s.team_id
+                      JOIN roster_entry re ON re.season_id = s.id AND re.active = 1
+                      JOIN membership m ON m.id = re.membership_id AND m.status = 'active'
+                      LEFT JOIN event_participant ep ON ep.event_id = e.id AND ep.membership_id = m.id
+                     WHERE e.starts_at > ? AND e.status = 'planned'
+                       AND COALESCE(ep.rsvp, 'unknown') = 'unknown'
+               ) AS candidates
+              WHERE (candidates.rsvp_deadline_at IS NOT NULL
+                     AND candidates.rsvp_deadline_at > ?
+                     AND candidates.rsvp_deadline_at <= DATE_ADD(?, INTERVAL " . self::REMINDER_LEAD_HOURS . ' HOUR))
+                 OR (candidates.rsvp_deadline_at IS NULL
+                     AND ? >= ' . self::REMINDER_FROM_HOUR . '
+                     AND DATE(candidates.starts_at) = ?)',
+            [$nowSql, $nowSql, $nowSql, $hour, $tomorrow],
         );
 
         $created = 0;
         foreach ($rows as $row) {
-            $eventId = (int) $row['event_id'];
+            $eventId  = (int) $row['event_id'];
+            $deadline = $row['rsvp_deadline_at'];
+            $title    = $deadline === null ? 'Odpověz na zítřejší akci' : 'Blíží se termín zápisu na akci';
+            $body     = $deadline === null
+                ? 'V kalendáři pořád chybí tvoje odpověď.'
+                : 'Odpověz do ' . $this->deadlineWording($local, (string) $deadline) . ', pak už to bude pozdní zápis.';
             $created += $this->enqueue(
                 (int) $row['user_id'],
                 self::EVENT_REMINDER,
-                'Odpověz na zítřejší akci',
-                'V kalendáři pořád chybí tvoje odpověď.',
+                $title,
+                $body,
                 '/akce/' . $eventId,
                 'event:' . $eventId,
             ) ? 1 : 0;
         }
 
         return $created;
+    }
+
+    /**
+     * Samotné „do 18:00" je past: připomínka chodí až dvanáct hodin předem, takže
+     * termín může padnout i na zítřejší ráno a hráč by četl čas, který dnes už
+     * minul. Den se proto dopisuje všude, kde není dnešní.
+     */
+    private function deadlineWording(DateTimeImmutable $now, string $deadline): string
+    {
+        $at   = new DateTimeImmutable($deadline, $this->timeZone);
+        $time = $at->format('H:i');
+        $day  = $at->format('Y-m-d');
+
+        if ($day === $now->format('Y-m-d')) {
+            return $time;
+        }
+
+        // Dál než na zítřek se s dvanáctihodinovým předstihem dostat nedá,
+        // ale datum je lepší pojistka než mlčky předpokládaný zítřek.
+        return $day === $now->modify('+1 day')->format('Y-m-d')
+            ? 'zítřejších ' . $time
+            : $at->format('j. n.') . ' ' . $time;
     }
 
     /**

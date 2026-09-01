@@ -162,6 +162,8 @@ final class AuditLogTest extends DatabaseTestCase
             'homeLocationId'             => null,
             'attendanceVisibleToPlayers' => false,
             'balancesVisibleToPlayers'   => true,
+            'rsvpDeadlineTrainingHours'  => 24,
+            'rsvpDeadlineMatchHours'     => 48,
             'bankAccount'                => '19-2000145399/0800',
         ]);
         $teams->activationLink($this->admin, $this->member, sendEmail: false);

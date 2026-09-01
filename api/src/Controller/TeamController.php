@@ -163,6 +163,8 @@ final class TeamController
             'homeLocationId'             => $this->homeLocationId($request),
             'attendanceVisibleToPlayers' => $request->bool('attendanceVisibleToPlayers'),
             'balancesVisibleToPlayers'   => $request->bool('balancesVisibleToPlayers', true),
+            'rsvpDeadlineTrainingHours'  => $this->deadlineHours($request, 'rsvpDeadlineTrainingHours'),
+            'rsvpDeadlineMatchHours'     => $this->deadlineHours($request, 'rsvpDeadlineMatchHours'),
             'bankAccount'                => $request->optionalString('bankAccount'),
         ]);
 
@@ -237,5 +239,19 @@ final class TeamController
         }
 
         return $rate;
+    }
+
+    private function deadlineHours(Request $request, string $field): ?int
+    {
+        $value = $request->optionalSignedInt($field);
+
+        if ($value !== null && $value < 0) {
+            throw ApiException::validation(
+                'Počet hodin před začátkem nemůže být záporný.',
+                ['field' => $field],
+            );
+        }
+
+        return $value;
     }
 }

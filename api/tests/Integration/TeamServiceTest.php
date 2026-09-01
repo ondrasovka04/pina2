@@ -87,6 +87,8 @@ final class TeamServiceTest extends DatabaseTestCase
         // Výchozí hodnoty bez řádku v DB.
         self::assertFalse($detail['settings']['travelEnabled']);
         self::assertSame(5.0, $detail['settings']['travelRateCzkKm']);
+        self::assertSame(24, $detail['settings']['rsvpDeadlineTrainingHours']);
+        self::assertSame(48, $detail['settings']['rsvpDeadlineMatchHours']);
         self::assertTrue($detail['settings']['balancesVisibleToPlayers']);
     }
 
@@ -791,6 +793,41 @@ final class TeamServiceTest extends DatabaseTestCase
         self::assertNull($this->db->value('SELECT bank_account FROM team_settings WHERE team_id = ?', [$this->prosekTeam]));
     }
 
+    public function testAdminCanSaveDisableAndAuditRsvpDeadlines(): void
+    {
+        $saved = $this->service->saveSettings($this->admin, $this->prosekTeam, $this->settings([
+            'rsvpDeadlineTrainingHours' => null,
+            'rsvpDeadlineMatchHours'    => 72,
+        ]));
+
+        self::assertNull($saved['rsvpDeadlineTrainingHours']);
+        self::assertSame(72, $saved['rsvpDeadlineMatchHours']);
+
+        $payload = json_decode((string) $this->db->value(
+            "SELECT payload FROM audit_log WHERE action = 'settings_changed' ORDER BY id DESC LIMIT 1",
+        ), true, flags: JSON_THROW_ON_ERROR);
+
+        self::assertEqualsCanonicalizing(['old' => 24, 'new' => null], $payload['rsvpDeadlineTrainingHours']);
+        self::assertEqualsCanonicalizing(['old' => 48, 'new' => 72], $payload['rsvpDeadlineMatchHours']);
+    }
+
+    public function testInvalidRsvpDeadlineHoursAreRejected(): void
+    {
+        foreach (['rsvpDeadlineTrainingHours', 'rsvpDeadlineMatchHours'] as $field) {
+            foreach ([0, -1, 721] as $hours) {
+                try {
+                    $this->service->saveSettings($this->admin, $this->prosekTeam, $this->settings([
+                        $field => $hours,
+                    ]));
+                    self::fail("Neplatný termín $hours se nesmí uložit.");
+                } catch (ApiException $e) {
+                    self::assertSame(400, $e->status);
+                    self::assertSame($field, $e->details['field'] ?? null);
+                }
+            }
+        }
+    }
+
     /**
      * Účet patří družstvu, ne klubu. Do F4 ležel na klubu a editoval se v nastavení
      * družstva, takže změna u mužů tiše přepsala účet juniorům i kadetům.
@@ -871,6 +908,8 @@ final class TeamServiceTest extends DatabaseTestCase
      *     homeLocationId:int|null,
      *     attendanceVisibleToPlayers:bool,
      *     balancesVisibleToPlayers:bool,
+     *     rsvpDeadlineTrainingHours:int|null,
+     *     rsvpDeadlineMatchHours:int|null,
      *     bankAccount:string|null
      * }
      */
@@ -883,6 +922,8 @@ final class TeamServiceTest extends DatabaseTestCase
              *     homeLocationId:int|null,
          *     attendanceVisibleToPlayers:bool,
          *     balancesVisibleToPlayers:bool,
+         *     rsvpDeadlineTrainingHours:int|null,
+         *     rsvpDeadlineMatchHours:int|null,
          *     bankAccount:string|null
          * } $settings
          */
@@ -893,6 +934,8 @@ final class TeamServiceTest extends DatabaseTestCase
             'homeLocationId'             => null,
             'attendanceVisibleToPlayers' => false,
             'balancesVisibleToPlayers'   => true,
+            'rsvpDeadlineTrainingHours'  => 24,
+            'rsvpDeadlineMatchHours'     => 48,
             'bankAccount'                => null,
             ...$overrides,
         ];

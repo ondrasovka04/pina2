@@ -160,7 +160,7 @@ CREATE TABLE event (
   opponent             VARCHAR(120) NULL,
   note                 TEXT NULL,
   distance_km          SMALLINT UNSIGNED NULL COMMENT 'vzdalenost od domaci haly k soupeři (jednosmerna), podklad pro cestovni nahradu',
-  nomination_deadline  DATETIME NULL,
+  rsvp_deadline_at     DATETIME NULL COMMENT 'rucni termin pro tuhle akci; NULL = plati vychozi z nastaveni druzstva',
   status               ENUM('planned','cancelled','done') NOT NULL DEFAULT 'planned',
   overridden           TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'rucne upraveno, pregenerovani serie to neprepise',
   created_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -188,6 +188,7 @@ CREATE TABLE event_participant (
   rsvp          ENUM('unknown','yes','no') NOT NULL DEFAULT 'unknown',
   rsvp_note     VARCHAR(255) NULL,
   rsvp_at       DATETIME NULL,
+  rsvp_late     TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'posledni odpoved prisla az po terminu; snapshot z okamziku ulozeni',
 
   -- NULL = zadna rucni oprava, plati odvozeni z rsvp
   -- 'injured' = zraneni / dlouhodoba nemoc, nepocita se do procenta ucasti
@@ -241,9 +242,9 @@ CREATE TABLE offence_type (
   category    ENUM('discipline','performance','fun','attendance') NULL,
   -- Ktery prohresek aplikace navrhne sama z dochazky. Omluvenou a neomluvenou
   -- absenci rozlisuje odpoved hrace predem: kdo rekl "neprijdu", je omluveny,
-  -- kdo se neozval, neni. Pozdni prichod se odvodit neda -- cas prichodu nikdo
-  -- nezaznamenava -- a zustava rucni.
-  auto_rule   ENUM('none','excused_absence','unexcused_absence','late_arrival') NOT NULL DEFAULT 'none',
+  -- kdo se neozval, neni. Pozdni zapis vychazi ze snapshotu RSVP; pozdni prichod
+  -- se odvodit neda -- cas prichodu nikdo nezaznamenava -- a zustava rucni.
+  auto_rule   ENUM('none','excused_absence','unexcused_absence','late_arrival','late_rsvp') NOT NULL DEFAULT 'none',
 
   -- U ktereho druhu akce pravidlo plati. Vsechna druzstva maji jinou sazbu za
   -- trenink a za zapas (junioři 25/100, muzi 35/100, Benatky 50/1000), takze
@@ -323,6 +324,10 @@ CREATE TABLE team_settings (
   travel_round_trip   TINYINT(1) NOT NULL DEFAULT 1 COMMENT 'proplaci se cesta tam i zpet (x2)',
   attendance_visible_to_players TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'dochazku ostatnich hraci nevidi',
   balances_visible_to_players   TINYINT(1) NOT NULL DEFAULT 1 COMMENT 'dluhy ostatnich hraci vidi',
+  -- Vychozi hodnoty jsou i v Pina\Support\RsvpDeadline, odkud si je bere aplikace
+  -- pro druzstvo, ktere tenhle radek jeste nema. Meni se na obou mistech naraz.
+  rsvp_deadline_training_hours  SMALLINT UNSIGNED NULL DEFAULT 24 COMMENT 'kolik hodin pred zacatkem treninku se ma hrac zapsat; NULL = termin se neresi',
+  rsvp_deadline_match_hours     SMALLINT UNSIGNED NULL DEFAULT 48 COMMENT 'totez pro zapas -- na zapas se tym potrebuje domluvit driv nez na trenink',
   PRIMARY KEY (team_id),
   CONSTRAINT fk_team_settings_team FOREIGN KEY (team_id) REFERENCES team (id) ON DELETE CASCADE,
   CONSTRAINT fk_team_settings_home FOREIGN KEY (home_location_id) REFERENCES location (id) ON DELETE SET NULL

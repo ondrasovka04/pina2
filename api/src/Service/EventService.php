@@ -10,6 +10,7 @@ use Pina\Auth\TeamScope;
 use Pina\Http\ApiException;
 use Pina\Support\Database;
 use Pina\Support\Recurrence;
+use Pina\Support\RsvpDeadline;
 
 /**
  * Akce (tréninky, zápasy) a docházka.
@@ -30,6 +31,8 @@ use Pina\Support\Recurrence;
  *     membershipId:int,
  *     rsvp:string,
  *     rsvpNote:string|null,
+ *     rsvpAt:string|null,
+ *     rsvpLate:bool,
  *     nomination:string,
  *     transport:string,
  *     carSeats:int|null,
@@ -48,7 +51,8 @@ use Pina\Support\Recurrence;
  *     opponent:string|null,
  *     note:string|null,
  *     distanceKm:int|null,
- *     nominationDeadline:string|null,
+ *     rsvpDeadlineAt:string|null,
+ *     rsvpDeadlineCustom:string|null,
  *     status:string,
  *     isHome:bool|null,
  *     overridden:bool,
@@ -67,6 +71,8 @@ use Pina\Support\Recurrence;
  *     nomination:string,
  *     rsvp:string,
  *     rsvpNote:string|null,
+ *     rsvpAt:string|null,
+ *     rsvpLate:bool,
  *     transport:string,
  *     carSeats:int|null,
  *     attendance:string|null,
@@ -101,6 +107,7 @@ use Pina\Support\Recurrence;
  *     present:int,
  *     absent:int,
  *     injured:int,
+ *     lateRsvpCount:int,
  *     total:int,
  *     ratio:float|null
  * }
@@ -210,7 +217,7 @@ final class EventService
      *     opponent:string|null,
      *     note:string|null,
      *     distanceKm:int|null,
-     *     nominationDeadline:string|null
+     *     rsvpDeadlineAt:string|null
      * } $input
      * @return EventPayload
      */
@@ -221,11 +228,12 @@ final class EventService
         $this->assertType($input['type']);
         $this->assertLocation($input['locationId'], $teamId);
         $this->assertTimes($input['startsAt'], $input['endsAt'], $input['meetAt']);
+        $this->assertRsvpDeadline($input['startsAt'], $input['rsvpDeadlineAt']);
 
         $this->db->run(
             'INSERT INTO event
                  (season_id, type, title, starts_at, ends_at, meet_at, location_id,
-                  opponent, note, distance_km, nomination_deadline)
+                  opponent, note, distance_km, rsvp_deadline_at)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [
                 $seasonId,
@@ -238,7 +246,7 @@ final class EventService
                 $input['opponent'],
                 $input['note'],
                 $this->distanceFor($teamId, $input['type'], $input['locationId'], $input['distanceKm']),
-                $input['nominationDeadline'],
+                $input['rsvpDeadlineAt'],
             ],
         );
 
@@ -263,7 +271,7 @@ final class EventService
 
         $current = $this->db->first(
             'SELECT type, title, starts_at, ends_at, meet_at, location_id, opponent, note,
-                    distance_km, nomination_deadline, status, series_id
+                    distance_km, rsvp_deadline_at, status, series_id
                FROM event WHERE id = ?',
             [$eventId],
         );
@@ -283,11 +291,12 @@ final class EventService
         $note       = $this->pickNullableString($changes, 'note', $current['note']);
         $locationId = $this->pickNullableInt($changes, 'locationId', $current['location_id']);
         $distanceKm = $this->pickNullableInt($changes, 'distanceKm', $current['distance_km']);
-        $deadline   = $this->pickNullableString($changes, 'nominationDeadline', $current['nomination_deadline']);
+        $deadline   = $this->pickNullableString($changes, 'rsvpDeadlineAt', $current['rsvp_deadline_at']);
 
         $this->assertType($type);
         $this->assertLocation($locationId, $teamId);
         $this->assertTimes($startsAt, $endsAt, $meetAt);
+        $this->assertRsvpDeadline($startsAt, $deadline);
 
         if (!in_array($status, ['planned', 'cancelled', 'done'], true)) {
             throw ApiException::validation('Neznámý stav akce.', ['field' => 'status']);
@@ -296,7 +305,7 @@ final class EventService
         $this->db->run(
             'UPDATE event
                 SET type = ?, title = ?, starts_at = ?, ends_at = ?, meet_at = ?, location_id = ?,
-                    opponent = ?, note = ?, distance_km = ?, nomination_deadline = ?, status = ?,
+                    opponent = ?, note = ?, distance_km = ?, rsvp_deadline_at = ?, status = ?,
                     overridden = CASE WHEN series_id IS NULL THEN 0 ELSE 1 END
               WHERE id = ?',
             [
@@ -839,11 +848,15 @@ final class EventService
             throw ApiException::validation('Neznámý způsob dopravy.', ['field' => 'transport']);
         }
 
-        $event = $this->db->first(
-            'SELECT e.starts_at, e.status, e.type, e.location_id,
-                    (SELECT ts.home_location_id FROM team_settings ts WHERE ts.team_id = ?) AS home_location_id
-               FROM event e WHERE e.id = ?',
-            [$teamId, $eventId],
+        $deadlineExpression = RsvpDeadline::sqlExpression();
+        $event              = $this->db->first(
+            "SELECT e.starts_at, e.status, e.type, e.location_id, ts.home_location_id,
+                    $deadlineExpression AS rsvp_deadline_at
+               FROM event e
+               JOIN season s ON s.id = e.season_id
+               LEFT JOIN team_settings ts ON ts.team_id = s.team_id
+              WHERE e.id = ? AND s.team_id = ?",
+            [$eventId, $teamId],
         );
 
         if ($event === null) {
@@ -884,15 +897,26 @@ final class EventService
         $carSeats = $transport === 'driver' ? $input['carSeats'] : null;
 
         $this->db->run(
-            'INSERT INTO event_participant (event_id, membership_id, rsvp, rsvp_note, rsvp_at, transport, car_seats)
-             VALUES (?, ?, ?, ?, NOW(), ?, ?)
+            'INSERT INTO event_participant
+                 (event_id, membership_id, rsvp, rsvp_note, rsvp_at, rsvp_late, transport, car_seats)
+             VALUES (?, ?, ?, ?, NOW(), (? IS NOT NULL AND NOW() > ?), ?, ?)
              ON DUPLICATE KEY UPDATE
                  rsvp      = VALUES(rsvp),
                  rsvp_note = VALUES(rsvp_note),
                  rsvp_at   = NOW(),
+                 rsvp_late = VALUES(rsvp_late),
                  transport = VALUES(transport),
                  car_seats = VALUES(car_seats)',
-            [$eventId, $membershipId, $input['rsvp'], $input['note'], $transport, $carSeats],
+            [
+                $eventId,
+                $membershipId,
+                $input['rsvp'],
+                $input['note'],
+                $event['rsvp_deadline_at'],
+                $event['rsvp_deadline_at'],
+                $transport,
+                $carSeats,
+            ],
         );
 
         return $this->detail($identity, $eventId);
@@ -1050,12 +1074,14 @@ final class EventService
             "SELECT m.id AS membership_id, m.user_id, m.jersey_number, u.display_name, u.avatar_url,
                     SUM(state = 'present') AS present,
                     SUM(state = 'absent')  AS absent,
-                    SUM(state = 'injured') AS injured
+                    SUM(state = 'injured') AS injured,
+                    SUM(rsvp_late)         AS late_rsvp_count
                FROM (
                     -- Bere se ze soupisky, ne z účastnického řádku: kdo neodpověděl,
                     -- taky se počítá.
                     SELECT r.membership_id,
-                           COALESCE(p.attendance, IF(p.rsvp = 'yes', 'present', 'absent')) AS state
+                           COALESCE(p.attendance, IF(p.rsvp = 'yes', 'present', 'absent')) AS state,
+                           COALESCE(p.rsvp_late, 0) AS rsvp_late
                       FROM event e
                       JOIN roster_entry r ON r.season_id = e.season_id AND r.active = 1
                       LEFT JOIN event_participant p ON p.event_id = e.id AND p.membership_id = r.membership_id
@@ -1076,16 +1102,17 @@ final class EventService
             $counted = $present + $absent;
 
             return [
-                'membershipId' => (int) $row['membership_id'],
-                'userId'       => (int) $row['user_id'],
-                'name'         => (string) $row['display_name'],
-                'avatarUrl'    => $row['avatar_url'] === null ? null : (string) $row['avatar_url'],
-                'jerseyNumber' => $row['jersey_number'] === null ? null : (int) $row['jersey_number'],
-                'present'      => $present,
-                'absent'       => $absent,
-                'injured'      => (int) $row['injured'],
-                'total'        => $counted,
-                'ratio'        => $counted === 0 ? null : round($present / $counted, 4),
+                'membershipId'  => (int) $row['membership_id'],
+                'userId'        => (int) $row['user_id'],
+                'name'          => (string) $row['display_name'],
+                'avatarUrl'     => $row['avatar_url'] === null ? null : (string) $row['avatar_url'],
+                'jerseyNumber'  => $row['jersey_number'] === null ? null : (int) $row['jersey_number'],
+                'present'       => $present,
+                'absent'        => $absent,
+                'injured'       => (int) $row['injured'],
+                'lateRsvpCount' => (int) $row['late_rsvp_count'],
+                'total'         => $counted,
+                'ratio'         => $counted === 0 ? null : round($present / $counted, 4),
             ];
         }, $rows);
     }
@@ -1098,14 +1125,16 @@ final class EventService
      */
     private function eventSelect(): string
     {
+        $deadlineExpression = RsvpDeadline::sqlExpression();
+
         return "SELECT e.id, e.season_id, e.series_id, e.type, e.title, e.starts_at, e.ends_at, e.meet_at,
-                       e.opponent, e.note, e.distance_km, e.nomination_deadline, e.status, e.location_id,
+                       e.opponent, e.note, e.distance_km,
+                       e.rsvp_deadline_at AS rsvp_deadline_custom,
+                       $deadlineExpression AS rsvp_deadline_at,
+                       e.status, e.location_id,
                        e.overridden,
                        (e.starts_at <= NOW()) AS started,
-                       (SELECT ts.home_location_id
-                          FROM team_settings ts
-                          JOIN season hs ON hs.team_id = ts.team_id
-                         WHERE hs.id = e.season_id) AS home_location_id,
+                       ts.home_location_id,
                        l.id AS loc_id, l.name AS loc_name, l.address AS loc_address,
                        l.lat AS loc_lat, l.lng AS loc_lng, l.note AS loc_note,
                        (SELECT COUNT(*) FROM event_participant p
@@ -1114,9 +1143,12 @@ final class EventService
                          WHERE p.event_id = e.id AND p.rsvp = 'no') AS no_count,
                        mine.id AS my_membership_id,
                        mp.rsvp AS my_rsvp, mp.rsvp_note AS my_rsvp_note, mp.nomination AS my_nomination,
+                       mp.rsvp_at AS my_rsvp_at, mp.rsvp_late AS my_rsvp_late,
                        mp.transport AS my_transport, mp.car_seats AS my_car_seats,
                        mp.attendance AS my_attendance
                   FROM event e
+                  JOIN season es ON es.id = e.season_id
+                  LEFT JOIN team_settings ts ON ts.team_id = es.team_id
                   LEFT JOIN location l ON l.id = e.location_id
                   LEFT JOIN membership mine
                          ON mine.team_id = (SELECT s.team_id FROM season s WHERE s.id = ?)
@@ -1156,9 +1188,10 @@ final class EventService
             'opponent'           => $row['opponent'] === null ? null : (string) $row['opponent'],
             'note'               => $row['note'] === null ? null : (string) $row['note'],
             'distanceKm'         => $distanceKm,
-            'nominationDeadline' => $row['nomination_deadline'] === null
+            'rsvpDeadlineAt'     => $row['rsvp_deadline_at'] === null ? null : (string) $row['rsvp_deadline_at'],
+            'rsvpDeadlineCustom' => $row['rsvp_deadline_custom'] === null
                 ? null
-                : (string) $row['nomination_deadline'],
+                : (string) $row['rsvp_deadline_custom'],
             'status' => (string) $row['status'],
             'isHome' => $isHome,
             // Ručně upravený termín hromadná změna série přeskočí.
@@ -1175,6 +1208,8 @@ final class EventService
                 'membershipId' => (int) $row['my_membership_id'],
                 'rsvp'         => $row['my_rsvp'] === null ? 'unknown' : (string) $row['my_rsvp'],
                 'rsvpNote'     => $row['my_rsvp_note'] === null ? null : (string) $row['my_rsvp_note'],
+                'rsvpAt'       => $row['my_rsvp_at'] === null ? null : (string) $row['my_rsvp_at'],
+                'rsvpLate'     => (bool) ($row['my_rsvp_late'] ?? false),
                 'nomination'   => $this->resolveNomination((string) $row['type'], $row['my_nomination']),
                 'transport'    => $row['my_transport'] === null ? 'none' : (string) $row['my_transport'],
                 'carSeats'     => $row['my_car_seats'] === null ? null : (int) $row['my_car_seats'],
@@ -1251,7 +1286,8 @@ final class EventService
         $rows = $this->db->all(
             'SELECT m.id AS membership_id, m.user_id, m.jersey_number, u.display_name, u.avatar_url,
                     r.id IS NOT NULL AS on_roster,
-                    p.nomination, p.rsvp, p.rsvp_note, p.transport, p.car_seats, p.attendance
+                    p.nomination, p.rsvp, p.rsvp_note, p.rsvp_at, p.rsvp_late,
+                    p.transport, p.car_seats, p.attendance
                FROM membership m
                JOIN `user` u ON u.id = m.user_id
                LEFT JOIN roster_entry r ON r.membership_id = m.id AND r.season_id = ? AND r.active = 1
@@ -1285,6 +1321,8 @@ final class EventService
                 'nomination'   => $this->resolveNomination($type, $row['nomination']),
                 'rsvp'         => $row['rsvp'] === null ? 'unknown' : (string) $row['rsvp'],
                 'rsvpNote'     => $row['rsvp_note'] === null ? null : (string) $row['rsvp_note'],
+                'rsvpAt'       => $row['rsvp_at'] === null ? null : (string) $row['rsvp_at'],
+                'rsvpLate'     => (bool) ($row['rsvp_late'] ?? false),
                 'transport'    => $row['transport'] === null ? 'none' : (string) $row['transport'],
                 'carSeats'     => $row['car_seats'] === null ? null : (int) $row['car_seats'],
                 'attendance'   => $attendance,
@@ -1496,6 +1534,16 @@ final class EventService
 
         if ($meetAt !== null && $meetAt > $startsAt) {
             throw ApiException::validation('Sraz nemůže být po začátku akce.', ['field' => 'meetAt']);
+        }
+    }
+
+    private function assertRsvpDeadline(string $startsAt, ?string $deadline): void
+    {
+        if ($deadline !== null && $deadline > $startsAt) {
+            throw ApiException::validation(
+                'Termín pro zápis nemůže být po začátku akce.',
+                ['field' => 'rsvpDeadlineAt'],
+            );
         }
     }
 

@@ -95,6 +95,51 @@ final class EventServiceTest extends DatabaseTestCase
         self::assertSame([$upcoming], array_column($events, 'id'));
     }
 
+    public function testDeadlineIsInheritedByEventTypeAndCanBeOverridden(): void
+    {
+        $training = $this->makeEvent(3 * self::DAY);
+        $match    = $this->makeEvent(4 * self::DAY, 'match');
+
+        $trainingDetail = $this->service->detail($this->identity($this->playerId, Role::Player), $training);
+        $matchDetail    = $this->service->detail($this->identity($this->playerId, Role::Player), $match);
+
+        self::assertSame(
+            $this->db->value('SELECT DATE_SUB(starts_at, INTERVAL 24 HOUR) FROM event WHERE id = ?', [$training]),
+            $trainingDetail['event']['rsvpDeadlineAt'],
+        );
+        self::assertSame(
+            $this->db->value('SELECT DATE_SUB(starts_at, INTERVAL 48 HOUR) FROM event WHERE id = ?', [$match]),
+            $matchDetail['event']['rsvpDeadlineAt'],
+        );
+        self::assertNull($trainingDetail['event']['rsvpDeadlineCustom']);
+
+        $this->db->run("UPDATE event SET rsvp_deadline_at = '2026-09-14 18:00:00' WHERE id = ?", [$training]);
+        $overridden = $this->service->detail($this->identity($this->playerId, Role::Player), $training);
+
+        self::assertSame('2026-09-14 18:00:00', $overridden['event']['rsvpDeadlineAt']);
+        self::assertSame('2026-09-14 18:00:00', $overridden['event']['rsvpDeadlineCustom']);
+    }
+
+    public function testDeadlineCanBeDisabledAndOtherEventHasNoDefault(): void
+    {
+        $this->db->run(
+            'INSERT INTO team_settings
+                 (team_id, rsvp_deadline_training_hours, rsvp_deadline_match_hours)
+             VALUES (?, NULL, NULL)',
+            [$this->teamId],
+        );
+
+        $training = $this->makeEvent(2 * self::DAY);
+        $other    = $this->makeEvent(2 * self::DAY, 'other');
+
+        self::assertNull(
+            $this->service->detail($this->identity($this->playerId, Role::Player), $training)['event']['rsvpDeadlineAt'],
+        );
+        self::assertNull(
+            $this->service->detail($this->identity($this->playerId, Role::Player), $other)['event']['rsvpDeadlineAt'],
+        );
+    }
+
     public function testOtherTeamsEventIsNotFound(): void
     {
         [, $otherTeamId] = $this->makeTeam('benatky', 'Muži');
@@ -109,6 +154,29 @@ final class EventServiceTest extends DatabaseTestCase
     }
 
     // ------------------------------------------------------------------- RSVP
+
+    public function testAnswerStoresWhetherTheLatestChangeWasLate(): void
+    {
+        $eventId = $this->makeEvent(2 * self::HOUR);
+        $this->db->run('UPDATE event SET rsvp_deadline_at = DATE_ADD(NOW(), INTERVAL 1 HOUR) WHERE id = ?', [$eventId]);
+
+        $first = $this->service->saveRsvp($this->identity($this->playerId, Role::Player), $eventId, [
+            'rsvp' => 'yes', 'note' => null, 'transport' => 'none', 'carSeats' => null,
+        ]);
+        self::assertFalse($this->me($first)['rsvpLate']);
+        self::assertNotNull($this->me($first)['rsvpAt']);
+
+        $this->db->run('UPDATE event SET rsvp_deadline_at = DATE_SUB(NOW(), INTERVAL 1 HOUR) WHERE id = ?', [$eventId]);
+        $second = $this->service->saveRsvp($this->identity($this->playerId, Role::Player), $eventId, [
+            'rsvp' => 'no', 'note' => null, 'transport' => 'none', 'carSeats' => null,
+        ]);
+
+        self::assertTrue($this->me($second)['rsvpLate']);
+        self::assertSame(1, (int) $this->db->value(
+            'SELECT rsvp_late FROM event_participant WHERE event_id = ? AND membership_id = ?',
+            [$eventId, $this->playerMembership],
+        ));
+    }
 
     public function testAnswerBecomesAttendanceAfterTheEventStarts(): void
     {
@@ -384,6 +452,25 @@ final class EventServiceTest extends DatabaseTestCase
         $this->expectStatus(403, fn () => $this->service->create($player, $this->seasonId, $this->eventInput()));
     }
 
+    public function testDeadlineAfterEventStartIsRejected(): void
+    {
+        try {
+            $this->service->create(
+                $this->identity($this->treasurerId, Role::Treasurer),
+                $this->seasonId,
+                [
+                    ...$this->eventInput(),
+                    'startsAt'       => '2026-09-15 19:00:00',
+                    'rsvpDeadlineAt' => '2026-09-15 19:01:00',
+                ],
+            );
+            self::fail('Termín po začátku akce se nesmí uložit.');
+        } catch (ApiException $e) {
+            self::assertSame(400, $e->status);
+            self::assertSame('rsvpDeadlineAt', $e->details['field'] ?? null);
+        }
+    }
+
     public function testNominationStaysWithAdmin(): void
     {
         $eventId = $this->makeEvent(2 * self::HOUR, 'match');
@@ -514,6 +601,21 @@ final class EventServiceTest extends DatabaseTestCase
         $rows = $this->service->summary($this->identity($this->adminId, Role::Admin), $this->seasonId, 'match');
 
         self::assertSame(1, $this->rowOf($rows, $this->playerMembership)['total']);
+    }
+
+    public function testSummaryCountsLateAnswers(): void
+    {
+        $eventId = $this->makeEvent(-1 * self::DAY);
+        $this->db->run(
+            "INSERT INTO event_participant (event_id, membership_id, rsvp, rsvp_at, rsvp_late)
+             VALUES (?, ?, 'yes', DATE_SUB(NOW(), INTERVAL 2 DAY), 1)",
+            [$eventId, $this->playerMembership],
+        );
+
+        $rows = $this->service->summary($this->identity($this->adminId, Role::Admin), $this->seasonId, null);
+
+        self::assertSame(1, $this->rowOf($rows, $this->playerMembership)['lateRsvpCount']);
+        self::assertSame(0, $this->rowOf($rows, $this->adminMembership)['lateRsvpCount']);
     }
 
     public function testPlayerSeesOnlyOwnNumbers(): void
@@ -1087,22 +1189,22 @@ final class EventServiceTest extends DatabaseTestCase
      * @return array{
      *     type:string,title:string,startsAt:string,endsAt:string|null,meetAt:string|null,
      *     locationId:int|null,opponent:string|null,note:string|null,distanceKm:int|null,
-     *     nominationDeadline:string|null
+     *     rsvpDeadlineAt:string|null
      * }
      */
     private function eventInput(): array
     {
         return [
-            'type'               => 'training',
-            'title'              => 'Trénink',
-            'startsAt'           => '2026-09-15 19:00:00',
-            'endsAt'             => null,
-            'meetAt'             => null,
-            'locationId'         => $this->locationId,
-            'opponent'           => null,
-            'note'               => null,
-            'distanceKm'         => null,
-            'nominationDeadline' => null,
+            'type'           => 'training',
+            'title'          => 'Trénink',
+            'startsAt'       => '2026-09-15 19:00:00',
+            'endsAt'         => null,
+            'meetAt'         => null,
+            'locationId'     => $this->locationId,
+            'opponent'       => null,
+            'note'           => null,
+            'distanceKm'     => null,
+            'rsvpDeadlineAt' => null,
         ];
     }
 

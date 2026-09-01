@@ -30,10 +30,10 @@ dokumentace, commit messages. Anglicky zůstávají jen identifikátory v kódu
 docker compose up -d                                        # MySQL + PHP na :8080
 cd web && npm run dev                                       # frontend na :5173
 
-docker compose run --rm php ./vendor/bin/phpunit            # 320 testů
+docker compose run --rm php ./vendor/bin/phpunit            # 334 testů
 docker compose run --rm php ./vendor/bin/phpstan analyse --memory-limit=512M
 docker compose run --rm php ./vendor/bin/php-cs-fixer fix --dry-run --diff
-cd web && npm run typecheck && npm run lint && npm test      # 195 testů
+cd web && npm run typecheck && npm run lint && npm test      # 222 testů
 ```
 
 Před dokončením úkolu, který sáhl na kód, musí projít testy i statická analýza
@@ -114,6 +114,13 @@ do té doby byla ve schématu naprázdno.
 **Nasazeno 20. 8. 2026.** Na `pinaprosek.eu` běží nová verze, stará je smazaná
 a data jsou zmigrovaná (ověřeno `verify_migration.php` proti ostré databázi).
 Postup a pasti hostingu jsou v [README](README.md), kapitola Nasazení.
+
+**Pozdní zápis na akci je hotový.** Družstvo má termín, do kdy se hráč má zapsat
+(výchozí 24 h u tréninku, 48 h u zápasu, přepsatelné u jedné akce, vymazáním
+vypnutelné). Po termínu jde odpovědět dál, jen se to označí — v detailu akce,
+v kalendáři i v účasti za sezónu — a pínaři se při zápisu z akce nabídne prohřešek
+s pravidlem `late_rsvp`. Připomínka na neodpovězenou akci se přesunula před termín;
+zůstává v kategorii `event_reminder`, nová nevznikla (majitel 31. 8. 2026).
 
 **Provozní stopa je hotová.** `audit_log` je svázaný s družstvem, atomicky
 zachycuje citlivé změny peněz, oprávnění, sazebníku a sezón a admin ji čte

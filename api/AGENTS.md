@@ -137,6 +137,14 @@ v `tests/Integration/DatabaseTestCase.php` a neobchází se.
   práci, kterou nikdo dělat nebude. Z toho plyne pojistka, která se neobchází:
   **RSVP jde měnit jen do začátku akce**, jinak by si hráč druhý den přepsal
   vlastní docházku.
+- **Termín pro zápis se dědí živě, pozdní zápis se ukládá jako snapshot.**
+  Výsledný termín skládá `Support\RsvpDeadline::sqlExpression()` — ruční hodnota
+  u akce, jinak hodiny z nastavení družstva, u družstva bez řádku nastavení
+  výchozích 24/48. Ten výraz smí existovat **jen na jednom místě**: podle něj se
+  řídí i připomínka, a kdyby se kopie rozešly, push by chodil podle jiného termínu,
+  než jaký appka ukazuje. Naproti tomu `event_participant.rsvp_late` se počítá při
+  ukládání odpovědi a už se nepřepočítává — posunutý termín nesmí zpětně měnit,
+  kdo přišel pozdě, protože z toho plynou peníze.
 - **Zranění (`injured`) se nepočítá do jmenovatele** účasti: `present / (present + absent)`.
   Omluvená a neomluvená absence se nerozlišuje — „absence je absence".
 - **Kdo přijde, vidí každý; jak akce dopadla, ne.** Odpovědi (`rsvp`, `transport`)
