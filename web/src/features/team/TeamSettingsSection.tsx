@@ -26,6 +26,8 @@ function settingsEqual(a: TeamSettings, b: TeamSettings): boolean {
 		a.homeLocationId === b.homeLocationId &&
 		a.attendanceVisibleToPlayers === b.attendanceVisibleToPlayers &&
 		a.balancesVisibleToPlayers === b.balancesVisibleToPlayers &&
+		a.rsvpDeadlineTrainingHours === b.rsvpDeadlineTrainingHours &&
+		a.rsvpDeadlineMatchHours === b.rsvpDeadlineMatchHours &&
 		a.bankAccount === b.bankAccount
 	)
 }
@@ -60,6 +62,10 @@ export function TeamSettingsSection({ team }: { team: TeamDetail }) {
 	// ve chvíli, kdy se dá uložit. Rozepsaná „5," ani půlka účtu tam nemají co dělat.
 	const [rateInput, setRateInput] = useState(String(team.settings.travelRateCzkKm))
 	const [accountInput, setAccountInput] = useState(team.settings.bankAccount ?? '')
+	const [trainingDeadlineInput, setTrainingDeadlineInput] = useState(
+		team.settings.rsvpDeadlineTrainingHours?.toString() ?? '',
+	)
+	const [matchDeadlineInput, setMatchDeadlineInput] = useState(team.settings.rsvpDeadlineMatchHours?.toString() ?? '')
 	const [status, setStatus] = useState<Status>('idle')
 
 	// Požadavky jdou ve frontě, ať rychlé přepínání nedoručí starší stav jako poslední.
@@ -94,6 +100,8 @@ export function TeamSettingsSection({ team }: { team: TeamDetail }) {
 		setSettings(team.settings)
 		setRateInput(String(team.settings.travelRateCzkKm))
 		setAccountInput(team.settings.bankAccount ?? '')
+		setTrainingDeadlineInput(team.settings.rsvpDeadlineTrainingHours?.toString() ?? '')
+		setMatchDeadlineInput(team.settings.rsvpDeadlineMatchHours?.toString() ?? '')
 		setStatus('idle')
 	}, [team.id, team.settings])
 
@@ -162,6 +170,8 @@ export function TeamSettingsSection({ team }: { team: TeamDetail }) {
 				setSettings(confirmed.current)
 				setRateInput(String(confirmed.current.travelRateCzkKm))
 				setAccountInput(confirmed.current.bankAccount ?? '')
+				setTrainingDeadlineInput(confirmed.current.rsvpDeadlineTrainingHours?.toString() ?? '')
+				setMatchDeadlineInput(confirmed.current.rsvpDeadlineMatchHours?.toString() ?? '')
 				setStatus('error')
 			})
 	}
@@ -189,6 +199,20 @@ export function TeamSettingsSection({ team }: { team: TeamDetail }) {
 		if (account === '') apply({ bankAccount: null }, TEXT_DELAY_MS)
 		else if (looksLikeBankAccount(account)) apply({ bankAccount: account }, TEXT_DELAY_MS)
 		else hold({ bankAccount: confirmed.current.bankAccount })
+	}
+
+	function changeDeadline(raw: string, field: 'rsvpDeadlineTrainingHours' | 'rsvpDeadlineMatchHours') {
+		if (field === 'rsvpDeadlineTrainingHours') setTrainingDeadlineInput(raw)
+		else setMatchDeadlineInput(raw)
+
+		if (raw.trim() === '') {
+			apply({ [field]: null }, TEXT_DELAY_MS)
+			return
+		}
+
+		const parsed = Number(raw)
+		if (Number.isInteger(parsed)) apply({ [field]: parsed }, TEXT_DELAY_MS)
+		else hold({ [field]: confirmed.current[field] })
 	}
 
 	const locationList = locations.data ?? []
@@ -269,6 +293,37 @@ export function TeamSettingsSection({ team }: { team: TeamDetail }) {
 						</span>
 					</span>
 				</label>
+
+				<div className="flex flex-col gap-2">
+					<div className="grid grid-cols-2 gap-3">
+						<Field
+							label="Zápis na trénink (h)"
+							type="number"
+							inputMode="numeric"
+							min={1}
+							max={720}
+							placeholder="vypnuto"
+							value={trainingDeadlineInput}
+							onChange={(event) => changeDeadline(event.target.value, 'rsvpDeadlineTrainingHours')}
+							error={fieldMessage(save.error, 'rsvpDeadlineTrainingHours')}
+						/>
+						<Field
+							label="Zápis na zápas (h)"
+							type="number"
+							inputMode="numeric"
+							min={1}
+							max={720}
+							placeholder="vypnuto"
+							value={matchDeadlineInput}
+							onChange={(event) => changeDeadline(event.target.value, 'rsvpDeadlineMatchHours')}
+							error={fieldMessage(save.error, 'rsvpDeadlineMatchHours')}
+						/>
+					</div>
+					<p className="text-ink-faint text-xs">
+						Počet hodin před začátkem. Prázdné pole termín vypne. Odpovědět půjde i potom, ale zápis bude označený jako
+						pozdní.
+					</p>
+				</div>
 
 				<div className="flex flex-col gap-3">
 					<label className="flex min-h-11 items-center gap-3">

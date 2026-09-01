@@ -24,6 +24,8 @@ const settings = {
 	homeLocationId: 3,
 	attendanceVisibleToPlayers: true,
 	balancesVisibleToPlayers: true,
+	rsvpDeadlineTrainingHours: 24,
+	rsvpDeadlineMatchHours: 48,
 	bankAccount: '19-2000145399/0800',
 }
 
@@ -109,6 +111,17 @@ describe('TeamSettingsSection — ukládání bez tlačítka', () => {
 		// Osm stisků klávesy, ale jedno uložení — jinak by server dostal i nesmysly cestou.
 		await waitFor(() => expect(put).toHaveBeenCalledTimes(1), { timeout: 3000 })
 		expect(put.mock.calls[0]?.[1]).toEqual({ ...settings, bankAccount: '123/0300' })
+	})
+
+	it('změnu termínu odešle jako součást celého nastavení a prázdné pole ho vypne', async () => {
+		const user = userEvent.setup()
+		renderSection()
+
+		const training = screen.getByLabelText('Zápis na trénink (h)')
+		await user.clear(training)
+
+		await waitFor(() => expect(put).toHaveBeenCalledTimes(1), { timeout: 3000 })
+		expect(put.mock.calls[0]?.[1]).toEqual({ ...settings, rsvpDeadlineTrainingHours: null })
 	})
 
 	it('když uložení selže, hodnota se vrátí na potvrzenou', async () => {

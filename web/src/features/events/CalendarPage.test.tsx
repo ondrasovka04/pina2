@@ -1,9 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { Role } from '@/lib/types'
+import type { Role, TeamEvent } from '@/lib/types'
 
 const roles: Role[] = ['player', 'treasurer', 'admin']
 
@@ -29,6 +29,51 @@ vi.mock('@/lib/api', async (importOriginal) => {
 
 const { CalendarPage } = await import('@/features/events/CalendarPage')
 
+function pad(value: number): string {
+	return String(value).padStart(2, '0')
+}
+
+function event(overrides: Partial<TeamEvent> = {}): TeamEvent {
+	return {
+		id: 1,
+		seasonId: 10,
+		seriesId: null,
+		type: 'training',
+		title: 'Trénink',
+		startsAt: '2099-09-15 19:00:00',
+		endsAt: null,
+		meetAt: null,
+		location: null,
+		opponent: null,
+		note: null,
+		distanceKm: null,
+		rsvpDeadlineAt: null,
+		rsvpDeadlineCustom: null,
+		status: 'planned',
+		isHome: null,
+		overridden: false,
+		started: false,
+		rosterCount: 1,
+		counts: { yes: 0, no: 0, unknown: 1 },
+		me: {
+			membershipId: 1,
+			rsvp: 'unknown',
+			rsvpNote: null,
+			rsvpAt: null,
+			rsvpLate: false,
+			nomination: 'none',
+			transport: 'none',
+			carSeats: null,
+			attendance: null,
+		},
+		...overrides,
+	}
+}
+
+function localDateTime(date: Date): string {
+	return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:00`
+}
+
 async function renderAs(as: Role) {
 	role = as
 
@@ -45,6 +90,10 @@ async function renderAs(as: Role) {
 }
 
 describe('CalendarPage — kdo smí zakládat akce', () => {
+	beforeEach(() => {
+		get.mockReset()
+		get.mockResolvedValue({ events: [] })
+	})
 	it('pínař vidí tlačítko Nová akce', async () => {
 		await renderAs('treasurer')
 
@@ -56,5 +105,41 @@ describe('CalendarPage — kdo smí zakládat akce', () => {
 
 		expect(screen.queryByRole('button', { name: /Nová akce/ })).toBeNull()
 		expect(await screen.findByText('Zatím nic naplánované')).toBeInTheDocument()
+	})
+})
+
+describe('CalendarPage — termín vlastní odpovědi', () => {
+	beforeEach(() => {
+		get.mockReset()
+	})
+
+	it('v řádku ukáže po termínu jen u vlastní chybějící odpovědi', async () => {
+		get.mockResolvedValue({
+			events: [
+				event({ id: 1, title: 'Nejbližší' }),
+				event({ id: 2, title: 'Další', rsvpDeadlineAt: '2020-09-15 18:00:00' }),
+				event({
+					id: 3,
+					title: 'Odpovězená',
+					rsvpDeadlineAt: '2020-09-15 18:00:00',
+					me: { ...event().me!, rsvp: 'yes' },
+				}),
+			],
+		})
+
+		await renderAs('player')
+
+		expect(screen.getAllByText('po termínu')).toHaveLength(1)
+	})
+
+	it('v řádku ukáže blížící se termín', async () => {
+		const soon = localDateTime(new Date(Date.now() + 60 * 60 * 1000))
+		get.mockResolvedValue({
+			events: [event({ id: 1, title: 'Nejbližší' }), event({ id: 2, title: 'Další', rsvpDeadlineAt: soon })],
+		})
+
+		await renderAs('player')
+
+		expect(screen.getByText('termín brzy')).toBeInTheDocument()
 	})
 })

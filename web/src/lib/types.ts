@@ -237,6 +237,8 @@ export interface TeamSettings {
 	homeLocationId: number | null
 	attendanceVisibleToPlayers: boolean
 	balancesVisibleToPlayers: boolean
+	rsvpDeadlineTrainingHours: number | null
+	rsvpDeadlineMatchHours: number | null
 	/** Účet družstva pro QR platby. */
 	bankAccount: string | null
 }
@@ -268,11 +270,10 @@ export function toCategory(value: string): OffenceCategory | '' {
 }
 
 /**
- * Co aplikace navrhne sama z docházky. Omluvenou a neomluvenou absenci rozlišuje
- * odpověď hráče předem — kdo řekl „nepřijdu", omluvil se. Pozdní příchod se
- * odvodit nedá (nikdo nezapisuje čas příchodu) a zůstává ruční.
+ * Co aplikace navrhne sama z docházky a odpovědi. Absenci rozlišuje podle RSVP,
+ * pozdní zápis podle snapshotu času odpovědi. Pozdní příchod zůstává ruční.
  */
-export const autoRules = ['none', 'excused_absence', 'unexcused_absence'] as const
+export const autoRules = ['none', 'excused_absence', 'unexcused_absence', 'late_rsvp'] as const
 
 export type AutoRule = (typeof autoRules)[number]
 
@@ -280,6 +281,7 @@ export const autoRuleLabels: Record<AutoRule, string> = {
 	none: 'Nenavrhovat',
 	excused_absence: 'Omluvená absence',
 	unexcused_absence: 'Neomluvená absence',
+	late_rsvp: 'Pozdní zápis na akci',
 }
 
 /** Ověří hodnotu ze `<select>`; co nepoznáme, znamená „nenavrhovat". */
@@ -584,6 +586,8 @@ export interface MyParticipation {
 	membershipId: number
 	rsvp: Rsvp
 	rsvpNote: string | null
+	rsvpAt: string | null
+	rsvpLate: boolean
 	nomination: Nomination
 	transport: Transport
 	carSeats: number | null
@@ -603,7 +607,8 @@ export interface TeamEvent {
 	opponent: string | null
 	note: string | null
 	distanceKm: number | null
-	nominationDeadline: string | null
+	rsvpDeadlineAt: string | null
+	rsvpDeadlineCustom: string | null
 	status: EventStatus
 	/** Hraje se doma? `null` = nedá se říct (trénink, chybějící místo nebo domácí hala). Za domácí zápas cesťák nevzniká. */
 	isHome: boolean | null
@@ -627,6 +632,8 @@ export interface EventParticipant {
 	nomination: Nomination
 	rsvp: Rsvp
 	rsvpNote: string | null
+	rsvpAt: string | null
+	rsvpLate: boolean
 	transport: Transport
 	carSeats: number | null
 	attendance: Attendance | null
@@ -666,6 +673,7 @@ export interface AttendanceRow {
 	present: number
 	absent: number
 	injured: number
+	lateRsvpCount: number
 	/** Jmenovatel účasti: zranění se do něj nepočítá. */
 	total: number
 	ratio: number | null

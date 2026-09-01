@@ -14,6 +14,8 @@ import type { Weekday } from '@/features/events/events'
 import {
 	buildRrule,
 	describeRrule,
+	formatDeadline,
+	inheritedDeadlineAt,
 	shiftMinutes,
 	todayOrLater,
 	weekdayLabels,
@@ -132,8 +134,11 @@ function SingleForm({ seasonId, teamId, clubId, startsOn }: FormProps) {
 	const [opponent, setOpponent] = useState('')
 	const [distanceKm, setDistanceKm] = useState('')
 	const [note, setNote] = useState('')
+	const [rsvpDeadlineAt, setRsvpDeadlineAt] = useState('')
 
 	const atHome = homeLocationId !== null && locationId === homeLocationId
+	const inheritedDeadline =
+		teamDetail.data === undefined ? null : inheritedDeadlineAt(startsAt, type, teamDetail.data.settings)
 
 	async function submit(event: SubmitEvent<HTMLFormElement>) {
 		event.preventDefault()
@@ -151,6 +156,7 @@ function SingleForm({ seasonId, teamId, clubId, startsOn }: FormProps) {
 			opponent: type === 'match' && opponent.trim() !== '' ? opponent.trim() : null,
 			distanceKm: type === 'match' && distanceKm.trim() !== '' ? Number.parseInt(distanceKm, 10) : null,
 			note: note.trim() === '' ? null : note.trim(),
+			rsvpDeadlineAt: rsvpDeadlineAt.trim() === '' ? null : rsvpDeadlineAt,
 		})
 
 		await navigate(`/akce/${created.id}`, { replace: true })
@@ -178,6 +184,20 @@ function SingleForm({ seasonId, teamId, clubId, startsOn }: FormProps) {
 						value={startsAt}
 						onChange={(event) => setStartsAt(event.target.value)}
 						required
+					/>
+
+					<Field
+						label="Termín pro zápis"
+						type="datetime-local"
+						value={rsvpDeadlineAt}
+						onChange={(event) => setRsvpDeadlineAt(event.target.value)}
+						hint={
+							rsvpDeadlineAt !== ''
+								? 'Ruční termín platí jen pro tuhle akci.'
+								: inheritedDeadline === null
+									? 'Prázdné — pro tento druh akce se výchozí termín neřeší.'
+									: `Prázdné — použije se výchozí termín ${formatDeadline(inheritedDeadline)}.`
+						}
 					/>
 
 					<div className="grid grid-cols-2 gap-3">

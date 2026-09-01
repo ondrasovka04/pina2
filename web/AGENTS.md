@@ -112,8 +112,15 @@ npm run typecheck && npm run lint && npm test && npm run format
   obyčejný rozepsaný zápis, který jde libovolně upravit. Vloží se **jen jednou
   a jen do prázdného draftu**; nikdy nepřepisuje, co pínař naklikal. Omluvenou
   absenci pozná podle `rsvp === 'no'`, zraněné a lidi mimo soupisku vynechává.
-  Když chybí odpovídající položka sazebníku (`autoRule`), radši nenavrhne nic,
-  než aby strhla cizí částku.
+  Pozdní zápis navrhne tomu, kdo má `rsvpLate`, i tomu, kdo se nezapsal vůbec
+  a přišel — ale jen u akce, která termín má. Když chybí odpovídající položka
+  sazebníku (`autoRule`), radši nenavrhne nic, než aby strhla cizí částku.
+- **Termín pro zápis má čtyři stavy, ne dva.** `deadlineState()` v
+  `features/events/events.ts` vrací `none` / `open` / `soon` / `passed`; hranice
+  `soon` je dvanáct hodin a **musí se rovnat** `REMINDER_LEAD_HOURS` na backendu,
+  jinak přijde push o něčem, co na obrazovce ještě nesvítí. `rsvpDeadlineAt` je
+  výsledný termín k zobrazení, `rsvpDeadlineCustom` ruční přepis k předvyplnění
+  formuláře — kdo do formuláře dá výsledný, udělá z děděného termínu ruční.
 - **Role se liší podle týmu.** Tentýž člověk bývá u mužů hráč a u juniorů pínař;
   co smí, se ptejte přes `can()` z `useTeam()`, ne z globálního uživatele.
 - **Vstupní bod musí pouštět stejnou roli jako stránka.** Když se rozšíří

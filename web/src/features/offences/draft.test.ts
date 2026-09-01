@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { Attendance, EventParticipant, MemberBalance, OffenceType, Rsvp } from '@/lib/types'
+import type { Attendance, EventParticipant, EventType, MemberBalance, OffenceType, Rsvp } from '@/lib/types'
 
 import {
 	changeCount,
@@ -8,7 +8,7 @@ import {
 	draftKey,
 	emptyDraft,
 	isDraftEmpty,
-	suggestFromAttendance,
+	suggestFromAttendance as suggestFromAttendanceForEvent,
 	summarizeDraft,
 	toBatchInput,
 } from './draft'
@@ -152,11 +152,22 @@ function participant(id: number, attendance: Attendance | null, rsvp: Rsvp, onRo
 		nomination: 'none',
 		rsvp,
 		rsvpNote: null,
+		rsvpAt: null,
+		rsvpLate: false,
 		transport: 'none',
 		carSeats: null,
 		attendance,
 		corrected: false,
 	}
+}
+
+function suggestFromAttendance(
+	participants: readonly EventParticipant[],
+	offenceTypes: readonly OffenceType[],
+	eventType: EventType,
+	rsvpDeadlineAt: string | null = '2026-09-15 18:00:00',
+) {
+	return suggestFromAttendanceForEvent(participants, offenceTypes, { type: eventType, rsvpDeadlineAt })
 }
 
 function rule(
@@ -272,5 +283,45 @@ describe('suggestFromAttendance', () => {
 		)
 
 		expect(Object.values(draft)).toEqual([1, 1])
+	})
+
+	it('navrhne pozdní zápis podle snapshotu odpovědi', () => {
+		const late = rule(40, 'late_rsvp')
+		const person = { ...participant(1, 'present', 'yes'), rsvpLate: true }
+
+		expect(suggestFromAttendance([person], [late], 'training')).toEqual({ [draftKey(1, late.id)]: 1 })
+	})
+
+	it('navrhne pozdní zápis i tomu, kdo neodpověděl, ale přišel', () => {
+		const late = rule(40, 'late_rsvp')
+
+		expect(suggestFromAttendance([participant(1, 'present', 'unknown')], [late], 'training')).toEqual({
+			[draftKey(1, late.id)]: 1,
+		})
+	})
+
+	it('bez termínu nebo bez položky sazebníku pozdní zápis nenavrhuje', () => {
+		const late = rule(40, 'late_rsvp')
+		const person = { ...participant(1, 'present', 'yes'), rsvpLate: true }
+
+		expect(suggestFromAttendance([person], [late], 'training', null)).toEqual(emptyDraft)
+		expect(suggestFromAttendance([person], [excused], 'training')).toEqual(emptyDraft)
+	})
+
+	it('pozdní odhláška navrhne pozdní zápis i omluvenou absenci', () => {
+		const late = rule(40, 'late_rsvp')
+		const person = { ...participant(1, 'absent', 'no'), rsvpLate: true }
+
+		expect(suggestFromAttendance([person], [late, excused], 'training')).toEqual({
+			[draftKey(1, excused.id)]: 1,
+			[draftKey(1, late.id)]: 1,
+		})
+	})
+
+	it('zraněnému pozdní zápis nenavrhuje', () => {
+		const late = rule(40, 'late_rsvp')
+		const person = { ...participant(1, 'injured', 'yes'), rsvpLate: true }
+
+		expect(suggestFromAttendance([person], [late], 'training')).toEqual(emptyDraft)
 	})
 })

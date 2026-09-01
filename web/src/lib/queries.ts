@@ -380,7 +380,7 @@ export function useSaveTeamSettings(teamId: number) {
 		onSuccess: () => {
 			void queryClient.invalidateQueries({ queryKey: ['teams', teamId, 'detail'] })
 			void queryClient.invalidateQueries({ queryKey: queryKeys.auditLog(teamId) })
-			// Domácí hala rozhoduje, co je domácí zápas — kalendář to musí přečíst znovu.
+			// Domácí hala i výchozí termíny mění payload akcí — kalendář je musí přečíst znovu.
 			void queryClient.invalidateQueries({ queryKey: ['seasons'] })
 		},
 	})
@@ -876,6 +876,7 @@ export interface EventInput {
 	opponent?: string | null
 	note?: string | null
 	distanceKm?: number | null
+	rsvpDeadlineAt?: string | null
 }
 
 export function useCreateEvent(seasonId: number) {

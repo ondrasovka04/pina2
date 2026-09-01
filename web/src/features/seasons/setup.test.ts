@@ -10,6 +10,8 @@ function settings(changes: Partial<TeamSettings> = {}): TeamSettings {
 		homeLocationId: null,
 		attendanceVisibleToPlayers: true,
 		balancesVisibleToPlayers: true,
+		rsvpDeadlineTrainingHours: 24,
+		rsvpDeadlineMatchHours: 48,
 		bankAccount: '123456789/0800',
 		...changes,
 	}

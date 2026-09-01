@@ -6,7 +6,15 @@ import { NoSeasonState } from '@/components/NoSeasonState'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { CalendarIcon, ChevronRightIcon, MapPinIcon, PlusIcon } from '@/components/ui/icons'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States'
-import { canAnswer, formatEventTime, groupByMonth, nextEvent, rsvpSummary } from '@/features/events/events'
+import {
+	canAnswer,
+	deadlineState,
+	formatDeadline,
+	formatEventTime,
+	groupByMonth,
+	nextEvent,
+	rsvpSummary,
+} from '@/features/events/events'
 import type { EventMonth } from '@/features/events/events'
 import { EventsNav } from '@/features/events/EventsNav'
 import { EventTypeBadge } from '@/features/events/EventTypeMark'
@@ -245,6 +253,15 @@ function MonthSection({ month }: { month: EventMonth }) {
 
 function EventRow({ event }: { event: TeamEvent }) {
 	const cancelled = event.status === 'cancelled'
+	const deadline = deadlineState(event)
+	const deadlineLabel =
+		// „termín brzy", ne „termín dnes": dvanáctihodinové okno přeteče přes půlnoc
+		// a u ranní akce by odznak tvrdil dnešek o zítřejším termínu.
+		event.me?.rsvp === 'unknown' && (deadline === 'soon' || deadline === 'passed')
+			? deadline === 'soon'
+				? 'termín brzy'
+				: 'po termínu'
+			: null
 
 	return (
 		<Link
@@ -280,6 +297,9 @@ function EventRow({ event }: { event: TeamEvent }) {
 						</span>
 					)}
 					{cancelled ? null : <span>{rowStatusText(event)}</span>}
+					{cancelled || deadlineLabel === null ? null : (
+						<span className="bg-debt-500/10 text-debt rounded-full px-2 py-0.5">{deadlineLabel}</span>
+					)}
 				</div>
 			</div>
 			<ChevronRightIcon className="text-ink-faint size-4 shrink-0" />
@@ -348,6 +368,8 @@ function NextEventCard({ event, seasonId, disabled }: { event: TeamEvent; season
 
 				<p className="text-ink-faint text-sm">{rsvpSummary(event.counts)}</p>
 
+				<CalendarDeadlineNotice event={event} />
+
 				{canRespond ? (
 					<RsvpButtons value={currentRsvp} onChange={(rsvp) => void respond(rsvp)} pending={pending} />
 				) : disabled ? (
@@ -358,4 +380,22 @@ function NextEventCard({ event, seasonId, disabled }: { event: TeamEvent; season
 			</div>
 		</Card>
 	)
+}
+
+function CalendarDeadlineNotice({ event }: { event: TeamEvent }) {
+	if (event.rsvpDeadlineAt !== null && event.me?.rsvpLate === true) {
+		return <p className="text-debt text-sm">Zapsáno pozdě.</p>
+	}
+	if (event.me?.rsvp !== 'unknown' || event.rsvpDeadlineAt === null) return null
+
+	const state = deadlineState(event)
+	const deadline = formatDeadline(event.rsvpDeadlineAt)
+
+	if (state === 'open') return <p className="text-ink-faint text-sm">Zapiš se {deadline}.</p>
+	if (state === 'soon') return <p className="text-debt text-sm">Zapiš se {deadline}, potom už půjde o pozdní zápis.</p>
+	if (state === 'passed') {
+		return <p className="text-debt text-sm">Termín už uplynul; odpověď bude označená jako pozdní.</p>
+	}
+
+	return null
 }

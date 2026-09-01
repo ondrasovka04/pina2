@@ -10,13 +10,16 @@ import { ArrowLeftIcon, CarIcon, CheckIcon, MapPinIcon, XIcon } from '@/componen
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States'
 import {
 	canAnswer,
+	deadlineState,
 	driverSummary,
+	formatDeadline,
 	formatEventTime,
 	formatTime,
 	navigationUrl,
 	rsvpLabels,
 	sortParticipants,
 } from '@/features/events/events'
+import type { DeadlineState } from '@/features/events/events'
 import { EventTypeBadge } from '@/features/events/EventTypeMark'
 import { RsvpButtons } from '@/features/events/RsvpButtons'
 import { ApiError } from '@/lib/api'
@@ -59,6 +62,7 @@ export function EventPage() {
 	const isTreasurer = can('treasurer')
 	const isAdmin = can('admin')
 	const writable = !isSeasonClosed
+	const deadline = deadlineState(event)
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -89,6 +93,7 @@ export function EventPage() {
 				started={event.started}
 				canSeeAttendance={canSeeAttendance}
 				isMatch={event.type === 'match'}
+				deadline={deadline}
 			/>
 
 			{/* Skutečný tok po tréninku: otevřít akci a rovnou zapisovat. */}
@@ -110,6 +115,7 @@ export function EventPage() {
 					participants={participants}
 					writable={writable}
 					rides={event.type === 'match' && event.isHome !== true}
+					deadline={deadline}
 				/>
 			) : null}
 
@@ -340,6 +346,7 @@ function MyAnswerCard({ event, me, eventId, seasonId, writable }: MyAnswerCardPr
 	}, [me.rsvp, me.rsvpNote, me.transport, me.carSeats])
 
 	const editable = canAnswer(event) && writable
+	const deadline = deadlineState(event)
 
 	function save(next: RsvpDraft) {
 		setDraft(next)
@@ -360,6 +367,7 @@ function MyAnswerCard({ event, me, eventId, seasonId, writable }: MyAnswerCardPr
 			return (
 				<Card className="px-4 py-4">
 					<h2 className="font-semibold">Moje odpověď</h2>
+					<AnswerDeadline event={event} me={me} state={deadline} />
 					<p className="mt-2 text-lg font-medium">
 						{me.attendance === null ? 'Zatím bez záznamu' : attendanceLabels[me.attendance]}
 					</p>
@@ -386,6 +394,8 @@ function MyAnswerCard({ event, me, eventId, seasonId, writable }: MyAnswerCardPr
 	return (
 		<Card className="px-4 py-4">
 			<h2 className="font-semibold">Moje odpověď</h2>
+
+			<AnswerDeadline event={event} me={me} state={deadline} />
 
 			<div className="mt-3">
 				<RsvpButtons
@@ -456,6 +466,31 @@ function MyAnswerCard({ event, me, eventId, seasonId, writable }: MyAnswerCardPr
 	)
 }
 
+function AnswerDeadline({ event, me, state }: { event: TeamEvent; me: MyParticipation; state: DeadlineState }) {
+	if (event.rsvpDeadlineAt === null) return null
+	if (me.rsvpLate) {
+		return (
+			<span className="bg-debt-500/15 text-debt mt-2 inline-flex rounded-full px-2 py-0.5 text-xs">Zapsáno pozdě</span>
+		)
+	}
+	if (me.rsvp !== 'unknown') return null
+
+	const deadline = formatDeadline(event.rsvpDeadlineAt)
+	if (state === 'open') return <p className="text-ink-faint mt-2 text-sm">Zapiš se {deadline}.</p>
+	if (state === 'soon') {
+		return <p className="text-debt mt-2 text-sm">Zapiš se {deadline}, potom už půjde o pozdní zápis.</p>
+	}
+	if (state === 'passed') {
+		return (
+			<p className="bg-debt-500/10 text-debt mt-2 rounded-lg px-3 py-2 text-sm">
+				Termín už uplynul. Odpovědět pořád můžeš, ale zápis bude označený jako pozdní.
+			</p>
+		)
+	}
+
+	return null
+}
+
 // --- kdo přijde --------------------------------------------------------------
 
 interface ParticipantListProps {
@@ -463,9 +498,10 @@ interface ParticipantListProps {
 	started: boolean
 	canSeeAttendance: boolean
 	isMatch: boolean
+	deadline: DeadlineState
 }
 
-function ParticipantList({ participants, started, canSeeAttendance, isMatch }: ParticipantListProps) {
+function ParticipantList({ participants, started, canSeeAttendance, isMatch, deadline }: ParticipantListProps) {
 	const sorted = sortParticipants(participants)
 	const onRosterList = sorted.filter((participant) => participant.onRoster)
 	const offRosterList = sorted.filter((participant) => !participant.onRoster)
@@ -508,6 +544,7 @@ function ParticipantList({ participants, started, canSeeAttendance, isMatch }: P
 							started={started}
 							canSeeAttendance={canSeeAttendance}
 							isMatch={isMatch}
+							deadline={deadline}
 						/>
 					))}
 				</div>
@@ -524,6 +561,7 @@ function ParticipantList({ participants, started, canSeeAttendance, isMatch }: P
 								started={started}
 								canSeeAttendance={canSeeAttendance}
 								isMatch={isMatch}
+								deadline={deadline}
 							/>
 						))}
 					</div>
@@ -556,11 +594,13 @@ function ParticipantRow({
 	started,
 	canSeeAttendance,
 	isMatch,
+	deadline,
 }: {
 	participant: EventParticipant
 	started: boolean
 	canSeeAttendance: boolean
 	isMatch: boolean
+	deadline: DeadlineState
 }) {
 	const showAttendance = started && canSeeAttendance && participant.attendance !== null
 
@@ -588,12 +628,30 @@ function ParticipantRow({
 				</span>
 			) : null}
 
+			{deadline !== 'none' && participant.rsvpLate ? <LateBadge label="pozdě" /> : null}
+			{!participant.rsvpLate && participant.rsvp === 'unknown' && deadline === 'passed' ? (
+				<LateBadge label="po termínu" muted />
+			) : null}
+
 			{showAttendance && participant.attendance !== null ? (
 				<AttendanceBadge attendance={participant.attendance} />
 			) : (
 				<RsvpBadge rsvp={participant.rsvp} />
 			)}
 		</div>
+	)
+}
+
+function LateBadge({ label, muted = false }: { label: string; muted?: boolean }) {
+	return (
+		<span
+			className={cn(
+				'shrink-0 rounded-full px-2 py-0.5 text-xs',
+				muted ? 'bg-surface-2 text-ink-faint' : 'bg-debt-500/15 text-debt',
+			)}
+		>
+			{label}
+		</span>
 	)
 }
 
@@ -656,9 +714,10 @@ interface AttendanceSectionProps {
 	writable: boolean
 	/** U venkovního zápasu jde zpětně opravit i to, kdo jel autem — jinak nevznikne cesťák. */
 	rides: boolean
+	deadline: DeadlineState
 }
 
-function AttendanceSection({ eventId, seasonId, participants, writable, rides }: AttendanceSectionProps) {
+function AttendanceSection({ eventId, seasonId, participants, writable, rides, deadline }: AttendanceSectionProps) {
 	const saveAttendance = useSaveAttendance(eventId, seasonId)
 	const [error, setError] = useState<string | null>(null)
 
@@ -717,6 +776,10 @@ function AttendanceSection({ eventId, seasonId, participants, writable, rides }:
 							<div className="min-w-0 flex-1">
 								<p className="truncate text-sm font-medium">{participant.name}</p>
 								{participant.corrected ? <span className="text-ink-faint text-xs">ručně opraveno</span> : null}
+								{deadline !== 'none' && participant.rsvpLate ? <LateBadge label="pozdě" /> : null}
+								{!participant.rsvpLate && participant.rsvp === 'unknown' && deadline === 'passed' ? (
+									<LateBadge label="po termínu" muted />
+								) : null}
 							</div>
 
 							<div className="border-line bg-surface-2 flex rounded-xl border p-1">

@@ -5,7 +5,7 @@ import { StrictMode } from 'react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { EventDetail, Role, TeamEvent } from '@/lib/types'
+import type { EventDetail, EventParticipant, Role, TeamEvent } from '@/lib/types'
 
 // Admin u zápasu je nejhustší varianta: vedle vlastní odpovědi se vykreslí
 // i nominace, takže se pozná, jestli si karty navzájem nelezou do zelí.
@@ -28,7 +28,7 @@ vi.mock('@/lib/api', async (importOriginal) => {
 
 const { EventPage } = await import('@/features/events/EventPage')
 
-function detail(overrides: Partial<TeamEvent> = {}): EventDetail {
+function detail(overrides: Partial<TeamEvent> = {}, participantOverrides: Partial<EventParticipant> = {}): EventDetail {
 	return {
 		event: {
 			id: 10,
@@ -43,7 +43,8 @@ function detail(overrides: Partial<TeamEvent> = {}): EventDetail {
 			opponent: 'VK Benátky',
 			note: null,
 			distanceKm: 52,
-			nominationDeadline: null,
+			rsvpDeadlineAt: null,
+			rsvpDeadlineCustom: null,
 			status: 'planned',
 			isHome: false,
 			started: false,
@@ -54,6 +55,8 @@ function detail(overrides: Partial<TeamEvent> = {}): EventDetail {
 				membershipId: 2,
 				rsvp: 'yes',
 				rsvpNote: null,
+				rsvpAt: null,
+				rsvpLate: false,
 				nomination: 'none',
 				transport: 'none',
 				carSeats: null,
@@ -72,10 +75,13 @@ function detail(overrides: Partial<TeamEvent> = {}): EventDetail {
 				nomination: 'none',
 				rsvp: 'yes',
 				rsvpNote: null,
+				rsvpAt: null,
+				rsvpLate: false,
 				transport: 'none',
 				carSeats: null,
 				attendance: null,
 				corrected: false,
+				...participantOverrides,
 			},
 		],
 		canSeeAttendance: true,
@@ -111,6 +117,37 @@ describe('EventPage', () => {
 		await screen.findByRole('heading', { name: 'Moje odpověď' })
 
 		expect(screen.getAllByRole('heading', { name: 'Moje odpověď' })).toHaveLength(1)
+		expect(screen.queryByText(/po termínu|Zapsáno pozdě/)).toBeNull()
+	})
+
+	it('u akce bez termínu nevykreslí odznak ani nad starším snapshotem', async () => {
+		const me = { ...detail().event.me!, rsvpLate: true }
+		get.mockResolvedValue(detail({ rsvpDeadlineAt: null, me }, { rsvpLate: true }))
+
+		renderPage()
+		await screen.findByRole('heading', { name: 'Moje odpověď' })
+
+		expect(screen.queryByText(/po termínu|Zapsáno pozdě|pozdě/)).toBeNull()
+	})
+
+	it('po uplynutí termínu označí vlastní chybějící odpověď i řádek hráče', async () => {
+		const me = { ...detail().event.me!, rsvp: 'unknown' as const }
+		get.mockResolvedValue(detail({ rsvpDeadlineAt: '2020-09-15 18:00:00', me }, { rsvp: 'unknown', rsvpLate: false }))
+
+		renderPage()
+
+		expect(await screen.findByText(/Termín už uplynul/)).toBeInTheDocument()
+		expect(screen.getAllByText('po termínu').length).toBeGreaterThan(0)
+	})
+
+	it('výslovně označí pozdní uloženou odpověď', async () => {
+		const me = { ...detail().event.me!, rsvpLate: true }
+		get.mockResolvedValue(detail({ rsvpDeadlineAt: '2020-09-15 18:00:00', me }, { rsvpLate: true }))
+
+		renderPage()
+
+		expect(await screen.findByText('Zapsáno pozdě')).toBeInTheDocument()
+		expect(screen.getByText('pozdě')).toBeInTheDocument()
 	})
 
 	it('po uložení odpovědi sekci nezdvojí', async () => {

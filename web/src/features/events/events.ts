@@ -1,4 +1,4 @@
-import type { EventParticipant, Rsvp, TeamEvent } from '@/lib/types'
+import type { EventParticipant, EventType, Rsvp, TeamEvent, TeamSettings } from '@/lib/types'
 
 /**
  * Doménová logika kalendáře. Drží se mimo komponenty, aby šla testovat bez
@@ -56,6 +56,68 @@ export function formatTime(value: string): string {
 	if (Number.isNaN(date.getTime())) return value
 
 	return new Intl.DateTimeFormat('cs-CZ', { hour: '2-digit', minute: '2-digit' }).format(date)
+}
+
+export type DeadlineState = 'none' | 'open' | 'soon' | 'passed'
+
+/** Dvanáct hodin odpovídá `REMINDER_LEAD_HOURS` na backendu; obě hranice se musí měnit společně. */
+const DEADLINE_SOON_MS = 12 * 60 * 60 * 1000
+
+export function deadlineState(event: Pick<TeamEvent, 'rsvpDeadlineAt'>, now = new Date()): DeadlineState {
+	if (event.rsvpDeadlineAt === null) return 'none'
+
+	const deadline = parseDateTime(event.rsvpDeadlineAt)
+	const remaining = deadline.getTime() - now.getTime()
+
+	if (Number.isNaN(remaining)) return 'none'
+	if (remaining <= 0) return 'passed'
+
+	return remaining <= DEADLINE_SOON_MS ? 'soon' : 'open'
+}
+
+/** Druhý pád, ať věta zní „zapiš se do pátku 18:00". */
+const deadlineDays = ['neděle', 'pondělí', 'úterý', 'středy', 'čtvrtka', 'pátku', 'soboty'] as const
+
+/** Rozdíl v kalendářních dnech, ne v hodinách — „zítra v 8:00" je zítra, i když je to za deset hodin. */
+function calendarDaysBetween(from: Date, to: Date): number {
+	const a = new Date(from.getFullYear(), from.getMonth(), from.getDate())
+	const b = new Date(to.getFullYear(), to.getMonth(), to.getDate())
+
+	return Math.round((b.getTime() - a.getTime()) / 86_400_000)
+}
+
+/**
+ * „do pátku 18:00" — konkrétní čas je důležitější než obecné „brzy".
+ *
+ * Název dne stačí jen na nejbližší týden. Termín může být podle nastavení až
+ * měsíc dopředu a „do pátku" by pak ukazovalo na nejbližší pátek, ne na ten
+ * správný; dál než týden se proto píše datum.
+ */
+export function formatDeadline(value: string, now = new Date()): string {
+	const date = parseDateTime(value)
+
+	if (Number.isNaN(date.getTime())) return `do ${value}`
+
+	const time = formatTime(value)
+	const days = calendarDaysBetween(now, date)
+
+	if (days === 0) return `do ${time}`
+	if (days === 1) return `do zítřejších ${time}`
+	if (days > 1 && days < 7) return `do ${deadlineDays[date.getDay()]} ${time}`
+
+	return `do ${new Intl.DateTimeFormat('cs-CZ', { day: 'numeric', month: 'numeric' }).format(date)} ${time}`
+}
+
+/** Výchozí termín nového či přesouvaného formuláře; server zůstává zdrojem pravdy po uložení. */
+export function inheritedDeadlineAt(
+	startsAt: string,
+	type: EventType,
+	settings: Pick<TeamSettings, 'rsvpDeadlineTrainingHours' | 'rsvpDeadlineMatchHours'>,
+): string | null {
+	const hours =
+		type === 'training' ? settings.rsvpDeadlineTrainingHours : type === 'match' ? settings.rsvpDeadlineMatchHours : null
+
+	return hours === null ? null : shiftMinutes(startsAt, -hours * 60)
 }
 
 export interface EventMonth {

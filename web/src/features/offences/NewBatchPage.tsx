@@ -97,7 +97,7 @@ export function NewBatchPage() {
 
 		if (detail === undefined || detail.event.id !== eventId) return emptyDraft
 
-		return suggestFromAttendance(detail.participants, activeTypes, detail.event.type)
+		return suggestFromAttendance(detail.participants, activeTypes, detail.event)
 	}, [eventDetail.data, eventId, activeTypes])
 
 	const suggestionSummary = useMemo(

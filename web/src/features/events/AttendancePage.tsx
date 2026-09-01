@@ -78,6 +78,7 @@ function AttendanceLine({ row }: { row: AttendanceRow }) {
 				<p className="text-ink-faint mt-0.5 text-xs">
 					{row.present} z {row.total} akcí
 					{row.injured === 0 ? null : ` · ${row.injured}× zraněný`}
+					{row.lateRsvpCount === 0 ? null : ` · ${row.lateRsvpCount}× pozdní zápis`}
 				</p>
 			</div>
 

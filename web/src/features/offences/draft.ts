@@ -1,4 +1,4 @@
-import type { BatchInput, EventParticipant, EventType, MemberBalance, OffenceType } from '@/lib/types'
+import type { BatchInput, EventParticipant, EventType, MemberBalance, OffenceType, TeamEvent } from '@/lib/types'
 
 // Rozepsaná dávka jako plochá mapa (ne zanoření) — jeden klíč = jedna změna v Reactu
 export type Draft = Readonly<Record<string, number>>
@@ -40,32 +40,37 @@ function ruleFor(types: readonly OffenceType[], rule: string, eventType: EventTy
 	return usable.find((type) => type.autoEventType === eventType) ?? usable.find((type) => type.autoEventType === 'any')
 }
 
-/** Předvyplní návrh z docházky — omluvenou absenci pozná podle `rsvp === 'no'`, zraněné a nezjištěné vynechává; pozdní příchod nelze odvodit. */
+/** Předvyplní návrh z docházky a snapshotu času odpovědi; zraněné vždy vynechá. */
 export function suggestFromAttendance(
 	participants: readonly EventParticipant[],
 	types: readonly OffenceType[],
-	eventType: EventType,
+	event: Pick<TeamEvent, 'type' | 'rsvpDeadlineAt'>,
 ): Draft {
-	const excused = ruleFor(types, 'excused_absence', eventType)
-	const unexcused = ruleFor(types, 'unexcused_absence', eventType)
+	const excused = ruleFor(types, 'excused_absence', event.type)
+	const unexcused = ruleFor(types, 'unexcused_absence', event.type)
+	const lateRsvp = event.rsvpDeadlineAt === null ? undefined : ruleFor(types, 'late_rsvp', event.type)
 
-	if (excused === undefined && unexcused === undefined) return emptyDraft
+	if (excused === undefined && unexcused === undefined && lateRsvp === undefined) return emptyDraft
 
 	const draft: Record<string, number> = {}
 
 	for (const participant of participants) {
-		if (participant.attendance !== 'absent') continue
-
 		// Kdo na soupisce není, tomu se nic nenavrhuje — nemá kde chybět.
 		if (!participant.onRoster) continue
+		if (participant.attendance === 'injured') continue
 
-		// Chybí-li odpovídající položka sazebníku, nenavrhne se nic — strhnout špatnou absenci jen proto,
-		// že položka chybí, by bylo horší.
-		const type = participant.rsvp === 'no' ? excused : unexcused
+		if (participant.attendance === 'absent') {
+			// Chybí-li odpovídající položka sazebníku, nenavrhne se nic — strhnout
+			// špatnou absenci jen proto, že položka chybí, by bylo horší.
+			const type = participant.rsvp === 'no' ? excused : unexcused
 
-		if (type === undefined) continue
+			if (type !== undefined) draft[draftKey(participant.membershipId, type.id)] = 1
+		}
 
-		draft[draftKey(participant.membershipId, type.id)] = 1
+		const neverAnsweredButCame = participant.rsvp === 'unknown' && participant.attendance === 'present'
+		if (lateRsvp !== undefined && (participant.rsvpLate || neverAnsweredButCame)) {
+			draft[draftKey(participant.membershipId, lateRsvp.id)] = 1
+		}
 	}
 
 	return draft

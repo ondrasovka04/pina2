@@ -9,11 +9,11 @@ import { Field } from '@/components/ui/Field'
 import { ArrowLeftIcon } from '@/components/ui/icons'
 import { Select } from '@/components/ui/Select'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States'
-import { parseDateTime, shiftMinutes } from '@/features/events/events'
+import { formatDeadline, inheritedDeadlineAt, parseDateTime, shiftMinutes } from '@/features/events/events'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import type { EventInput } from '@/lib/queries'
-import { useCreateLocation, useEvent, useLocations, useUpdateEvent } from '@/lib/queries'
+import { useCreateLocation, useEvent, useLocations, useTeamDetail, useUpdateEvent } from '@/lib/queries'
 import type { EventType, TeamEvent } from '@/lib/types'
 import { eventTypeLabels, eventTypes } from '@/lib/types'
 
@@ -69,6 +69,7 @@ export function EditEventPage() {
 				event={query.data.event}
 				eventId={eventId}
 				seasonId={seasonId}
+				teamId={team?.id ?? null}
 				clubId={team?.clubId ?? null}
 			/>
 		</div>
@@ -115,12 +116,14 @@ interface EditFormProps {
 	event: TeamEvent
 	eventId: number
 	seasonId: number | null
+	teamId: number | null
 	clubId: number | null
 }
 
-function EditForm({ event, eventId, seasonId, clubId }: EditFormProps) {
+function EditForm({ event, eventId, seasonId, teamId, clubId }: EditFormProps) {
 	const navigate = useNavigate()
 	const update = useUpdateEvent(eventId, seasonId)
+	const teamDetail = useTeamDetail(teamId)
 
 	const [type, setType] = useState<EventType>(event.type)
 	const [title, setTitle] = useState(event.title)
@@ -135,6 +138,11 @@ function EditForm({ event, eventId, seasonId, clubId }: EditFormProps) {
 	const [opponent, setOpponent] = useState(event.opponent ?? '')
 	const [distanceKm, setDistanceKm] = useState(event.distanceKm === null ? '' : String(event.distanceKm))
 	const [note, setNote] = useState(event.note ?? '')
+	const [rsvpDeadlineAt, setRsvpDeadlineAt] = useState(
+		event.rsvpDeadlineCustom === null ? '' : toInputDateTime(event.rsvpDeadlineCustom),
+	)
+	const inheritedDeadline =
+		teamDetail.data === undefined ? null : inheritedDeadlineAt(startsAt, type, teamDetail.data.settings)
 
 	async function submit(submitEvent: SubmitEvent<HTMLFormElement>) {
 		submitEvent.preventDefault()
@@ -148,6 +156,7 @@ function EditForm({ event, eventId, seasonId, clubId }: EditFormProps) {
 		const nextNote = note.trim() === '' ? null : note.trim()
 		const nextOpponent = type === 'match' && opponent.trim() !== '' ? opponent.trim() : null
 		const nextDistanceKm = type === 'match' && distanceKm.trim() !== '' ? Number.parseInt(distanceKm, 10) : null
+		const nextRsvpDeadlineAt = rsvpDeadlineAt.trim() === '' ? null : rsvpDeadlineAt
 		const originalLocationId = event.location?.id ?? null
 
 		// PATCH je částečný — posílá se jen to, co se opravdu liší od načtené akce.
@@ -162,6 +171,7 @@ function EditForm({ event, eventId, seasonId, clubId }: EditFormProps) {
 		if (nextOpponent !== event.opponent) changes.opponent = nextOpponent
 		if (nextDistanceKm !== event.distanceKm) changes.distanceKm = nextDistanceKm
 		if (nextNote !== event.note) changes.note = nextNote
+		if (!sameInstant(nextRsvpDeadlineAt, event.rsvpDeadlineCustom)) changes.rsvpDeadlineAt = nextRsvpDeadlineAt
 
 		if (Object.keys(changes).length > 0) {
 			await update.mutateAsync(changes)
@@ -202,6 +212,20 @@ function EditForm({ event, eventId, seasonId, clubId }: EditFormProps) {
 						value={startsAt}
 						onChange={(fieldEvent) => setStartsAt(fieldEvent.target.value)}
 						required
+					/>
+
+					<Field
+						label="Termín pro zápis"
+						type="datetime-local"
+						value={rsvpDeadlineAt}
+						onChange={(fieldEvent) => setRsvpDeadlineAt(fieldEvent.target.value)}
+						hint={
+							rsvpDeadlineAt !== ''
+								? 'Ruční termín platí jen pro tuhle akci.'
+								: inheritedDeadline === null
+									? 'Prázdné — pro tento druh akce se výchozí termín neřeší.'
+									: `Prázdné — použije se výchozí termín ${formatDeadline(inheritedDeadline)}.`
+						}
 					/>
 
 					<div className="grid grid-cols-2 gap-3">

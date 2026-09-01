@@ -6,7 +6,9 @@ import {
 	buildRrule,
 	canAnswer,
 	describeRrule,
+	deadlineState,
 	driverSummary,
+	formatDeadline,
 	formatEventTime,
 	formatRatio,
 	formatTime,
@@ -35,7 +37,8 @@ function event(overrides: Partial<TeamEvent> = {}): TeamEvent {
 		opponent: null,
 		note: null,
 		distanceKm: null,
-		nominationDeadline: null,
+		rsvpDeadlineAt: null,
+		rsvpDeadlineCustom: null,
 		status: 'planned',
 		isHome: null,
 		overridden: false,
@@ -46,6 +49,8 @@ function event(overrides: Partial<TeamEvent> = {}): TeamEvent {
 			membershipId: 1,
 			rsvp: 'unknown',
 			rsvpNote: null,
+			rsvpAt: null,
+			rsvpLate: false,
 			nomination: 'none',
 			transport: 'none',
 			carSeats: null,
@@ -66,6 +71,8 @@ function participant(overrides: Partial<EventParticipant> = {}): EventParticipan
 		nomination: 'none',
 		rsvp: 'unknown',
 		rsvpNote: null,
+		rsvpAt: null,
+		rsvpLate: false,
 		transport: 'none',
 		carSeats: null,
 		attendance: null,
@@ -73,6 +80,33 @@ function participant(overrides: Partial<EventParticipant> = {}): EventParticipan
 		...overrides,
 	}
 }
+
+describe('deadlineState', () => {
+	const now = new Date('2026-09-15T06:00:00')
+
+	it('rozliší akci bez termínu a vzdálený termín', () => {
+		expect(deadlineState(event({ rsvpDeadlineAt: null }), now)).toBe('none')
+		expect(deadlineState(event({ rsvpDeadlineAt: '2026-09-15 18:00:01' }), now)).toBe('open')
+	})
+
+	it('přepne přesně na hranici dvanácti hodin a po termínu', () => {
+		expect(deadlineState(event({ rsvpDeadlineAt: '2026-09-15 18:00:00' }), now)).toBe('soon')
+		expect(deadlineState(event({ rsvpDeadlineAt: '2026-09-15 17:59:59' }), now)).toBe('soon')
+		expect(deadlineState(event({ rsvpDeadlineAt: '2026-09-15 05:59:59' }), now)).toBe('passed')
+	})
+
+	it('formátuje konkrétní den a čas', () => {
+		expect(formatDeadline('2026-09-15 18:00:00', now)).toBe('do 18:00')
+		expect(formatDeadline('2026-09-16 07:00:00', now)).toBe('do zítřejších 07:00')
+		expect(formatDeadline('2026-09-18 18:00:00', now)).toBe('do pátku 18:00')
+	})
+
+	// Termín může být podle nastavení až měsíc dopředu; samotné „do pátku" by pak
+	// ukazovalo na nejbližší pátek, ne na ten správný.
+	it('u vzdáleného termínu napíše datum, ne název dne', () => {
+		expect(formatDeadline('2026-10-16 18:00:00', now)).toBe('do 16. 10. 18:00')
+	})
+})
 
 describe('groupByMonth', () => {
 	it('seskupí akce po měsících v pořadí, jak přišly', () => {
