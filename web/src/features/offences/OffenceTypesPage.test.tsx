@@ -4,7 +4,11 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/app/team', () => ({ useTeam: () => ({ seasonId: 10, can: () => true }) }))
+const team = vi.hoisted(() => ({ usesAttendance: true }))
+
+vi.mock('@/app/team', () => ({
+	useTeam: () => ({ seasonId: 10, can: () => true, usesAttendance: team.usesAttendance }),
+}))
 
 const get = vi.fn()
 const post = vi.fn()
@@ -32,6 +36,7 @@ async function renderPage() {
 }
 
 beforeEach(() => {
+	team.usesAttendance = true
 	get.mockReset()
 	post.mockReset()
 	get.mockResolvedValue({ items: [] })
@@ -72,5 +77,15 @@ describe('zakládání položky sazebníku', () => {
 			autoRule: 'late_rsvp',
 			autoEventType: 'training',
 		})
+	})
+
+	it('bez docházky blok návrhů nenabízí', async () => {
+		team.usesAttendance = false
+		const user = userEvent.setup()
+		await renderPage()
+
+		await user.click(screen.getByRole('button', { name: /Přidat položku/ }))
+
+		expect(screen.queryByLabelText('Navrhovat z docházky')).toBeNull()
 	})
 })

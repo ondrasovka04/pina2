@@ -49,6 +49,9 @@ export interface TeamSummary {
 	membershipId: number
 	role: Role
 	archived: boolean
+	attendanceEnabled: boolean
+	/** Kvůli popiskům a záložkám na obrazovkách peněz. Sazba a hala jsou až v `TeamSettings`. */
+	travelEnabled: boolean
 	currentSeason: { id: number; name: string } | null
 }
 
@@ -229,6 +232,7 @@ export interface PlatformTeam {
  * Pololetí se tady neřeší, jeho hranici drží `Season.halfYearOn`.
  */
 export interface TeamSettings {
+	attendanceEnabled: boolean
 	travelEnabled: boolean
 	travelRateCzkKm: number
 	/** Proplácí se cesta tam i zpět (× 2). */

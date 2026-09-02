@@ -37,7 +37,7 @@ type Step = 'compose' | 'review' | 'done'
 
 // Nejdřív člověk, pak prohřešky — kopíruje postup v reálnosti
 export function NewBatchPage() {
-	const { seasonId, season, isSeasonClosed, can } = useTeam()
+	const { seasonId, season, isSeasonClosed, can, usesAttendance } = useTeam()
 	const balances = useBalances(seasonId)
 	const types = useOffenceTypes(seasonId)
 	const createBatch = useCreateBatch(seasonId ?? 0)
@@ -47,7 +47,7 @@ export function NewBatchPage() {
 	const [eventId, setEventId] = useState<number | null>(() => {
 		const raw = Number(params.get('akce'))
 
-		return Number.isInteger(raw) && raw > 0 ? raw : null
+		return usesAttendance && Number.isInteger(raw) && raw > 0 ? raw : null
 	})
 
 	const [draft, setDraft] = useState<Draft>(emptyDraft)
@@ -59,6 +59,7 @@ export function NewBatchPage() {
 	const [result, setResult] = useState<BatchSummary | null>(null)
 	const [priceChanges, setPriceChanges] = useState<PriceChange[] | null>(null)
 	const [submitError, setSubmitError] = useState<string | null>(null)
+	const selectedEventId = usesAttendance ? eventId : null
 
 	// clientUuid se drží přes pokusy — serverová idempotence
 	const clientUuid = useRef(crypto.randomUUID())
@@ -80,8 +81,8 @@ export function NewBatchPage() {
 	// Rozepsaná dávka jen v paměti — po odeslání je na serveru
 	const hasDraft = !isDraftEmpty(draft) && step !== 'done'
 
-	const events = useEvents(seasonId)
-	const eventDetail = useEvent(eventId)
+	const events = useEvents(usesAttendance ? seasonId : null)
+	const eventDetail = useEvent(selectedEventId)
 
 	// Nabízí se proběhlé akce od nejnovější — zapisuje se po tréninku, ne před ním.
 	const pastEvents = useMemo(
@@ -95,10 +96,10 @@ export function NewBatchPage() {
 	const suggestion = useMemo(() => {
 		const detail = eventDetail.data
 
-		if (detail === undefined || detail.event.id !== eventId) return emptyDraft
+		if (detail === undefined || detail.event.id !== selectedEventId) return emptyDraft
 
 		return suggestFromAttendance(detail.participants, activeTypes, detail.event)
-	}, [eventDetail.data, eventId, activeTypes])
+	}, [eventDetail.data, selectedEventId, activeTypes])
 
 	const suggestionSummary = useMemo(
 		() => summarizeDraft(suggestion, members, activeTypes),
@@ -198,7 +199,7 @@ export function NewBatchPage() {
 					clientUuid: clientUuid.current,
 					occurredOn,
 					title: title.trim() === '' ? null : title.trim(),
-					eventId,
+					eventId: selectedEventId,
 				}),
 			)
 
@@ -263,7 +264,7 @@ export function NewBatchPage() {
 		<>
 			<div className="flex flex-col gap-4">
 				<Card className="flex flex-col gap-3 p-4">
-					{pastEvents.length === 0 ? null : (
+					{!usesAttendance || pastEvents.length === 0 ? null : (
 						<label className="flex flex-col gap-1.5">
 							<span className="text-ink-muted text-sm font-medium">Akce (nepovinná)</span>
 							<Select
@@ -283,7 +284,7 @@ export function NewBatchPage() {
 						</label>
 					)}
 
-					{eventId === null ? null : (
+					{selectedEventId === null ? null : (
 						<SuggestionPrompt
 							summary={suggestionSummary}
 							used={suggestionUsed}

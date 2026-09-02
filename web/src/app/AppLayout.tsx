@@ -16,12 +16,13 @@ interface NavItem {
 	label: string
 	icon: ComponentType<SVGProps<SVGSVGElement>>
 	requires?: Role
+	requiresAttendance?: boolean
 	/** Místo ikony se v liště ukáže profilový obrázek, pokud ho uživatel má. */
 	avatar?: boolean
 }
 
 const navItems: NavItem[] = [
-	{ to: '/kalendar', label: 'Kalendář', icon: CalendarIcon },
+	{ to: '/kalendar', label: 'Kalendář', icon: CalendarIcon, requiresAttendance: true },
 	{ to: '/dluhy', label: 'Dluhy', icon: WalletIcon },
 	{ to: '/zapsat', label: 'Zapsat', icon: PlusIcon, requires: 'treasurer' },
 	{ to: '/sazebnik', label: 'Sazebník', icon: ListIcon },
@@ -51,7 +52,7 @@ function NavAvatar({ src, ringed, fallback }: { src: string; ringed: boolean; fa
 }
 
 export function AppLayout() {
-	const { team, can, isLoading, isSeasonLoading, isSeasonClosed, error } = useTeam()
+	const { team, can, usesAttendance, isLoading, isSeasonLoading, isSeasonClosed, error } = useTeam()
 	const user = useCurrentUser()
 
 	if (isLoading) return <LoadingState />
@@ -68,7 +69,10 @@ export function AppLayout() {
 		)
 	}
 
-	const visible = navItems.filter((item) => item.requires === undefined || can(item.requires))
+	const visible = navItems.filter(
+		(item) =>
+			(item.requires === undefined || can(item.requires)) && (item.requiresAttendance !== true || usesAttendance),
+	)
 
 	return (
 		<div className="flex min-h-dvh flex-col">
@@ -77,7 +81,7 @@ export function AppLayout() {
 				style={{ paddingTop: 'env(safe-area-inset-top)' }}
 			>
 				<div className="mx-auto flex w-full max-w-3xl items-center gap-3 px-4 py-2.5">
-					<Link to="/kalendar" aria-label="Kalendář" className="shrink-0">
+					<Link to="/" aria-label="Domů" className="shrink-0">
 						<TeamLogo src={team.logoUrl} className="h-8 max-w-24" />
 					</Link>
 

@@ -322,6 +322,7 @@ CREATE TABLE team_settings (
   travel_enabled      TINYINT(1) NOT NULL DEFAULT 0,
   travel_rate_czk_km  DECIMAL(5,2) NOT NULL DEFAULT 5.00,
   travel_round_trip   TINYINT(1) NOT NULL DEFAULT 1 COMMENT 'proplaci se cesta tam i zpet (x2)',
+  attendance_enabled  TINYINT(1) NOT NULL DEFAULT 1 COMMENT 'druzstvo vede dochazku jinde -- kalendar, akce, ucast, nominace a pripominky se v aplikaci neresi',
   attendance_visible_to_players TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'dochazku ostatnich hraci nevidi',
   balances_visible_to_players   TINYINT(1) NOT NULL DEFAULT 1 COMMENT 'dluhy ostatnich hraci vidi',
   -- Vychozi hodnoty jsou i v Pina\Support\RsvpDeadline, odkud si je bere aplikace

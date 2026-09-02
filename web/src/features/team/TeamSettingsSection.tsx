@@ -20,6 +20,7 @@ type Status = 'idle' | 'saving' | 'saved' | 'error'
 
 function settingsEqual(a: TeamSettings, b: TeamSettings): boolean {
 	return (
+		a.attendanceEnabled === b.attendanceEnabled &&
 		a.travelEnabled === b.travelEnabled &&
 		a.travelRateCzkKm === b.travelRateCzkKm &&
 		a.travelRoundTrip === b.travelRoundTrip &&
@@ -54,10 +55,12 @@ function generalMessage(error: unknown): string | undefined {
  */
 export function TeamSettingsSection({ team }: { team: TeamDetail }) {
 	const { can } = useTeam()
-	const locations = useLocations(team.clubId)
 	const save = useSaveTeamSettings(team.id)
 
 	const [settings, setSettings] = useState<TeamSettings>(team.settings)
+	// Seznam míst je jen pro výběr domácí haly, a ta se bez docházky nevykresluje.
+	// Čte se z rozepsaného stavu, aby se po zapnutí načetl hned, ne až po uložení.
+	const locations = useLocations(settings.attendanceEnabled ? team.clubId : null)
 	// Obě textová pole mají vlastní nárazník: do `settings` se hodnota dostane až
 	// ve chvíli, kdy se dá uložit. Rozepsaná „5," ani půlka účtu tam nemají co dělat.
 	const [rateInput, setRateInput] = useState(String(team.settings.travelRateCzkKm))
@@ -225,59 +228,85 @@ export function TeamSettingsSection({ team }: { team: TeamDetail }) {
 			</div>
 
 			<div className="flex flex-col gap-5">
-				<div className="flex flex-col gap-1.5">
-					<label className="flex flex-col gap-1.5">
-						<span className="text-ink-muted text-sm font-medium">Domácí hala</span>
-						<Select
-							value={settings.homeLocationId ?? ''}
-							onChange={(event) => {
-								const raw = event.target.value
-
-								apply({ homeLocationId: raw === '' ? null : Number.parseInt(raw, 10) })
-							}}
-							disabled={locations.isPending}
-						>
-							<option value="">Neurčeno</option>
-							{locationList.map((location) => (
-								<option key={location.id} value={location.id}>
-									{location.name}
-								</option>
-							))}
-						</Select>
-					</label>
-					<p className="text-ink-faint text-xs">
-						Podle domácí haly se u zápasu pozná, jestli je doma nebo venku, a od ní se měří vzdálenost k soupeři.
-					</p>
-					{fieldMessage(save.error, 'homeLocationId') === undefined ? null : (
-						<p role="alert" className="text-debt text-sm">
-							{fieldMessage(save.error, 'homeLocationId')}
-						</p>
-					)}
-					{locations.isPending || locationList.length > 0 ? null : (
-						<p className="text-ink-faint text-xs">
-							Klub zatím nemá žádné místo. Založte ho na stránce{' '}
-							<Link to="/mista" className="text-brand-600 underline">
-								Místa
-							</Link>
-							.
-						</p>
-					)}
-				</div>
-
 				<label className="flex min-h-11 items-center gap-3">
 					<input
 						type="checkbox"
 						className="size-5 shrink-0"
-						checked={settings.attendanceVisibleToPlayers}
-						onChange={(event) => apply({ attendanceVisibleToPlayers: event.target.checked })}
+						checked={settings.attendanceEnabled}
+						onChange={(event) => apply({ attendanceEnabled: event.target.checked })}
 					/>
 					<span className="flex flex-col">
-						<span className="text-sm font-medium">Docházka ostatních</span>
+						<span className="text-sm font-medium">Docházka a kalendář</span>
 						<span className="text-ink-faint text-xs">
-							Když je vypnuto, hráči vidí jen svou vlastní docházku. Pínař a admin vidí docházku všech vždy.
+							Když je vypnuto, družstvo vede docházku v jiné aplikaci. V Píně zůstanou jen peníze — dluhy, zápisy a
+							sazebník.
 						</span>
 					</span>
 				</label>
+
+				{/*
+				 * Bez docházky nemá hala co ovlivnit: domácí zápas se nepozná (žádné akce
+				 * nejsou) a ruční cesťák počítá jen ze sazby. Zůstat viditelná by znamenalo
+				 * pole bez následku, které navíc odkazuje na skrytá Místa. Uložená hodnota
+				 * se nemaže, takže po zapnutí docházky je hala pořád nastavená.
+				 */}
+				{settings.attendanceEnabled ? (
+					<div className="flex flex-col gap-1.5">
+						<label className="flex flex-col gap-1.5">
+							<span className="text-ink-muted text-sm font-medium">Domácí hala</span>
+							<Select
+								value={settings.homeLocationId ?? ''}
+								onChange={(event) => {
+									const raw = event.target.value
+
+									apply({ homeLocationId: raw === '' ? null : Number.parseInt(raw, 10) })
+								}}
+								disabled={locations.isPending}
+							>
+								<option value="">Neurčeno</option>
+								{locationList.map((location) => (
+									<option key={location.id} value={location.id}>
+										{location.name}
+									</option>
+								))}
+							</Select>
+						</label>
+						<p className="text-ink-faint text-xs">
+							Podle domácí haly se u zápasu pozná, jestli je doma nebo venku, a od ní se měří vzdálenost k soupeři.
+						</p>
+						{fieldMessage(save.error, 'homeLocationId') === undefined ? null : (
+							<p role="alert" className="text-debt text-sm">
+								{fieldMessage(save.error, 'homeLocationId')}
+							</p>
+						)}
+						{locations.isPending || locationList.length > 0 ? null : (
+							<p className="text-ink-faint text-xs">
+								Klub zatím nemá žádné místo. Založte ho na stránce{' '}
+								<Link to="/mista" className="text-brand-600 underline">
+									Místa
+								</Link>
+								.
+							</p>
+						)}
+					</div>
+				) : null}
+
+				{settings.attendanceEnabled ? (
+					<label className="flex min-h-11 items-center gap-3">
+						<input
+							type="checkbox"
+							className="size-5 shrink-0"
+							checked={settings.attendanceVisibleToPlayers}
+							onChange={(event) => apply({ attendanceVisibleToPlayers: event.target.checked })}
+						/>
+						<span className="flex flex-col">
+							<span className="text-sm font-medium">Docházka ostatních</span>
+							<span className="text-ink-faint text-xs">
+								Když je vypnuto, hráči vidí jen svou vlastní docházku. Pínař a admin vidí docházku všech vždy.
+							</span>
+						</span>
+					</label>
+				) : null}
 
 				<label className="flex min-h-11 items-center gap-3">
 					<input
@@ -294,36 +323,38 @@ export function TeamSettingsSection({ team }: { team: TeamDetail }) {
 					</span>
 				</label>
 
-				<div className="flex flex-col gap-2">
-					<div className="grid grid-cols-2 gap-3">
-						<Field
-							label="Zápis na trénink (h)"
-							type="number"
-							inputMode="numeric"
-							min={1}
-							max={720}
-							placeholder="vypnuto"
-							value={trainingDeadlineInput}
-							onChange={(event) => changeDeadline(event.target.value, 'rsvpDeadlineTrainingHours')}
-							error={fieldMessage(save.error, 'rsvpDeadlineTrainingHours')}
-						/>
-						<Field
-							label="Zápis na zápas (h)"
-							type="number"
-							inputMode="numeric"
-							min={1}
-							max={720}
-							placeholder="vypnuto"
-							value={matchDeadlineInput}
-							onChange={(event) => changeDeadline(event.target.value, 'rsvpDeadlineMatchHours')}
-							error={fieldMessage(save.error, 'rsvpDeadlineMatchHours')}
-						/>
+				{settings.attendanceEnabled ? (
+					<div className="flex flex-col gap-2">
+						<div className="grid grid-cols-2 gap-3">
+							<Field
+								label="Zápis na trénink (h)"
+								type="number"
+								inputMode="numeric"
+								min={1}
+								max={720}
+								placeholder="vypnuto"
+								value={trainingDeadlineInput}
+								onChange={(event) => changeDeadline(event.target.value, 'rsvpDeadlineTrainingHours')}
+								error={fieldMessage(save.error, 'rsvpDeadlineTrainingHours')}
+							/>
+							<Field
+								label="Zápis na zápas (h)"
+								type="number"
+								inputMode="numeric"
+								min={1}
+								max={720}
+								placeholder="vypnuto"
+								value={matchDeadlineInput}
+								onChange={(event) => changeDeadline(event.target.value, 'rsvpDeadlineMatchHours')}
+								error={fieldMessage(save.error, 'rsvpDeadlineMatchHours')}
+							/>
+						</div>
+						<p className="text-ink-faint text-xs">
+							Počet hodin před začátkem. Prázdné pole termín vypne. Odpovědět půjde i potom, ale zápis bude označený
+							jako pozdní.
+						</p>
 					</div>
-					<p className="text-ink-faint text-xs">
-						Počet hodin před začátkem. Prázdné pole termín vypne. Odpovědět půjde i potom, ale zápis bude označený jako
-						pozdní.
-					</p>
-				</div>
+				) : null}
 
 				<div className="flex flex-col gap-3">
 					<label className="flex min-h-11 items-center gap-3">

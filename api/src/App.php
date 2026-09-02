@@ -29,6 +29,7 @@ use Pina\Mail\PasswordResetMail;
 use Pina\Mail\SmtpMailer;
 use Pina\Notification\DisabledPushGateway;
 use Pina\Notification\WebPushGateway;
+use Pina\Service\AttendanceModule;
 use Pina\Service\AuditLog;
 use Pina\Service\CalendarFeedService;
 use Pina\Service\EventService;
@@ -82,9 +83,10 @@ final class App
         );
         $notifications = $this->notificationService();
         $auditLog      = new AuditLog($this->db, $this->scope);
+        $attendance    = new AttendanceModule($this->db);
         $authCtrl      = new AuthController($auth, $this->tokens, $resets, $notifications);
         $calendarCtrl  = new CalendarFeedController(
-            new CalendarFeedService($this->db, $this->scope, new IcsCalendar()),
+            new CalendarFeedService($this->db, $this->scope, new IcsCalendar(), $attendance),
         );
         $notificationCtrl = new NotificationController($notifications, Config::get('CRON_TOKEN', ''));
         $imageCtrl        = new ImageController(new ImageService($this->db, $this->scope, $this->rootPath));
@@ -121,8 +123,8 @@ final class App
 
         $this->teamRoutes($router, $auditLog);
         $this->offenceRoutes($router, $notifications, $auditLog);
-        $this->eventRoutes($router);
-        $this->financeRoutes($router, $auditLog);
+        $this->eventRoutes($router, $attendance);
+        $this->financeRoutes($router, $auditLog, $attendance);
 
         return $router;
     }
@@ -189,9 +191,9 @@ final class App
     }
 
     /** Kalendář, docházka a místa konání. */
-    private function eventRoutes(Router $router): void
+    private function eventRoutes(Router $router, AttendanceModule $attendance): void
     {
-        $eventCtrl    = new EventController(new EventService($this->db, $this->scope));
+        $eventCtrl    = new EventController(new EventService($this->db, $this->scope, $attendance));
         $locationCtrl = new LocationController(new LocationService($this->db, $this->scope));
 
         $router->get('/api/v1/seasons/{season}/events', $eventCtrl->index(...));
@@ -218,9 +220,14 @@ final class App
     }
 
     /** Platby, QR a cesťáky. */
-    private function financeRoutes(Router $router, AuditLog $auditLog): void
+    private function financeRoutes(Router $router, AuditLog $auditLog, AttendanceModule $attendance): void
     {
-        $controller = new FinanceController(new FinanceService($this->db, $this->scope, audit: $auditLog));
+        $controller = new FinanceController(new FinanceService(
+            $this->db,
+            $this->scope,
+            audit: $auditLog,
+            attendance: $attendance,
+        ));
 
         $router->get('/api/v1/seasons/{season}/payments', $controller->payments(...));
         $router->post('/api/v1/seasons/{season}/payments', $controller->createPayment(...));

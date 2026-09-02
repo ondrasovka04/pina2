@@ -30,10 +30,10 @@ dokumentace, commit messages. Anglicky zůstávají jen identifikátory v kódu
 docker compose up -d                                        # MySQL + PHP na :8080
 cd web && npm run dev                                       # frontend na :5173
 
-docker compose run --rm php ./vendor/bin/phpunit            # 334 testů
+docker compose run --rm php ./vendor/bin/phpunit            # 341 testů
 docker compose run --rm php ./vendor/bin/phpstan analyse --memory-limit=512M
 docker compose run --rm php ./vendor/bin/php-cs-fixer fix --dry-run --diff
-cd web && npm run typecheck && npm run lint && npm test      # 222 testů
+cd web && npm run typecheck && npm run lint && npm test      # 236 testů
 ```
 
 Před dokončením úkolu, který sáhl na kód, musí projít testy i statická analýza
@@ -100,6 +100,14 @@ PWA, Web Push se dvěma osobními volbami a odběr kalendáře přes `webcal://`
 Nad rámec fází mají hráči i kluby **obrázky** — normalizované PNG na disku
 v `api/storage/images/`, ne v databázi.
 **F6** (párování plateb z banky) teprve bude. Tabulka fází je v README.
+
+**Docházku a kalendář lze vypnout pro celé družstvo.** Výchozí stav je zapnuto,
+a to i pro družstvo bez řádku v `team_settings`. Vypnutí skryje akce, účast,
+nominace, místa, návrhy z docházky, synchronizaci cesťáků a nabídku kalendáře;
+domovem se stanou `/dluhy`. Nic se nemaže ani nepřepisuje, takže po opětovném
+zapnutí zůstane historie i pravidla beze změny. Preference oznámení a odběry
+kalendáře patří uživateli: UI je posuzuje přes všechna jeho družstva, ne jen přes
+právě vybrané.
 
 **Uzávěrka se nedělá.** Snímek zúčtovacího období (`settlement`, `settlement_line`)
 byl ve schématu od F1, ale tým zamykání odmítl — tabulky jsou proto zrušené.

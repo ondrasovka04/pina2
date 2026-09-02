@@ -157,6 +157,7 @@ final class TeamController
     public function saveSettings(Request $request): Response
     {
         $settings = $this->teams->saveSettings($request->identity(), $request->routeId('team'), [
+            'attendanceEnabled'          => $request->bool('attendanceEnabled'),
             'travelEnabled'              => $request->bool('travelEnabled'),
             'travelRateCzkKm'            => $this->rate($request),
             'travelRoundTrip'            => $request->bool('travelRoundTrip', true),

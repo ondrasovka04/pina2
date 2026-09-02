@@ -25,6 +25,8 @@ import { NotificationsCard } from './NotificationsCard'
 export function ProfilePage() {
 	const user = useCurrentUser()
 	const { signOut } = useSession()
+	const { teams } = useTeam()
+	const usesAnyAttendance = teams.some((team) => team.attendanceEnabled)
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -41,7 +43,7 @@ export function ProfilePage() {
 
 			<NotificationsCard />
 
-			<CalendarFeedsCard />
+			{usesAnyAttendance ? <CalendarFeedsCard /> : null}
 
 			<AppearanceCard />
 

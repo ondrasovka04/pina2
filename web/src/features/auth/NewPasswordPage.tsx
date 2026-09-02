@@ -46,7 +46,7 @@ export function NewPasswordPage() {
 
 		try {
 			await resetPassword(token, password)
-			await navigate('/kalendar', { replace: true })
+			await navigate('/', { replace: true })
 		} catch (cause) {
 			setError(cause instanceof ApiError ? cause.message : 'Heslo se nepodařilo změnit.')
 			setField(cause instanceof ApiError ? cause.field : undefined)

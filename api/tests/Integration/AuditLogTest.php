@@ -156,6 +156,7 @@ final class AuditLogTest extends DatabaseTestCase
         $offences->voidRecord($this->treasurer, $recordId);
 
         $teams->saveSettings($this->admin, $this->team, [
+            'attendanceEnabled'          => false,
             'travelEnabled'              => true,
             'travelRateCzkKm'            => 6.5,
             'travelRoundTrip'            => true,
@@ -199,6 +200,9 @@ final class AuditLogTest extends DatabaseTestCase
 
         $batchPayload = json_decode((string) $rows[3]['payload'], true, flags: JSON_THROW_ON_ERROR);
         self::assertEquals(['recordCount' => 2, 'totalCzk' => 60], $batchPayload);
+
+        $settingsPayload = json_decode((string) $rows[5]['payload'], true, flags: JSON_THROW_ON_ERROR);
+        self::assertEqualsCanonicalizing(['old' => true, 'new' => false], $settingsPayload['attendanceEnabled']);
 
         $allPayloads = implode(' ', array_column($rows, 'payload'));
         self::assertStringNotContainsString('@audit.cz', $allPayloads);

@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/app/team', () => ({
 	useTeam: () => ({
-		teams: [{ id: 4, name: 'Muži', currentSeason: { id: 10, name: '26/27' } }],
+		teams: [{ id: 4, name: 'Muži', attendanceEnabled: true, currentSeason: { id: 10, name: '26/27' } }],
 	}),
 }))
 

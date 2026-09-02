@@ -4,6 +4,7 @@ import { missingTeamSetup } from './setup'
 
 function settings(changes: Partial<TeamSettings> = {}): TeamSettings {
 	return {
+		attendanceEnabled: true,
 		travelEnabled: false,
 		travelRateCzkKm: 5,
 		travelRoundTrip: true,
@@ -30,6 +31,10 @@ describe('missingTeamSetup', () => {
 	it('domácí halu připomene jen tam, kde se cesťáky proplácejí', () => {
 		expect(missingTeamSetup(settings({ travelEnabled: false }))).toEqual([])
 		expect(missingTeamSetup(settings({ travelEnabled: true }))).toEqual([expect.stringContaining('Domácí halu')])
+	})
+
+	it('bez docházky domácí halu nepřipomíná', () => {
+		expect(missingTeamSetup(settings({ attendanceEnabled: false, travelEnabled: true }))).toEqual([])
 	})
 
 	it('vypíše obojí, když chybí obojí', () => {

@@ -378,7 +378,10 @@ export function useSaveTeamSettings(teamId: number) {
 	return useMutation({
 		mutationFn: (settings: TeamSettings) => api.put<TeamSettings>(`/teams/${teamId}/settings`, settings),
 		onSuccess: () => {
-			void queryClient.invalidateQueries({ queryKey: ['teams', teamId, 'detail'] })
+			// Celý `['teams']`, ne jen detail: vypínač docházky jezdí v `TeamSummary`,
+			// tedy v seznamu z `/me/teams`, podle kterého se řídí navigace i routy.
+			// Zneplatnit jen detail znamená, že se vypnutí projeví až po načtení stránky.
+			void queryClient.invalidateQueries({ queryKey: queryKeys.teams })
 			void queryClient.invalidateQueries({ queryKey: queryKeys.auditLog(teamId) })
 			// Domácí hala i výchozí termíny mění payload akcí — kalendář je musí přečíst znovu.
 			void queryClient.invalidateQueries({ queryKey: ['seasons'] })

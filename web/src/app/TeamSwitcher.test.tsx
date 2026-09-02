@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Role } from '@/lib/types'
 
@@ -16,6 +16,7 @@ const teamValue = {
 	season: { id: 10, name: '26/27', isCurrent: true, closedAt: null },
 	selectTeam: vi.fn(),
 	selectSeason: vi.fn(),
+	usesAttendance: true,
 	can: (needed: Role) => roles.indexOf(role) >= roles.indexOf(needed),
 }
 
@@ -39,6 +40,10 @@ async function openPanel(as: Role) {
 }
 
 describe('TeamSwitcher — kudy se kdo dostane ke správě', () => {
+	beforeEach(() => {
+		teamValue.usesAttendance = true
+	})
+
 	it('hráč nemá co přepínat ani spravovat, panel se vůbec neotevírá', async () => {
 		await openPanel('player')
 
@@ -61,5 +66,13 @@ describe('TeamSwitcher — kudy se kdo dostane ke správě', () => {
 
 		expect(screen.getByRole('link', { name: 'Spravovat družstva' })).toBeInTheDocument()
 		expect(screen.getByRole('link', { name: 'Sezóny a soupiska' })).toBeInTheDocument()
+	})
+
+	it('bez docházky skryje správu sérií a míst', async () => {
+		teamValue.usesAttendance = false
+		await openPanel('treasurer')
+
+		expect(screen.queryByRole('link', { name: 'Opakované akce' })).toBeNull()
+		expect(screen.queryByRole('link', { name: 'Spravovat místa' })).toBeNull()
 	})
 })

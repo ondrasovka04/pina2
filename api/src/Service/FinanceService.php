@@ -18,6 +18,7 @@ final class FinanceService
     private const PAYMENT_METHODS = ['cash', 'transfer', 'qr', 'gateway'];
 
     private readonly FinancialAccess $access;
+    private readonly AttendanceModule $attendance;
     private readonly AuditLog $audit;
 
     public function __construct(
@@ -25,9 +26,11 @@ final class FinanceService
         private readonly TeamScope $scope,
         ?FinancialAccess $access = null,
         ?AuditLog $audit = null,
+        ?AttendanceModule $attendance = null,
     ) {
-        $this->access = $access ?? new FinancialAccess($db);
-        $this->audit  = $audit ?? new AuditLog($db, $scope);
+        $this->access     = $access ?? new FinancialAccess($db);
+        $this->audit      = $audit ?? new AuditLog($db, $scope);
+        $this->attendance = $attendance ?? new AttendanceModule($db);
     }
 
     /** @return array{items:list<array<string,mixed>>} */
@@ -186,7 +189,8 @@ final class FinanceService
      */
     public function syncTravelClaims(Identity $identity, int $seasonId): array
     {
-        $teamId   = $this->scope->writableSeason($identity, $seasonId, Role::Treasurer);
+        $teamId = $this->scope->writableSeason($identity, $seasonId, Role::Treasurer);
+        $this->attendance->assertEnabled($teamId);
         $settings = $this->travelSettings($teamId);
 
         if (!$settings['enabled']) {

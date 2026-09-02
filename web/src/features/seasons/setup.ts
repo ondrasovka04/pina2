@@ -20,7 +20,7 @@ export function missingTeamSetup(settings: TeamSettings): string[] {
 
 	// Domácí hala rozhoduje, co je domácí zápas. Když se cesťáky neproplácejí,
 	// nemá to na nic vliv a připomínat to je otravné.
-	if (settings.travelEnabled && settings.homeLocationId === null) {
+	if (settings.attendanceEnabled && settings.travelEnabled && settings.homeLocationId === null) {
 		missing.push('Domácí halu — bez ní se u domácího zápasu bude ptát na odvozy.')
 	}
 

@@ -131,10 +131,14 @@ final class EventService
     /** Pojistka proti pravidlu, které by vyrobilo tisíce termínů. */
     private const MAX_SERIES_EVENTS = 300;
 
+    private readonly AttendanceModule $attendance;
+
     public function __construct(
         private readonly Database $db,
         private readonly TeamScope $scope,
+        ?AttendanceModule $attendance = null,
     ) {
+        $this->attendance = $attendance ?? new AttendanceModule($db);
     }
 
     /**
@@ -224,6 +228,7 @@ final class EventService
     public function create(Identity $identity, int $seasonId, array $input): array
     {
         $teamId = $this->scope->writableSeason($identity, $seasonId, Role::Treasurer);
+        $this->attendance->assertEnabled($teamId);
 
         $this->assertType($input['type']);
         $this->assertLocation($input['locationId'], $teamId);
@@ -263,6 +268,7 @@ final class EventService
     public function update(Identity $identity, int $eventId, array $changes): array
     {
         $teamId = $this->scope->event($identity, $eventId, Role::Treasurer);
+        $this->attendance->assertEnabled($teamId);
         $this->assertOpenSeason($eventId);
 
         if ($changes === []) {
@@ -334,7 +340,8 @@ final class EventService
      */
     public function cancel(Identity $identity, int $eventId): array
     {
-        $this->scope->event($identity, $eventId, Role::Treasurer);
+        $teamId = $this->scope->event($identity, $eventId, Role::Treasurer);
+        $this->attendance->assertEnabled($teamId);
         $this->assertOpenSeason($eventId);
 
         $this->db->run("UPDATE event SET status = 'cancelled' WHERE id = ?", [$eventId]);
@@ -347,7 +354,8 @@ final class EventService
      */
     public function restore(Identity $identity, int $eventId): array
     {
-        $this->scope->event($identity, $eventId, Role::Treasurer);
+        $teamId = $this->scope->event($identity, $eventId, Role::Treasurer);
+        $this->attendance->assertEnabled($teamId);
         $this->assertOpenSeason($eventId);
 
         $this->db->run("UPDATE event SET status = 'planned' WHERE id = ?", [$eventId]);
@@ -362,7 +370,8 @@ final class EventService
      */
     public function delete(Identity $identity, int $eventId): void
     {
-        $this->scope->event($identity, $eventId, Role::Treasurer);
+        $teamId = $this->scope->event($identity, $eventId, Role::Treasurer);
+        $this->attendance->assertEnabled($teamId);
         $this->assertOpenSeason($eventId);
 
         $this->db->run('DELETE FROM event WHERE id = ?', [$eventId]);
@@ -410,6 +419,7 @@ final class EventService
     public function createSeries(Identity $identity, int $seasonId, array $input): array
     {
         $teamId = $this->scope->writableSeason($identity, $seasonId, Role::Treasurer);
+        $this->attendance->assertEnabled($teamId);
 
         $this->assertType($input['type']);
         $this->assertLocation($input['locationId'], $teamId);
@@ -568,6 +578,7 @@ final class EventService
     ): array {
         $series = $this->seriesRow($seriesId);
         $teamId = $this->scope->writableSeason($identity, (int) $series['season_id'], Role::Treasurer);
+        $this->attendance->assertEnabled($teamId);
 
         $this->assertScope($scope);
         $this->assertType($input['type']);
@@ -745,7 +756,8 @@ final class EventService
     public function deleteSeries(Identity $identity, int $seriesId, string $scope, ?int $fromEventId): array
     {
         $series = $this->seriesRow($seriesId);
-        $this->scope->writableSeason($identity, (int) $series['season_id'], Role::Treasurer);
+        $teamId = $this->scope->writableSeason($identity, (int) $series['season_id'], Role::Treasurer);
+        $this->attendance->assertEnabled($teamId);
 
         $this->assertScope($scope);
 
@@ -838,6 +850,7 @@ final class EventService
     public function saveRsvp(Identity $identity, int $eventId, array $input): array
     {
         $teamId = $this->scope->event($identity, $eventId, Role::Player);
+        $this->attendance->assertEnabled($teamId);
         $this->assertOpenSeason($eventId);
 
         if (!in_array($input['rsvp'], self::RSVP_VALUES, true)) {
@@ -935,6 +948,7 @@ final class EventService
     public function saveAttendance(Identity $identity, int $eventId, array $items): array
     {
         $teamId = $this->scope->event($identity, $eventId, Role::Treasurer);
+        $this->attendance->assertEnabled($teamId);
         $this->assertOpenSeason($eventId);
 
         if ($items === []) {
@@ -1011,6 +1025,7 @@ final class EventService
     public function saveNominations(Identity $identity, int $eventId, array $items): array
     {
         $teamId = $this->scope->event($identity, $eventId, Role::Admin);
+        $this->attendance->assertEnabled($teamId);
         $this->assertOpenSeason($eventId);
 
         $type = (string) $this->db->value('SELECT type FROM event WHERE id = ?', [$eventId]);

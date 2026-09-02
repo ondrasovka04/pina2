@@ -19,7 +19,6 @@ import {
 	useBalances,
 	usePayments,
 	useSyncTravelClaims,
-	useTeamDetail,
 	useTravelClaims,
 	useVoidPayment,
 	useVoidTravelClaim,
@@ -42,11 +41,10 @@ const methodLabels: Record<Payment['method'], string> = {
  * k cesťáku jen tak, že prošel hráče jednoho po druhém.
  */
 export function PaymentsPage() {
-	const { team, seasonId, can, isSeasonClosed } = useTeam()
+	const { team, seasonId, can, isSeasonClosed, usesAttendance } = useTeam()
 	const balances = useBalances(seasonId)
 	const payments = usePayments(seasonId)
 	const claims = useTravelClaims(seasonId)
-	const detail = useTeamDetail(team?.id ?? null)
 	const syncTravel = useSyncTravelClaims(seasonId ?? 0)
 	const voidPayment = useVoidPayment(seasonId ?? 0)
 	const voidClaim = useVoidTravelClaim(seasonId ?? 0)
@@ -64,7 +62,14 @@ export function PaymentsPage() {
 	if (claims.error !== null) return <ErrorState error={claims.error} onRetry={() => void claims.refetch()} />
 
 	const canManage = can('treasurer') && !isSeasonClosed
-	const travelEnabled = detail.data?.settings.travelEnabled === true
+	const travelEnabled = team?.travelEnabled === true
+	/**
+	 * Družstvo bez cesťáků nemá důvod vidět jejich záložku. Zůstává jen tehdy,
+	 * když nějaké vznikly dřív — jsou to peníze, které pořád snižují dluh, a
+	 * schovat je kvůli přepnutí nastavení by bylo horší než ukázat víc.
+	 */
+	const showTravel = travelEnabled || claims.data.length > 0
+	const activeTab: MoneyTab = showTravel ? tab : 'payments'
 	const bounds = periodByKey(balances.data.periods, period)
 	const totals = teamSums(balances.data, period)
 
@@ -103,24 +108,27 @@ export function PaymentsPage() {
 
 			<Card className="overflow-hidden">
 				<div className="px-4 py-4">
-					<h1 className="text-lg font-semibold">Platby a cesťáky</h1>
+					<h1 className="text-lg font-semibold">{showTravel ? 'Platby a cesťáky' : 'Platby'}</h1>
 					<p className="text-ink-muted mt-1 text-sm">
-						Zaplaceno {formatCzk(totals.paidCzk)} · cesťáky {formatCzk(totals.travelCzk)}
+						Zaplaceno {formatCzk(totals.paidCzk)}
+						{showTravel ? ` · cesťáky ${formatCzk(totals.travelCzk)}` : ''}
 					</p>
 				</div>
 				<PeriodTabs periods={balances.data.periods} active={period} onChange={setPeriod} />
 			</Card>
 
-			<div className="bg-surface-2 flex rounded-lg p-0.5 text-sm">
-				<Tab active={tab === 'payments'} onClick={() => setTab('payments')}>
-					Platby ({live.payments.length})
-				</Tab>
-				<Tab active={tab === 'travel'} onClick={() => setTab('travel')}>
-					Cesťáky ({live.travel.length})
-				</Tab>
-			</div>
+			{showTravel ? (
+				<div className="bg-surface-2 flex rounded-lg p-0.5 text-sm">
+					<Tab active={activeTab === 'payments'} onClick={() => setTab('payments')}>
+						Platby ({live.payments.length})
+					</Tab>
+					<Tab active={activeTab === 'travel'} onClick={() => setTab('travel')}>
+						Cesťáky ({live.travel.length})
+					</Tab>
+				</div>
+			) : null}
 
-			{tab === 'travel' && canManage && travelEnabled ? (
+			{activeTab === 'travel' && canManage && travelEnabled && usesAttendance ? (
 				<Card className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
 					<div>
 						<p className="text-sm font-medium">Doplnit z odehraných zápasů</p>
@@ -144,14 +152,14 @@ export function PaymentsPage() {
 				</Card>
 			) : null}
 
-			{tab === 'travel' && !travelEnabled ? (
-				<EmptyState
-					title="Cesťáky nejsou zapnuté"
-					description="Zapíná se v nastavení družstva, spolu se sazbou za kilometr a domácí halou."
-				/>
+			{/* Vypnuté cesťáky s historií: pínař musí vědět, proč žádný nový nepřibývá. */}
+			{activeTab === 'travel' && !travelEnabled ? (
+				<p className="text-ink-faint text-xs">
+					Cesťáky jsou v nastavení družstva vypnuté, takže tohle je jen jejich historie.
+				</p>
 			) : null}
 
-			{tab === 'payments' ? (
+			{activeTab === 'payments' ? (
 				visiblePayments.length === 0 ? (
 					<EmptyState
 						title={period === 'all' ? 'Zatím žádná platba' : 'V tomhle pololetí žádná platba'}
@@ -176,10 +184,14 @@ export function PaymentsPage() {
 						))}
 					</Card>
 				)
-			) : visibleClaims.length === 0 && travelEnabled ? (
+			) : visibleClaims.length === 0 ? (
 				<EmptyState
 					title={period === 'all' ? 'Zatím žádný cesťák' : 'V tomhle pololetí žádný cesťák'}
-					description="Načtou se z odehraných venkovních zápasů podle toho, kdo u nich jel autem."
+					description={
+						usesAttendance
+							? 'Načtou se z odehraných venkovních zápasů podle toho, kdo u nich jel autem.'
+							: 'Ruční cesťák zapíše pínař u konkrétního hráče v jeho kartě.'
+					}
 				/>
 			) : (
 				<Card className="divide-line/50 divide-y">

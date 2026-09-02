@@ -13,7 +13,7 @@ import {
 import { AppLayout } from '@/app/AppLayout'
 import { PwaUpdatePrompt } from '@/app/PwaUpdatePrompt'
 import { SessionProvider, useSession } from '@/app/session'
-import { TeamProvider } from '@/app/team'
+import { homePath, TeamProvider, useTeam } from '@/app/team'
 import { ClubMark } from '@/components/ClubMark'
 import { PlatformPage } from '@/features/admin/PlatformPage'
 import { AcceptInvitationPage } from '@/features/auth/AcceptInvitationPage'
@@ -66,17 +66,19 @@ const router = createBrowserRouter(
 
 			<Route element={<Protected />}>
 				<Route element={<AppLayout />}>
-					<Route index element={<Navigate to="/kalendar" replace />} />
+					<Route index element={<HomeRedirect />} />
 					<Route path="dluhy" element={<BalancesPage />} />
 					<Route path="platby" element={<PaymentsPage />} />
 					<Route path="hraci/:membershipId" element={<MemberPage />} />
-					<Route path="kalendar" element={<CalendarPage />} />
-					<Route path="akce/nova" element={<NewEventPage />} />
-					<Route path="akce/:eventId" element={<EventPage />} />
-					<Route path="akce/:eventId/upravit" element={<EditEventPage />} />
-					<Route path="serie" element={<SeriesPage />} />
-					<Route path="dochazka" element={<AttendancePage />} />
-					<Route path="mista" element={<LocationsPage />} />
+					<Route element={<AttendanceOnly />}>
+						<Route path="kalendar" element={<CalendarPage />} />
+						<Route path="akce/nova" element={<NewEventPage />} />
+						<Route path="akce/:eventId" element={<EventPage />} />
+						<Route path="akce/:eventId/upravit" element={<EditEventPage />} />
+						<Route path="serie" element={<SeriesPage />} />
+						<Route path="dochazka" element={<AttendancePage />} />
+						<Route path="mista" element={<LocationsPage />} />
+					</Route>
 					<Route path="zapsat" element={<NewBatchPage />} />
 					<Route path="zapisy" element={<BatchesPage />} />
 					<Route path="sazebnik" element={<OffenceTypesPage />} />
@@ -135,11 +137,23 @@ function Protected() {
 	)
 }
 
+function HomeRedirect() {
+	const { usesAttendance } = useTeam()
+
+	return <Navigate to={homePath(usesAttendance)} replace />
+}
+
+function AttendanceOnly() {
+	const { usesAttendance } = useTeam()
+
+	return usesAttendance ? <Outlet /> : <Navigate to="/" replace />
+}
+
 function AnonymousOnly() {
 	const { status } = useSession()
 
 	if (status === 'loading') return <Splash />
-	if (status === 'authenticated') return <Navigate to="/kalendar" replace />
+	if (status === 'authenticated') return <Navigate to="/" replace />
 
 	return <LoginPage />
 }
@@ -150,11 +164,11 @@ function NotFoundPage() {
 			<div className="flex flex-col items-center gap-4">
 				<h1 className="text-xl font-semibold">Tahle stránka neexistuje</h1>
 				<Link
-					to="/kalendar"
+					to="/"
 					role="button"
 					className="bg-brand-600 inline-flex min-h-11 items-center rounded-xl px-4 text-sm text-white"
 				>
-					Zpátky do kalendáře
+					Zpátky do Píny
 				</Link>
 			</div>
 		</main>

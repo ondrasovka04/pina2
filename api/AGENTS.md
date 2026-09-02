@@ -278,6 +278,14 @@ v `tests/Integration/DatabaseTestCase.php` a neobchází se.
   jednom místě a platí na zůstatky, zápisy, dávky, platby i cesťáky — jinak by
   se cizí částka dala přečíst z detailu dávky. Provozní správce bez členství
   v družstvu se přes tyhle obrazovky do cizího klubu nedostane.
+- **Vypnutá docházka je zákaz nových zápisů, ne mazání historie.**
+  `Service\AttendanceModule` vrací výchozí „zapnuto" přes `LEFT JOIN` a
+  `COALESCE`, protože většina družstev nemá v `team_settings` žádný řádek.
+  Zápisové operace akcí, synchronizace cesťáků a vydání kalendářového odběru
+  vracejí 409 `ATTENDANCE_DISABLED`; čtení zůstává funkční a žádné akce,
+  odpovědi, pravidla ani peněžní vazby se při vypnutí neupravují. Připomínky
+  akcí se pro takové družstvo nezakládají, ale už existující fronta, osobní
+  preference oznámení ani odběry kalendáře se nemažou.
 - **Obnova hesla nesmí prozradit, kdo je registrovaný.** `/auth/password/forgot`
   odpovídá stejně pro známou i neznámou adresu; i překročený limit se mlčí.
   Odkaz platí hodinu (přepisuje existující heslo) a vydává se jen samoobslužně —

@@ -64,6 +64,24 @@ final class NotificationServiceTest extends DatabaseTestCase
         self::assertSame(0, $this->notifications->flush($this->time('today 20:01'))['claimed']);
     }
 
+    public function testDisabledAttendanceDoesNotQueueReminderWhileMissingSettingsRowStillDoes(): void
+    {
+        $eventId = $this->makeTomorrowEvent(withDeadline: true);
+        $teamId  = (int) $this->db->value(
+            'SELECT s.team_id FROM event e JOIN season s ON s.id = e.season_id WHERE e.id = ?',
+            [$eventId],
+        );
+
+        self::assertSame(0, (int) $this->db->value('SELECT COUNT(*) FROM team_settings WHERE team_id = ?', [$teamId]));
+        self::assertSame(1, $this->notifications->enqueueEventReminders($this->time('today 08:00')));
+
+        $this->db->run('DELETE FROM notification_queue');
+        $this->db->run('DELETE FROM notification');
+        $this->db->run('INSERT INTO team_settings (team_id, attendance_enabled) VALUES (?, 0)', [$teamId]);
+
+        self::assertSame(0, $this->notifications->enqueueEventReminders($this->time('today 08:00')));
+    }
+
     public function testDeadlineReminderIsQueuedWithinTwelveHoursOnlyForUnknownAnswer(): void
     {
         $eventId = $this->makeTomorrowEvent(withDeadline: true);

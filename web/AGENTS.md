@@ -193,6 +193,19 @@ npm run typecheck && npm run lint && npm test && npm run format
   historie dávek prohřešků, `/platby` přijaté platby a cesťáky. Spodní navigace je
   plná (pět položek), takže nové obrazovky se prolinkovávají z `/dluhy` — ne že
   se do nabídky vecpe šestá.
+
+  Záložka cesťáků na `/platby` se ukáže, když je družstvo má zapnuté **nebo** když
+  nějaký vznikl dřív; vypnutí v nastavení nesmí schovat peníze, které pořád snižují
+  dluh, jen k nim dopíše, že je to historie. Bez zapnutých cesťáků a bez jediného
+  záznamu zmizí záložka i slovo „cesťáky" v hlavičce, a to i v odkazu z `/dluhy` —
+  družstvo, které je nemá, o nich nemá číst. Rozpad zůstatku na čtyři složky
+  v kartě hráče se tím neřídí: tam je nula legitimní součást součtu.
+
+  Samotný přepínač berte z `TeamSummary.travelEnabled` (jezdí v `/me/teams`
+  vedle `attendanceEnabled`), ne z detailu družstva. Kvůli jednomu booleanu si
+  `useTeamDetail` tahaly dvě obrazovky zvlášť a odpověď na „proplácí tohle
+  družstvo cesty?" byla v aplikaci na dvou místech. Sazba a domácí hala zůstávají
+  v `TeamSettings`, protože ty potřebuje jen formulář ručního cesťáku.
 - **Zapomenutého řidiče doplní pínař v docházce.** Tlačítko „Jel autem?" je
   v `AttendanceSection`, ale jen u venkovního zápasu (`rides`) a jen u toho, kdo
   nebyl označený za nepřítomného. Posílá se `transport` **bez** změny docházky:
@@ -230,6 +243,17 @@ npm run typecheck && npm run lint && npm test && npm run format
   detailu akce tlačítko nepatří — je to jednorázové nastavení telefonu, ne
   součást provozu. Token se drží jen v otevřeném dialogu a při zavření se maže
   i z mutation cache; ze serveru ho podruhé získat nejde.
+- **Modul akcí se řídí jedním `usesAttendance`.** Hodnota vzniká v `TeamProvider`
+  z `TeamSummary.attendanceEnabled`, bez načteného družstva je bezpečný výchozí
+  stav `true`. Při vypnutí vede `/` na `/dluhy`, strážce nepustí routy kalendáře,
+  akcí, sérií, účasti ani míst a stejné vstupy zmizí z navigace i formulářů.
+  Nic se v klientu nenuluje: uložené termíny, domácí hala a automatická pravidla
+  musí přežít opětovné zapnutí — schovává se pole, nemaže se hodnota, a nastavení
+  se pořád posílá celé. V nastavení družstva proto zmizí i **domácí hala**: bez
+  akcí se z ní nepozná domácí zápas a ruční cesťák počítá jen ze sazby, takže by
+  to bylo pole bez následku odkazující na skrytá Místa. Oznámení a odběry kalendáře
+  jsou uživatelovy, proto se jejich nabídka řídí všemi jeho družstvy; nesmí zmizet
+  jen kvůli právě vybranému týmu.
 - **Service worker cachuje jen shell, žádná data.** Přednačítá statické soubory
   a navigaci, takže se aplikace spustí i bez signálu — ale skončí na přihlášení,
   protože bez sítě se relace obnovit nedá. **Odpovědi API se necachují ani ke

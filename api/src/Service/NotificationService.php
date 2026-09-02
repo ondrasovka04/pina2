@@ -238,8 +238,9 @@ final class NotificationService
                       LEFT JOIN team_settings ts ON ts.team_id = s.team_id
                       JOIN roster_entry re ON re.season_id = s.id AND re.active = 1
                       JOIN membership m ON m.id = re.membership_id AND m.status = 'active'
-                      LEFT JOIN event_participant ep ON ep.event_id = e.id AND ep.membership_id = m.id
+                     LEFT JOIN event_participant ep ON ep.event_id = e.id AND ep.membership_id = m.id
                      WHERE e.starts_at > ? AND e.status = 'planned'
+                       AND " . AttendanceModule::SQL_ENABLED . "
                        AND COALESCE(ep.rsvp, 'unknown') = 'unknown'
                ) AS candidates
               WHERE (candidates.rsvp_deadline_at IS NOT NULL

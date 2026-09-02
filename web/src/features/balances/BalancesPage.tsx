@@ -26,6 +26,7 @@ export function BalancesPage() {
 	const [period, setPeriod] = useState<PeriodKey>('all')
 
 	const myMembershipId = team?.membershipId ?? null
+	const travelEnabled = team?.travelEnabled === true
 
 	const members = useMemo(() => {
 		const list = data?.members ?? []
@@ -85,8 +86,9 @@ export function BalancesPage() {
 					<Link to="/zapisy" className="text-ink-muted text-sm">
 						Zápisy
 					</Link>
+					{/* „a cesťáky" jen tam, kde nějaké jsou — stejné pravidlo jako záložka na `/platby`. */}
 					<Link to="/platby" className="text-ink-muted text-sm">
-						Platby a cesťáky
+						{travelEnabled || data.travelCzk !== 0 ? 'Platby a cesťáky' : 'Platby'}
 					</Link>
 				</div>
 				{data.visibility === 'own' ? null : (

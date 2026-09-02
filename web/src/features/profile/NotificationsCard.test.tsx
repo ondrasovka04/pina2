@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+	teams: [{ attendanceEnabled: true }],
 	settings: vi.fn(),
 	subscribe: vi.fn(),
 	unsubscribe: vi.fn(),
@@ -13,6 +14,8 @@ const mocks = vi.hoisted(() => ({
 	supports: vi.fn(),
 	needsInstall: vi.fn(),
 }))
+
+vi.mock('@/app/team', () => ({ useTeam: () => ({ teams: mocks.teams }) }))
 
 vi.mock('@/lib/queries', () => ({
 	useNotificationSettings: mocks.settings,
@@ -43,6 +46,7 @@ const settings = {
 
 describe('NotificationsCard', () => {
 	beforeEach(() => {
+		mocks.teams = [{ attendanceEnabled: true }]
 		mocks.settings.mockReturnValue({ data: settings, error: null, isPending: false })
 		mocks.supports.mockReturnValue(true)
 		mocks.needsInstall.mockReturnValue(false)
@@ -64,6 +68,14 @@ describe('NotificationsCard', () => {
 		await user.click(screen.getByRole('checkbox', { name: /Nový zápis do píny/ }))
 
 		expect(mocks.save).toHaveBeenCalledWith({ ...settings.preferences, offenceBatch: true })
+	})
+
+	it('bez družstva s docházkou skryje volbu připomínek akcí', () => {
+		mocks.teams = [{ attendanceEnabled: false }]
+		render(<NotificationsCard />)
+
+		expect(screen.queryByRole('checkbox', { name: /Nezodpovězená akce/ })).toBeNull()
+		expect(screen.getByRole('checkbox', { name: /Nový zápis do píny/ })).toBeInTheDocument()
 	})
 
 	it('vyžádá oprávnění až po kliknutí na zapnutí', async () => {

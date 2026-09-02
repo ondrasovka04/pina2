@@ -64,6 +64,15 @@ final class TeamServiceTest extends DatabaseTestCase
         $roles = array_column($teams, 'role', 'id');
         self::assertSame('admin', $roles[$this->prosekTeam]);
         self::assertSame('player', $roles[$this->benatkyTeam]);
+        // Výchozí stav bez řádku nastavení: docházka zapnutá, cesťáky ne.
+        self::assertSame([true, true], array_column($teams, 'attendanceEnabled'));
+        self::assertSame([false, false], array_column($teams, 'travelEnabled'));
+
+        $this->service->saveSettings($this->admin, $this->prosekTeam, $this->settings(['travelEnabled' => true]));
+
+        $updated = array_column($this->service->myTeams($this->admin), 'travelEnabled', 'id');
+        self::assertTrue($updated[$this->prosekTeam]);
+        self::assertFalse($updated[$this->benatkyTeam]);
     }
 
     public function testMyTeamsSkipsTeamsWhereMemberLeft(): void
@@ -85,6 +94,7 @@ final class TeamServiceTest extends DatabaseTestCase
         self::assertSame(2, $detail['memberCount']);
 
         // Výchozí hodnoty bez řádku v DB.
+        self::assertTrue($detail['settings']['attendanceEnabled']);
         self::assertFalse($detail['settings']['travelEnabled']);
         self::assertSame(5.0, $detail['settings']['travelRateCzkKm']);
         self::assertSame(24, $detail['settings']['rsvpDeadlineTrainingHours']);
@@ -793,6 +803,22 @@ final class TeamServiceTest extends DatabaseTestCase
         self::assertNull($this->db->value('SELECT bank_account FROM team_settings WHERE team_id = ?', [$this->prosekTeam]));
     }
 
+    public function testAdminSavesAttendanceSettingAndItIsAudited(): void
+    {
+        $saved = $this->service->saveSettings($this->admin, $this->prosekTeam, $this->settings([
+            'attendanceEnabled' => false,
+        ]));
+
+        self::assertFalse($saved['attendanceEnabled']);
+        self::assertFalse($this->service->myTeams($this->admin)[0]['attendanceEnabled']);
+
+        $payload = json_decode((string) $this->db->value(
+            "SELECT payload FROM audit_log WHERE action = 'settings_changed' ORDER BY id DESC LIMIT 1",
+        ), true, flags: JSON_THROW_ON_ERROR);
+
+        self::assertEqualsCanonicalizing(['old' => true, 'new' => false], $payload['attendanceEnabled']);
+    }
+
     public function testAdminCanSaveDisableAndAuditRsvpDeadlines(): void
     {
         $saved = $this->service->saveSettings($this->admin, $this->prosekTeam, $this->settings([
@@ -902,6 +928,7 @@ final class TeamServiceTest extends DatabaseTestCase
     /**
      * @param  array<string,mixed> $overrides
      * @return array{
+     *     attendanceEnabled:bool,
      *     travelEnabled:bool,
      *     travelRateCzkKm:float,
      *     travelRoundTrip:bool,
@@ -916,6 +943,7 @@ final class TeamServiceTest extends DatabaseTestCase
     private function settings(array $overrides = []): array
     {
         /** @var array{
+         *     attendanceEnabled:bool,
          *     travelEnabled:bool,
          *     travelRateCzkKm:float,
          *     travelRoundTrip:bool,
@@ -928,6 +956,7 @@ final class TeamServiceTest extends DatabaseTestCase
          * } $settings
          */
         $settings = [
+            'attendanceEnabled'          => true,
             'travelEnabled'              => false,
             'travelRateCzkKm'            => 5.0,
             'travelRoundTrip'            => true,

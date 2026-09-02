@@ -142,6 +142,33 @@ final class FinanceServiceTest extends DatabaseTestCase
         self::assertSame(-110, $this->balance($this->playerMembership));
     }
 
+    public function testDisabledAttendanceRejectsSyncButAllowsManualTravelClaim(): void
+    {
+        $this->db->run(
+            'INSERT INTO team_settings
+                 (team_id, attendance_enabled, travel_enabled, travel_rate_czk_km, travel_round_trip)
+             VALUES (?, 0, 1, 5.00, 1)',
+            [$this->team],
+        );
+
+        try {
+            $this->service->syncTravelClaims($this->treasurer, $this->season);
+            self::fail('Synchronizace bez docházky musí být zamčená.');
+        } catch (ApiException $e) {
+            self::assertSame(409, $e->status);
+            self::assertSame('ATTENDANCE_DISABLED', $e->errorCode);
+        }
+
+        $claim = $this->service->createTravelClaim($this->treasurer, $this->season, [
+            'membershipId' => $this->playerMembership,
+            'occurredOn'   => '2026-09-20',
+            'distanceKm'   => 10,
+            'note'         => 'Turnaj',
+        ]);
+
+        self::assertSame(100, $claim['amountCzk']);
+    }
+
     public function testSyncTravelClaimsIsIdempotentAndKeepsRateSnapshot(): void
     {
         $this->db->run(

@@ -13,6 +13,7 @@ interface TeamValue {
 	season: Season | null
 	seasonId: number | null
 	isSeasonClosed: boolean
+	usesAttendance: boolean
 	role: Role | null
 	can: (required: Role) => boolean
 	selectTeam: (teamId: number) => void
@@ -32,6 +33,10 @@ export function useTeam(): TeamValue {
 }
 
 const STORAGE_KEY = 'pina.teamId'
+
+export function homePath(usesAttendance: boolean): '/kalendar' | '/dluhy' {
+	return usesAttendance ? '/kalendar' : '/dluhy'
+}
 
 function storedTeamId(): number | null {
 	try {
@@ -99,6 +104,7 @@ export function TeamProvider({ children }: { children: ReactNode }) {
 			season,
 			seasonId: season?.id ?? null,
 			isSeasonClosed: season !== null && season.closedAt !== null,
+			usesAttendance: team?.attendanceEnabled ?? true,
 			role,
 			can: (required: Role) => atLeast(role ?? undefined, required),
 			selectTeam,

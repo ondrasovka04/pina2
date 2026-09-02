@@ -68,6 +68,54 @@ final class EventServiceTest extends DatabaseTestCase
 
     // --------------------------------------------------------------- kalendář
 
+    public function testDisabledAttendanceRejectsWritesButKeepsHistoryReadable(): void
+    {
+        $eventId = $this->makeEvent(2 * self::DAY);
+        $this->db->run('INSERT INTO team_settings (team_id, attendance_enabled) VALUES (?, 0)', [$this->teamId]);
+
+        foreach ([
+            fn () => $this->service->create(
+                $this->identity($this->treasurerId, Role::Treasurer),
+                $this->seasonId,
+                $this->eventInput(),
+            ),
+            fn () => $this->service->saveRsvp(
+                $this->identity($this->playerId, Role::Player),
+                $eventId,
+                ['rsvp' => 'yes', 'note' => null, 'transport' => 'none', 'carSeats' => null],
+            ),
+            fn () => $this->service->saveAttendance(
+                $this->identity($this->treasurerId, Role::Treasurer),
+                $eventId,
+                [['membershipId' => $this->playerMembership, 'attendance' => 'present']],
+            ),
+        ] as $write) {
+            try {
+                $write();
+                self::fail('Vypnutá docházka musí zápis odmítnout.');
+            } catch (ApiException $e) {
+                self::assertSame(409, $e->status);
+                self::assertSame('ATTENDANCE_DISABLED', $e->errorCode);
+            }
+        }
+
+        self::assertCount(1, $this->service->calendar(
+            $this->identity($this->playerId, Role::Player),
+            $this->seasonId,
+            null,
+            null,
+        ));
+        self::assertSame($eventId, $this->service->detail(
+            $this->identity($this->playerId, Role::Player),
+            $eventId,
+        )['event']['id']);
+        self::assertSame([], $this->service->summary(
+            $this->identity($this->playerId, Role::Player),
+            $this->seasonId,
+            null,
+        ));
+    }
+
     public function testCalendarShowsEventsWithAnswerCounts(): void
     {
         $eventId = $this->makeEvent(2 * self::DAY);
@@ -976,8 +1024,12 @@ final class EventServiceTest extends DatabaseTestCase
         $admin    = $this->identity($this->adminId, Role::Admin);
         $seriesId = $this->makeSeries($admin);
         $terms    = $this->termsOf($seriesId);
+        $answered = (int) $this->db->value(
+            'SELECT id FROM event WHERE series_id = ? AND starts_at > NOW() ORDER BY starts_at LIMIT 1',
+            [$seriesId],
+        );
 
-        $this->service->saveRsvp($this->identity($this->playerId, Role::Player), $terms[0], [
+        $this->service->saveRsvp($this->identity($this->playerId, Role::Player), $answered, [
             'rsvp' => 'yes', 'note' => null, 'transport' => 'none', 'carSeats' => null,
         ]);
 
@@ -996,14 +1048,14 @@ final class EventServiceTest extends DatabaseTestCase
 
         self::assertStringContainsString(
             '18:00:00',
-            (string) $this->db->value('SELECT starts_at FROM event WHERE id = ?', [$terms[0]]),
+            (string) $this->db->value('SELECT starts_at FROM event WHERE id = ?', [$answered]),
         );
         // A hlavně: odpověď hráče u přesunutého termínu přežila.
         self::assertSame(
             'yes',
             (string) $this->db->value(
                 'SELECT rsvp FROM event_participant WHERE event_id = ? AND membership_id = ?',
-                [$terms[0], $this->playerMembership],
+                [$answered, $this->playerMembership],
             ),
         );
     }

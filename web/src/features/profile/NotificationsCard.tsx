@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 
+import { useTeam } from '@/app/team'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { cn } from '@/lib/cn'
@@ -19,7 +20,11 @@ import {
 import type { NotificationPreferences } from '@/lib/types'
 
 const options: Array<{ key: keyof NotificationPreferences; label: string; description: string }> = [
-	{ key: 'eventReminder', label: 'Nezodpovězená akce', description: 'Večer před akcí, pokud chybí odpověď.' },
+	{
+		key: 'eventReminder',
+		label: 'Nezodpovězená akce',
+		description: 'Než vyprší termín zápisu, pokud chybí odpověď.',
+	},
 	{ key: 'offenceBatch', label: 'Nový zápis do píny', description: 'Jeden souhrn za celou dávku.' },
 ]
 
@@ -37,6 +42,10 @@ function blockedReason(available: boolean | undefined): string | null {
 }
 
 export function NotificationsCard() {
+	const { teams } = useTeam()
+	const visibleOptions = teams.some((team) => team.attendanceEnabled)
+		? options
+		: options.filter((option) => option.key !== 'eventReminder')
 	const settings = useNotificationSettings()
 	const subscribe = useSubscribePush()
 	const unsubscribe = useUnsubscribePush()
@@ -157,7 +166,7 @@ export function NotificationsCard() {
 				<p className="text-ink-faint px-4 py-3 text-sm">Načítám volby…</p>
 			) : (
 				<div className="divide-line/50 divide-y">
-					{options.map((option) => (
+					{visibleOptions.map((option) => (
 						<label
 							key={option.key}
 							className={cn(

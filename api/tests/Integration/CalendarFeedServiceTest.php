@@ -50,6 +50,23 @@ final class CalendarFeedServiceTest extends DatabaseTestCase
         self::assertSame($this->seasonId, $feeds[0]['seasonId']);
     }
 
+    public function testDisabledAttendanceRejectsNewFeedButKeepsExistingFeedReadable(): void
+    {
+        $issued = $this->service->issue($this->identity(), $this->seasonId);
+        $this->db->run('INSERT INTO team_settings (team_id, attendance_enabled) VALUES (?, 0)', [$this->teamId]);
+
+        try {
+            $this->service->issue($this->identity(), $this->seasonId);
+            self::fail('Vypnutá docházka musí vydání odběru odmítnout.');
+        } catch (ApiException $e) {
+            self::assertSame(409, $e->status);
+            self::assertSame('ATTENDANCE_DISABLED', $e->errorCode);
+        }
+
+        self::assertCount(1, $this->service->list($this->identity()));
+        self::assertStringContainsString('BEGIN:VCALENDAR', $this->service->document($issued['token'], null)['body']);
+    }
+
     public function testValidTokenReturnsSafeCalendar(): void
     {
         $this->db->run(

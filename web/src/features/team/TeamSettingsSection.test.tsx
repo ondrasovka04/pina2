@@ -18,6 +18,7 @@ vi.mock('@/lib/api', async (importOriginal) => {
 const { TeamSettingsSection } = await import('@/features/team/TeamSettingsSection')
 
 const settings = {
+	attendanceEnabled: true,
 	travelEnabled: true,
 	travelRateCzkKm: 5,
 	travelRoundTrip: true,
@@ -63,7 +64,7 @@ function renderSection(shown = team) {
 		)
 	}
 
-	return { ...result, switchTo }
+	return { ...result, switchTo, client }
 }
 
 /** Uložení, které visí, dokud ho test nepustí dál. */
@@ -98,6 +99,36 @@ describe('TeamSettingsSection — ukládání bez tlačítka', () => {
 		// Server přijímá celé nastavení, takže se posílá i to, co se nezměnilo.
 		expect(put.mock.calls[0]?.[1]).toEqual({ ...settings, balancesVisibleToPlayers: false })
 		await screen.findByText('uloženo')
+	})
+
+	it('vypnutí docházky odešle příznak a schová docházkové volby', async () => {
+		const user = userEvent.setup()
+		renderSection()
+
+		await user.click(screen.getByRole('checkbox', { name: /Docházka a kalendář/ }))
+
+		await waitFor(() => expect(put).toHaveBeenCalledTimes(1))
+		// Uložená hala se posílá dál, jen se nevykresluje — vypnutí nic nemaže.
+		expect(put.mock.calls[0]?.[1]).toEqual({ ...settings, attendanceEnabled: false })
+		expect(screen.queryByLabelText('Zápis na trénink (h)')).toBeNull()
+		expect(screen.queryByRole('checkbox', { name: /Docházka ostatních/ })).toBeNull()
+		expect(screen.queryByLabelText('Domácí hala')).toBeNull()
+	})
+
+	/**
+	 * Vypínač docházky nese `TeamSummary`, tedy seznam z `/me/teams`. Když se
+	 * zneplatní jen detail družstva, uložení se navenek neprojeví až do načtení
+	 * stránky — přepínač vypadá jako rozbitý. Přesně tak to jednou skončilo.
+	 */
+	it('uložení zneplatní seznam družstev, ne jen detail', async () => {
+		const user = userEvent.setup()
+		const { client } = renderSection()
+
+		client.setQueryData(['teams'], [{ id: 4, attendanceEnabled: true }])
+
+		await user.click(screen.getByRole('checkbox', { name: /Docházka a kalendář/ }))
+
+		await waitFor(() => expect(client.getQueryState(['teams'])?.isInvalidated).toBe(true))
 	})
 
 	it('psaní do čísla účtu pošle jeden požadavek s dopsanou hodnotou', async () => {

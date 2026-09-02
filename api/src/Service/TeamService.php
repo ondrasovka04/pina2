@@ -23,6 +23,7 @@ use Pina\Support\RsvpDeadline;
  * ale z databáze, takže odebrané oprávnění platí okamžitě.
  *
  * @phpstan-type TeamSettings array{
+ *     attendanceEnabled:bool,
  *     travelEnabled:bool,
  *     travelRateCzkKm:float,
  *     travelRoundTrip:bool,
@@ -105,6 +106,8 @@ final class TeamService
      *     membershipId:int,
      *     role:string,
      *     archived:bool,
+     *     attendanceEnabled:bool,
+     *     travelEnabled:bool,
      *     currentSeason:array{id:int,name:string}|null
      * }>
      */
@@ -115,10 +118,13 @@ final class TeamService
                     t.logo_url,
                     c.id AS club_id, c.name AS club_name,
                     m.id AS membership_id, m.role,
+                    COALESCE(ts.attendance_enabled, 1) AS attendance_enabled,
+                    COALESCE(ts.travel_enabled, 0) AS travel_enabled,
                     s.id AS season_id, s.name AS season_name
                FROM membership m
                JOIN team t ON t.id = m.team_id
                JOIN club c ON c.id = t.club_id
+               LEFT JOIN team_settings ts ON ts.team_id = t.id
                LEFT JOIN season s ON s.team_id = t.id AND s.is_current = 1
               WHERE m.user_id = ? AND m.status <> 'left'
               ORDER BY c.name, t.name",
@@ -126,15 +132,19 @@ final class TeamService
         );
 
         return array_map(static fn (array $row): array => [
-            'id'            => (int) $row['id'],
-            'name'          => (string) $row['name'],
-            'color'         => $row['color'] === null ? null : (string) $row['color'],
-            'logoUrl'       => $row['logo_url'] === null ? null : (string) $row['logo_url'],
-            'clubId'        => (int) $row['club_id'],
-            'clubName'      => (string) $row['club_name'],
-            'membershipId'  => (int) $row['membership_id'],
-            'role'          => (string) $row['role'],
-            'archived'      => $row['archived_at'] !== null,
+            'id'                => (int) $row['id'],
+            'name'              => (string) $row['name'],
+            'color'             => $row['color'] === null ? null : (string) $row['color'],
+            'logoUrl'           => $row['logo_url'] === null ? null : (string) $row['logo_url'],
+            'clubId'            => (int) $row['club_id'],
+            'clubName'          => (string) $row['club_name'],
+            'membershipId'      => (int) $row['membership_id'],
+            'role'              => (string) $row['role'],
+            'archived'          => $row['archived_at'] !== null,
+            'attendanceEnabled' => (bool) $row['attendance_enabled'],
+            // Kvůli popiskům a záložkám na obrazovkách peněz; bez toho by si je
+            // musela každá z nich dotáhnout z detailu družstva zvlášť.
+            'travelEnabled' => (bool) $row['travel_enabled'],
             'currentSeason' => $row['season_id'] === null ? null : [
                 'id'   => (int) $row['season_id'],
                 'name' => (string) $row['season_name'],
@@ -817,6 +827,12 @@ final class TeamService
         }
 
         $auditChanges = [];
+        if ($current['attendanceEnabled'] !== $settings['attendanceEnabled']) {
+            $auditChanges['attendanceEnabled'] = [
+                'old' => $current['attendanceEnabled'],
+                'new' => $settings['attendanceEnabled'],
+            ];
+        }
         if ($current['bankAccount'] !== $bankAccount) {
             $auditChanges['bankAccount'] = ['old' => $current['bankAccount'], 'new' => $bankAccount];
         }
@@ -838,15 +854,16 @@ final class TeamService
             $this->db->run(
                 'INSERT INTO team_settings
                  (team_id, bank_account, home_location_id, travel_enabled, travel_rate_czk_km, travel_round_trip,
-                  attendance_visible_to_players, balances_visible_to_players,
+                  attendance_enabled, attendance_visible_to_players, balances_visible_to_players,
                   rsvp_deadline_training_hours, rsvp_deadline_match_hours)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
              ON DUPLICATE KEY UPDATE
                  bank_account                  = VALUES(bank_account),
                  home_location_id              = VALUES(home_location_id),
                  travel_enabled                = VALUES(travel_enabled),
                  travel_rate_czk_km            = VALUES(travel_rate_czk_km),
                  travel_round_trip             = VALUES(travel_round_trip),
+                 attendance_enabled            = VALUES(attendance_enabled),
                  attendance_visible_to_players = VALUES(attendance_visible_to_players),
                  balances_visible_to_players   = VALUES(balances_visible_to_players),
                  rsvp_deadline_training_hours  = VALUES(rsvp_deadline_training_hours),
@@ -858,6 +875,7 @@ final class TeamService
                     (int) $settings['travelEnabled'],
                     number_format($settings['travelRateCzkKm'], 2, '.', ''),
                     (int) $settings['travelRoundTrip'],
+                    (int) $settings['attendanceEnabled'],
                     (int) $settings['attendanceVisibleToPlayers'],
                     (int) $settings['balancesVisibleToPlayers'],
                     $settings['rsvpDeadlineTrainingHours'],
@@ -1003,7 +1021,7 @@ final class TeamService
         $row = $this->db->first(
             'SELECT ts.bank_account, ts.home_location_id, ts.travel_enabled, ts.travel_rate_czk_km,
                     ts.travel_round_trip, ts.attendance_visible_to_players,
-                    ts.balances_visible_to_players, ts.rsvp_deadline_training_hours,
+                    ts.attendance_enabled, ts.balances_visible_to_players, ts.rsvp_deadline_training_hours,
                     ts.rsvp_deadline_match_hours, ts.team_id AS settings_team_id
                FROM team t
                LEFT JOIN team_settings ts ON ts.team_id = t.id
@@ -1017,6 +1035,7 @@ final class TeamService
         }
 
         return [
+            'attendanceEnabled'          => (bool) ($row['attendance_enabled'] ?? true),
             'travelEnabled'              => (bool) ($row['travel_enabled'] ?? false),
             'travelRateCzkKm'            => (float) ($row['travel_rate_czk_km'] ?? 5.0),
             'travelRoundTrip'            => (bool) ($row['travel_round_trip'] ?? true),

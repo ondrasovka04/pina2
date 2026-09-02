@@ -41,11 +41,15 @@ final class CalendarFeedService
 {
     private const MIN_FULL_FETCH_SECONDS = 2;
 
+    private readonly AttendanceModule $attendance;
+
     public function __construct(
         private readonly Database $db,
         private readonly TeamScope $scope,
         private readonly IcsCalendar $ics,
+        ?AttendanceModule $attendance = null,
     ) {
+        $this->attendance = $attendance ?? new AttendanceModule($db);
     }
 
     /**
@@ -76,6 +80,7 @@ final class CalendarFeedService
     public function issue(Identity $identity, int $seasonId): array
     {
         $teamId = $this->scope->season($identity, $seasonId, Role::Player);
+        $this->attendance->assertEnabled($teamId);
 
         $membershipId = $this->db->value(
             "SELECT id FROM membership

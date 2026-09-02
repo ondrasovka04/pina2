@@ -341,6 +341,7 @@ interface CreateOffenceTypeFormProps {
 }
 
 function CreateOffenceTypeForm({ seasonId, allItems, onDone }: CreateOffenceTypeFormProps) {
+	const { usesAttendance } = useTeam()
 	const create = useCreateOffenceType(seasonId)
 	const [name, setName] = useState('')
 	const [amount, setAmount] = useState('')
@@ -401,13 +402,15 @@ function CreateOffenceTypeForm({ seasonId, allItems, onDone }: CreateOffenceType
 					</Select>
 				</label>
 
-				<AutoRuleFields
-					rule={autoRule}
-					eventType={autoEventType}
-					others={allItems}
-					onRuleChange={setAutoRule}
-					onEventTypeChange={setAutoEventType}
-				/>
+				{usesAttendance ? (
+					<AutoRuleFields
+						rule={autoRule}
+						eventType={autoEventType}
+						others={allItems}
+						onRuleChange={setAutoRule}
+						onEventTypeChange={setAutoEventType}
+					/>
+				) : null}
 
 				{generalMessage(create.error) === undefined ? null : (
 					<p role="alert" className="text-debt text-sm">
@@ -444,6 +447,7 @@ interface EditOffenceTypeFormProps {
 }
 
 function EditOffenceTypeForm({ item, allItems, saving, error, onCancel, onSave }: EditOffenceTypeFormProps) {
+	const { usesAttendance } = useTeam()
 	const [name, setName] = useState(item.name)
 	const [amount, setAmount] = useState(String(item.amountCzk))
 	const [category, setCategory] = useState<OffenceCategory | ''>(item.category ?? '')
@@ -491,13 +495,15 @@ function EditOffenceTypeForm({ item, allItems, saving, error, onCancel, onSave }
 					</Select>
 				</label>
 
-				<AutoRuleFields
-					rule={autoRule}
-					eventType={autoEventType}
-					others={allItems.filter((other) => other.id !== item.id)}
-					onRuleChange={setAutoRule}
-					onEventTypeChange={setAutoEventType}
-				/>
+				{usesAttendance ? (
+					<AutoRuleFields
+						rule={autoRule}
+						eventType={autoEventType}
+						others={allItems.filter((other) => other.id !== item.id)}
+						onRuleChange={setAutoRule}
+						onEventTypeChange={setAutoEventType}
+					/>
+				) : null}
 
 				{generalMessage(error) === undefined ? null : (
 					<p role="alert" className="text-debt text-sm">
