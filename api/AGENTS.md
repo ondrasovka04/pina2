@@ -126,6 +126,14 @@ v `tests/Integration/DatabaseTestCase.php` a neobchází se.
   maže — jinak by adresáta na tři dny vyřadila z dalších pokusů.
 - **`Mail\Allowlist` je poslední pojistka** mezi vývojem a schránkami skutečných
   lidí. Mimo produkci je prázdný seznam zákaz odesílání.
+- **Přijetí pozvánky se ptá na heslo a jméno, jen když je nemá odkud vzít.**
+  Hráč přicházející z druhého klubu už účet má — `GET /invitations/{token}`
+  (`AuthService::previewInvitation`) appce předem řekne `hasPassword`, takže
+  formulář pole rovnou skryje a `acceptInvitation` pošle `password`/`name` jako
+  `null`. Dřív appka pole vždycky ukázala a zadané heslo potichu zahodila
+  (`COALESCE(password_hash, …)`) — fungovalo to správně, ale vypadalo to jako
+  chyba. Validace obou polí je teď v `AuthService`, ne v controlleru: až tam
+  se pozná, jestli je účet nový.
 - **E-mail patří uživateli, ne členství** — stejně jako jméno. Admin ho opraví
   v `updateMembership`, hlavní případ je zástupná adresa `@pinaprosek.invalid`
   z migrace (na tu nejde vydat aktivační odkaz) nebo obyčejný překlep. Změna

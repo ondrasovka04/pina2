@@ -161,6 +161,93 @@ final class AuthFlowTest extends DatabaseTestCase
         $this->auth->login('menic@prosek.cz', 'opravdu-dlouhe-heslo', null);
     }
 
+    public function testPreviewOfFreshInvitationAsksForPasswordAndName(): void
+    {
+        $token   = $this->invite('novy@prosek.cz', 'treasurer');
+        $preview = $this->auth->previewInvitation($token);
+
+        self::assertSame('novy@prosek.cz', $preview['email']);
+        self::assertSame('Prosek - muži', $preview['teamName']);
+        self::assertSame('treasurer', $preview['role']);
+        self::assertNull($preview['name']);
+        self::assertFalse($preview['hasPassword']);
+    }
+
+    public function testPreviewOfSecondInvitationSkipsPasswordAndName(): void
+    {
+        [, $secondTeam] = $this->makeTeam('vk-benatky', 'VK Benátky');
+
+        $first = $this->invite('obojziv@example.cz');
+        $this->auth->acceptInvitation($first, 'opravdu-dlouhe-heslo', 'Obojživelník');
+
+        $secondToken = bin2hex(random_bytes(16));
+        $this->db->run(
+            'INSERT INTO invitation (team_id, email, role, token_hash, expires_at)
+             VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 72 HOUR))',
+            [$secondTeam, 'obojziv@example.cz', 'player', hash('sha256', $secondToken)],
+        );
+
+        $preview = $this->auth->previewInvitation($secondToken);
+
+        self::assertSame('VK Benátky', $preview['teamName']);
+        self::assertSame('Obojživelník', $preview['name']);
+        self::assertTrue($preview['hasPassword']);
+    }
+
+    public function testPreviewOfInvalidTokenFails(): void
+    {
+        $this->expectException(ApiException::class);
+        $this->auth->previewInvitation('neexistujici-token');
+    }
+
+    public function testAcceptingSecondInvitationWithoutPasswordOrNameWorks(): void
+    {
+        // Appka podle previewInvitation skryje pole, takže se pošle null — nic ignorovat netřeba.
+        [, $secondTeam] = $this->makeTeam('vk-benatky', 'VK Benátky');
+
+        $first = $this->invite('obojziv@example.cz');
+        $this->auth->acceptInvitation($first, 'opravdu-dlouhe-heslo', 'Obojživelník');
+
+        $secondToken = bin2hex(random_bytes(16));
+        $this->db->run(
+            'INSERT INTO invitation (team_id, email, role, token_hash, expires_at)
+             VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 72 HOUR))',
+            [$secondTeam, 'obojziv@example.cz', 'player', hash('sha256', $secondToken)],
+        );
+
+        $userId = $this->auth->acceptInvitation($secondToken, null, null);
+        $result = $this->auth->login('obojziv@example.cz', 'opravdu-dlouhe-heslo', null);
+
+        self::assertSame($userId, $result['user']['id']);
+        self::assertCount(2, $result['user']['memberships']);
+    }
+
+    public function testFreshInvitationRejectsMissingPassword(): void
+    {
+        $token = $this->invite('bezhesla@prosek.cz');
+
+        try {
+            $this->auth->acceptInvitation($token, null, 'Bez hesla');
+            self::fail('nový účet bez hesla nejde založit');
+        } catch (ApiException $e) {
+            self::assertSame(400, $e->status);
+            self::assertSame('password', $e->details['field'] ?? null);
+        }
+    }
+
+    public function testFreshInvitationRejectsMissingName(): void
+    {
+        $token = $this->invite('bezjmena@prosek.cz');
+
+        try {
+            $this->auth->acceptInvitation($token, 'opravdu-dlouhe-heslo', null);
+            self::fail('nový účet bez jména nejde založit');
+        } catch (ApiException $e) {
+            self::assertSame(400, $e->status);
+            self::assertSame('name', $e->details['field'] ?? null);
+        }
+    }
+
     public function testRoleFromInvitationLandsInToken(): void
     {
         $token  = $this->invite('admin@prosek.cz', 'admin');

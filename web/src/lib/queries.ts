@@ -18,6 +18,7 @@ import type {
 	EventType,
 	IssuedLink,
 	IssuedCalendarFeed,
+	InvitationPreview,
 	NotificationPreferences,
 	NotificationSettings,
 	PushSubscriptionInput,
@@ -70,6 +71,17 @@ export const queryKeys = {
 	locations: (clubId: number) => ['clubs', clubId, 'locations'] as const,
 	calendarFeeds: ['me', 'calendar-feeds'] as const,
 	notificationSettings: ['me', 'notifications', 'settings'] as const,
+	invitationPreview: (token: string) => ['invitations', token] as const,
+}
+
+/** Veřejné, bez přihlášení — appka podle toho pozná, jestli se má ptát na heslo. */
+export function useInvitationPreview(token: string) {
+	return useQuery({
+		queryKey: queryKeys.invitationPreview(token),
+		queryFn: ({ signal }) => api.get<InvitationPreview>(`/invitations/${encodeURIComponent(token)}`, signal),
+		enabled: token !== '',
+		retry: false,
+	})
 }
 
 export function useNotificationSettings() {

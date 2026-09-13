@@ -95,6 +95,7 @@ final class App
         $router->post('/api/v1/auth/login', $authCtrl->login(...), auth: false);
         $router->post('/api/v1/auth/refresh', $authCtrl->refresh(...), auth: false);
         $router->post('/api/v1/auth/logout', $authCtrl->logout(...), auth: false);
+        $router->get('/api/v1/invitations/{token}', $authCtrl->previewInvitation(...), auth: false);
         $router->post('/api/v1/invitations/accept', $authCtrl->acceptInvitation(...), auth: false);
         $router->post('/api/v1/auth/password/forgot', $authCtrl->forgotPassword(...), auth: false);
         $router->post('/api/v1/auth/password/reset', $authCtrl->resetPassword(...), auth: false);

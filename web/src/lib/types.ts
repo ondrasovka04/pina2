@@ -38,6 +38,16 @@ export interface LoginResponse {
 	user: CurrentUser
 }
 
+/** Náhled pozvánky podle tokenu, ještě než se přijme — viz `AcceptInvitationPage`. */
+export interface InvitationPreview {
+	email: string
+	teamName: string
+	role: Role
+	/** Existující jméno, když je pozvaný už v jiném klubu — appka se pak neptá na nové. */
+	name: string | null
+	hasPassword: boolean
+}
+
 /** Položka z `/me/teams` — tým očima přihlášeného, včetně jeho role. */
 export interface TeamSummary {
 	id: number

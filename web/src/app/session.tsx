@@ -12,7 +12,8 @@ interface SessionValue {
 	status: SessionStatus
 	user: CurrentUser | null
 	signIn: (email: string, password: string) => Promise<void>
-	acceptInvitation: (token: string, password: string, name: string) => Promise<void>
+	/** Heslo a jméno jsou `null`, když je pozvaný má už z jiného klubu. */
+	acceptInvitation: (token: string, password: string | null, name: string | null) => Promise<void>
 	/** Nové heslo z odkazu — server v odpovědi rovnou přihlašuje. */
 	resetPassword: (token: string, password: string) => Promise<void>
 	refreshUser: () => Promise<void>
@@ -98,7 +99,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 	)
 
 	const acceptInvitation = useCallback(
-		async (token: string, password: string, name: string) => {
+		async (token: string, password: string | null, name: string | null) => {
 			startSession(await api.post<LoginResponse>('/invitations/accept', { token, password, name }))
 		},
 		[startSession],

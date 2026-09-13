@@ -79,12 +79,17 @@ final class AuthController
         return Response::noContent()->withCookie($this->refreshCookie('', expired: true));
     }
 
+    public function previewInvitation(Request $request): Response
+    {
+        return Response::ok($this->auth->previewInvitation($request->routeString('token')));
+    }
+
     public function acceptInvitation(Request $request): Response
     {
         $userId = $this->auth->acceptInvitation(
             $request->string('token'),
-            $request->string('password'),
-            $request->string('name'),
+            $request->optionalString('password'),
+            $request->optionalString('name'),
         );
 
         $pair = $this->tokens->issue($userId);

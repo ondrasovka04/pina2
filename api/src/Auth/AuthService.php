@@ -61,8 +61,111 @@ final class AuthService
         return [...$pair, 'user' => $this->userPayload($userId)];
     }
 
-    /** Přijetí pozvánky: nastavení hesla a aktivace členství. */
-    public function acceptInvitation(string $token, string $password, string $displayName): int
+    /**
+     * Náhled pozvánky, ještě než ji někdo přijme — appka podle toho pozná, jestli
+     * se má ptát na heslo a jméno, nebo je pozvaný hráč v jiném klubu má už dávno.
+     *
+     * @return array{email:string,teamName:string,role:string,name:string|null,hasPassword:bool}
+     */
+    public function previewInvitation(string $token): array
+    {
+        $invitation = $this->loadValidInvitation($token);
+
+        $existing = $this->db->first(
+            'SELECT display_name, password_hash FROM `user` WHERE email = ?',
+            [$invitation['email']],
+        );
+
+        return [
+            'email'       => $invitation['email'],
+            'teamName'    => (string) $this->db->value('SELECT name FROM team WHERE id = ?', [$invitation['team_id']]),
+            'role'        => $invitation['role'],
+            'name'        => $existing === null ? null : (string) $existing['display_name'],
+            'hasPassword' => $existing !== null && $existing['password_hash'] !== null,
+        ];
+    }
+
+    /**
+     * Přijetí pozvánky: nastavení hesla a aktivace členství. Heslo a jméno jsou
+     * povinné, jen když si je nemá odkud vzít — hráč v jiném klubu je nastavil
+     * dřív a tady se jen přidá další členství.
+     */
+    public function acceptInvitation(string $token, ?string $password, ?string $displayName): int
+    {
+        $invitation = $this->loadValidInvitation($token);
+        $email      = $invitation['email'];
+
+        $existing = $this->db->first(
+            'SELECT id, password_hash FROM `user` WHERE email = ?',
+            [$email],
+        );
+
+        $needsPassword = $existing === null || $existing['password_hash'] === null;
+
+        if ($needsPassword) {
+            if ($password === null || $password === '') {
+                throw ApiException::validation('Vyplňte heslo.', ['field' => 'password']);
+            }
+
+            $this->passwords->assertStrong($password);
+        }
+
+        if ($existing === null && ($displayName === null || $displayName === '')) {
+            throw ApiException::validation('Vyplňte jméno.', ['field' => 'name']);
+        }
+
+        return $this->db->transaction(function () use (
+            $displayName,
+            $email,
+            $existing,
+            $invitation,
+            $needsPassword,
+            $password,
+        ): int {
+            if ($existing === null) {
+                $this->db->run(
+                    'INSERT INTO `user` (email, display_name, password_hash, email_verified_at)
+                     VALUES (?, ?, ?, NOW())',
+                    [$email, $displayName, $this->passwords->hash((string) $password)],
+                );
+                $userId = $this->db->lastInsertId();
+            } else {
+                $userId = (int) $existing['id'];
+
+                if ($needsPassword) {
+                    $this->db->run(
+                        'UPDATE `user` SET password_hash = ?, email_verified_at = COALESCE(email_verified_at, NOW())
+                          WHERE id = ?',
+                        [$this->passwords->hash((string) $password), $userId],
+                    );
+                }
+            }
+
+            $this->db->run(
+                'INSERT INTO membership (user_id, team_id, role, payment_reference)
+                 VALUES (?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE role = VALUES(role), status = \'active\'',
+                [
+                    $userId,
+                    $invitation['team_id'],
+                    $invitation['role'],
+                    PaymentReference::for((int) $invitation['team_id'], (int) $userId),
+                ],
+            );
+
+            $this->db->run('UPDATE invitation SET accepted_at = NOW() WHERE id = ?', [$invitation['id']]);
+
+            return $userId;
+        });
+    }
+
+    /**
+     * Platná, dosud nepřijatá pozvánka podle tokenu — sdílené jádro pro náhled
+     * i samotné přijetí, ať se validace expirace na dvou místech nerozejde.
+     *
+     * @return array{id:int,team_id:int,email:string,role:string}
+     */
+    private function loadValidInvitation(string $token): array
     {
         $hash = hash('sha256', $token);
 
@@ -80,47 +183,12 @@ final class AuthService
             throw ApiException::validation('Platnost pozvánky vypršela, požádejte o novou.');
         }
 
-        $this->passwords->assertStrong($password);
-
-        return $this->db->transaction(function () use ($invitation, $password, $displayName): int {
-            $email  = (string) $invitation['email'];
-            $userId = $this->db->value('SELECT id FROM `user` WHERE email = ?', [$email]);
-
-            if ($userId === null) {
-                $this->db->run(
-                    'INSERT INTO `user` (email, display_name, password_hash, email_verified_at)
-                     VALUES (?, ?, ?, NOW())',
-                    [$email, $displayName, $this->passwords->hash($password)],
-                );
-                $userId = $this->db->lastInsertId();
-            } else {
-                // Hráč v několika klubech — heslo jen pokud nemá.
-                $userId = (int) $userId;
-                $this->db->run(
-                    'UPDATE `user`
-                        SET password_hash    = COALESCE(password_hash, ?),
-                            email_verified_at = COALESCE(email_verified_at, NOW())
-                      WHERE id = ?',
-                    [$this->passwords->hash($password), $userId],
-                );
-            }
-
-            $this->db->run(
-                'INSERT INTO membership (user_id, team_id, role, payment_reference)
-                 VALUES (?, ?, ?, ?)
-                 ON DUPLICATE KEY UPDATE role = VALUES(role), status = \'active\'',
-                [
-                    $userId,
-                    $invitation['team_id'],
-                    $invitation['role'],
-                    PaymentReference::for((int) $invitation['team_id'], (int) $userId),
-                ],
-            );
-
-            $this->db->run('UPDATE invitation SET accepted_at = NOW() WHERE id = ?', [$invitation['id']]);
-
-            return (int) $userId;
-        });
+        return [
+            'id'      => (int) $invitation['id'],
+            'team_id' => (int) $invitation['team_id'],
+            'email'   => (string) $invitation['email'],
+            'role'    => (string) $invitation['role'],
+        ];
     }
 
     public function changePassword(int $userId, string $current, string $new): void

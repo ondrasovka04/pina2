@@ -153,6 +153,11 @@ npm run typecheck && npm run lint && npm test && npm run format
   nesou token, který server drží jen jako otisk — po zavření dialogu se
   nedohledá. `OneTimeLinkDialog` to musí říct nahlas a nabídnout zkopírování.
   Odkazy se **neposílají e-mailem**, předávají se v týmovém chatu.
+- **`AcceptInvitationPage` se nejdřív zeptá serveru, co vůbec potřebuje.**
+  `useInvitationPreview` řekne `hasPassword` — hráč z druhého klubu účet i heslo
+  už má, takže se pole na jméno a heslo vůbec nezobrazí a `acceptInvitation`
+  dostane za obě `null`. Bez téhle otázky appka pole ukázala vždycky a zadané
+  heslo potichu zahodila, což vypadalo jako rozbitá appka, i když to bylo schválně.
 - **Docházka se neodklikává, jen opravuje.** Hráč předem řekne „přijdu" a po
   začátku akce je z toho docházka; pínař přepisuje výjimky. Obrazovka to musí
   říkat nahlas, jinak bude pínař hledat tlačítko „zapsat docházku", které
