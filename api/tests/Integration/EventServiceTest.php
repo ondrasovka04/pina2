@@ -970,19 +970,25 @@ final class EventServiceTest extends DatabaseTestCase
         $seriesId = $this->makeSeries($admin);
 
         $terms = $this->termsOf($seriesId);
-        $third = $terms[2] ?? null;
-        self::assertNotNull($third);
+        // Kolik termínů už je v minulosti — v tomhle poli ordered ASC je to zároveň
+        // index prvního budoucího termínu, na který se dá dělit sérii „following".
+        $splitIndex = (int) $this->db->value(
+            'SELECT COUNT(*) FROM event WHERE series_id = ? AND starts_at <= NOW()',
+            [$seriesId],
+        );
+        $split = $terms[$splitIndex] ?? null;
+        self::assertNotNull($split, 'fixture potřebuje aspoň jeden budoucí termín');
 
         // I termín, na který už někdo odpověděl, jde smazat — smazat znamená smazat.
-        $this->service->saveRsvp($this->identity($this->playerId, Role::Player), $third, [
+        $this->service->saveRsvp($this->identity($this->playerId, Role::Player), $split, [
             'rsvp' => 'yes', 'note' => null, 'transport' => 'none', 'carSeats' => null,
         ]);
 
-        $removal = $this->service->deleteSeries($admin, $seriesId, 'following', $third);
+        $removal = $this->service->deleteSeries($admin, $seriesId, 'following', $split);
 
-        self::assertSame(count($terms) - 2, $removal['deleted']);
-        self::assertSame(2, $removal['kept']);
-        self::assertNull($this->db->value('SELECT id FROM event WHERE id = ?', [$third]));
+        self::assertSame(count($terms) - $splitIndex, $removal['deleted']);
+        self::assertSame($splitIndex, $removal['kept']);
+        self::assertNull($this->db->value('SELECT id FROM event WHERE id = ?', [$split]));
         // Série zůstává a jen se zkrátí, protože dva termíny pořád platí.
         self::assertNotNull($this->db->value('SELECT id FROM event_series WHERE id = ?', [$seriesId]));
     }
