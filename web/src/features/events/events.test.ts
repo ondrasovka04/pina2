@@ -13,6 +13,7 @@ import {
 	formatRatio,
 	formatTime,
 	groupByMonth,
+	linkableMatches,
 	navigationUrl,
 	nextEvent,
 	parseRrule,
@@ -37,6 +38,7 @@ function event(overrides: Partial<TeamEvent> = {}): TeamEvent {
 		opponent: null,
 		note: null,
 		distanceKm: null,
+		travelLinkEvent: null,
 		rsvpDeadlineAt: null,
 		rsvpDeadlineCustom: null,
 		status: 'planned',
@@ -183,6 +185,36 @@ describe('nextEvent', () => {
 		const events = [event({ started: true }), event({ status: 'cancelled' })]
 
 		expect(nextEvent(events)).toBeNull()
+	})
+})
+
+describe('linkableMatches', () => {
+	it('nabídne jen zápasy, ne tréninky ani zrušené a jinak napojené akce', () => {
+		const events = [
+			event({ id: 1, type: 'match' }),
+			event({ id: 2, type: 'training' }),
+			event({ id: 3, type: 'match', status: 'cancelled' }),
+			event({ id: 4, type: 'match', travelLinkEvent: { id: 1, title: 'Zápas 1' } }),
+		]
+
+		expect(linkableMatches(events, null, '2026-09-15 19:00:00').map((item) => item.id)).toEqual([1])
+	})
+
+	it('vyloučí zadanou akci ze seznamu — nejde napojit sama na sebe', () => {
+		const events = [event({ id: 1, type: 'match' }), event({ id: 2, type: 'match' })]
+
+		expect(linkableMatches(events, 1, '2026-09-15 19:00:00').map((item) => item.id)).toEqual([2])
+	})
+
+	it('řadí podle blízkosti k datu upravované akce, ne chronologicky', () => {
+		const events = [
+			event({ id: 1, type: 'match', startsAt: '2026-09-01 19:00:00' }),
+			event({ id: 2, type: 'match', startsAt: '2026-10-05 19:00:00' }),
+			event({ id: 3, type: 'match', startsAt: '2026-10-04 10:00:00' }),
+		]
+
+		// Upravovaná akce je 4. 10. odpoledne — nejbližší kandidát je zápas ráno téhož dne, ne chronologicky první.
+		expect(linkableMatches(events, null, '2026-10-04 16:00:00').map((item) => item.id)).toEqual([3, 2, 1])
 	})
 })
 

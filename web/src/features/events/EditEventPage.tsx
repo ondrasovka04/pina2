@@ -10,10 +10,11 @@ import { ArrowLeftIcon } from '@/components/ui/icons'
 import { Select } from '@/components/ui/Select'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States'
 import { formatDeadline, inheritedDeadlineAt, parseDateTime, shiftMinutes } from '@/features/events/events'
+import { TravelLinkField } from '@/features/events/TravelLinkField'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import type { EventInput } from '@/lib/queries'
-import { useCreateLocation, useEvent, useLocations, useTeamDetail, useUpdateEvent } from '@/lib/queries'
+import { useCreateLocation, useEvent, useEvents, useLocations, useTeamDetail, useUpdateEvent } from '@/lib/queries'
 import type { EventType, TeamEvent } from '@/lib/types'
 import { eventTypeLabels, eventTypes } from '@/lib/types'
 
@@ -124,6 +125,7 @@ function EditForm({ event, eventId, seasonId, teamId, clubId }: EditFormProps) {
 	const navigate = useNavigate()
 	const update = useUpdateEvent(eventId, seasonId)
 	const teamDetail = useTeamDetail(teamId)
+	const events = useEvents(seasonId)
 
 	const [type, setType] = useState<EventType>(event.type)
 	const [title, setTitle] = useState(event.title)
@@ -137,6 +139,7 @@ function EditForm({ event, eventId, seasonId, teamId, clubId }: EditFormProps) {
 	const [locationId, setLocationId] = useState<number | null>(event.location?.id ?? null)
 	const [opponent, setOpponent] = useState(event.opponent ?? '')
 	const [distanceKm, setDistanceKm] = useState(event.distanceKm === null ? '' : String(event.distanceKm))
+	const [travelLinkEventId, setTravelLinkEventId] = useState<number | null>(event.travelLinkEvent?.id ?? null)
 	const [note, setNote] = useState(event.note ?? '')
 	const [rsvpDeadlineAt, setRsvpDeadlineAt] = useState(
 		event.rsvpDeadlineCustom === null ? '' : toInputDateTime(event.rsvpDeadlineCustom),
@@ -155,9 +158,13 @@ function EditForm({ event, eventId, seasonId, teamId, clubId }: EditFormProps) {
 		const nextTitle = title.trim() === '' ? eventTypeLabels[type] : title.trim()
 		const nextNote = note.trim() === '' ? null : note.trim()
 		const nextOpponent = type === 'match' && opponent.trim() !== '' ? opponent.trim() : null
-		const nextDistanceKm = type === 'match' && distanceKm.trim() !== '' ? Number.parseInt(distanceKm, 10) : null
+		const linked = type === 'match' && travelLinkEventId !== null
+		const nextDistanceKm =
+			type === 'match' && !linked && distanceKm.trim() !== '' ? Number.parseInt(distanceKm, 10) : null
+		const nextTravelLinkEventId = linked ? travelLinkEventId : null
 		const nextRsvpDeadlineAt = rsvpDeadlineAt.trim() === '' ? null : rsvpDeadlineAt
 		const originalLocationId = event.location?.id ?? null
+		const originalTravelLinkEventId = event.travelLinkEvent?.id ?? null
 
 		// PATCH je částečný — posílá se jen to, co se opravdu liší od načtené akce.
 		const changes: Partial<EventInput> = {}
@@ -170,6 +177,7 @@ function EditForm({ event, eventId, seasonId, teamId, clubId }: EditFormProps) {
 		if (locationId !== originalLocationId) changes.locationId = locationId
 		if (nextOpponent !== event.opponent) changes.opponent = nextOpponent
 		if (nextDistanceKm !== event.distanceKm) changes.distanceKm = nextDistanceKm
+		if (nextTravelLinkEventId !== originalTravelLinkEventId) changes.travelLinkEventId = nextTravelLinkEventId
 		if (nextNote !== event.note) changes.note = nextNote
 		if (!sameInstant(nextRsvpDeadlineAt, event.rsvpDeadlineCustom)) changes.rsvpDeadlineAt = nextRsvpDeadlineAt
 
@@ -259,16 +267,25 @@ function EditForm({ event, eventId, seasonId, teamId, clubId }: EditFormProps) {
 					<CardHeader title="Zápas" subtitle="Vzdálenost je podklad pro cesťák — jednosměrná, od domácí haly." />
 					<div className="flex flex-col gap-4 p-4">
 						<Field label="Soupeř" value={opponent} onChange={(fieldEvent) => setOpponent(fieldEvent.target.value)} />
-						<Field
-							label="Vzdálenost (km)"
-							type="number"
-							inputMode="numeric"
-							min={0}
-							max={2000}
-							value={distanceKm}
-							onChange={(fieldEvent) => setDistanceKm(fieldEvent.target.value)}
-							placeholder="—"
+						<TravelLinkField
+							events={events.data ?? []}
+							excludeEventId={eventId}
+							referenceStartsAt={startsAt}
+							value={travelLinkEventId}
+							onChange={setTravelLinkEventId}
 						/>
+						{travelLinkEventId === null ? (
+							<Field
+								label="Vzdálenost (km)"
+								type="number"
+								inputMode="numeric"
+								min={0}
+								max={2000}
+								value={distanceKm}
+								onChange={(fieldEvent) => setDistanceKm(fieldEvent.target.value)}
+								placeholder="—"
+							/>
+						) : null}
 					</div>
 				</Card>
 			) : null}

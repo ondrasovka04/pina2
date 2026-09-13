@@ -43,6 +43,7 @@ function detail(overrides: Partial<TeamEvent> = {}, participantOverrides: Partia
 			opponent: 'VK Benátky',
 			note: null,
 			distanceKm: 52,
+			travelLinkEvent: null,
 			rsvpDeadlineAt: null,
 			rsvpDeadlineCustom: null,
 			status: 'planned',
@@ -85,6 +86,7 @@ function detail(overrides: Partial<TeamEvent> = {}, participantOverrides: Partia
 			},
 		],
 		canSeeAttendance: true,
+		travelFollowerEvents: [],
 	}
 }
 
@@ -148,6 +150,27 @@ describe('EventPage', () => {
 
 		expect(await screen.findByText('Zapsáno pozdě')).toBeInTheDocument()
 		expect(screen.getByText('pozdě')).toBeInTheDocument()
+	})
+
+	it('u napojené akce dvojzápasu ukáže, kde se nastavují auta, a schová vlastní volbu dopravy', async () => {
+		get.mockResolvedValue(detail({ travelLinkEvent: { id: 5, title: 'Zápas 1' } }))
+
+		renderPage()
+
+		expect(await screen.findAllByText(/Auta.*se (domlouvají|nastavují) u akce/)).not.toHaveLength(0)
+		for (const link of screen.getAllByRole('link', { name: 'Zápas 1' })) {
+			expect(link).toHaveAttribute('href', '/akce/5')
+		}
+		expect(screen.queryByRole('button', { name: 'Beru auto' })).toBeNull()
+	})
+
+	it('u hlavní akce dvojzápasu ukáže, za koho ještě platí cesťák', async () => {
+		get.mockResolvedValue({ ...detail(), travelFollowerEvents: [{ id: 11, title: 'Zápas 2' }] })
+
+		renderPage()
+
+		expect(await screen.findByText(/Cesťák platí i za/)).toBeInTheDocument()
+		expect(screen.getByRole('link', { name: 'Zápas 2' })).toHaveAttribute('href', '/akce/11')
 	})
 
 	it('po uložení odpovědi sekci nezdvojí', async () => {

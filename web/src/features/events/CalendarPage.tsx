@@ -19,6 +19,7 @@ import type { EventMonth } from '@/features/events/events'
 import { EventsNav } from '@/features/events/EventsNav'
 import { EventTypeBadge } from '@/features/events/EventTypeMark'
 import { MonthGrid } from '@/features/events/MonthGrid'
+import { RsvpBadge } from '@/features/events/RsvpMark'
 import { RsvpButtons } from '@/features/events/RsvpButtons'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
@@ -263,6 +264,14 @@ function EventRow({ event }: { event: TeamEvent }) {
 				: 'po termínu'
 			: null
 
+	/*
+	 * Vlastní odpověď u budoucí akce, ať se pozná i mimo tu nejbližší (ta má
+	 * vlastní kartu s tlačítky). U proběhlé řádek už ukazuje docházku a odznak
+	 * „nevím" by se zbytečně kryl s upozorněním na termín, tak tam v tu chvíli
+	 * nesvítí — deadlineLabel to už řekl.
+	 */
+	const myRsvp = cancelled || event.started || deadlineLabel !== null ? null : (event.me?.rsvp ?? null)
+
 	return (
 		<Link
 			to={`/akce/${event.id}`}
@@ -297,6 +306,7 @@ function EventRow({ event }: { event: TeamEvent }) {
 						</span>
 					)}
 					{cancelled ? null : <span>{rowStatusText(event)}</span>}
+					{myRsvp === null ? null : <RsvpBadge rsvp={myRsvp} />}
 					{cancelled || deadlineLabel === null ? null : (
 						<span className="bg-debt-500/10 text-debt rounded-full px-2 py-0.5">{deadlineLabel}</span>
 					)}

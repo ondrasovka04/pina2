@@ -22,6 +22,7 @@ import {
 import type { DeadlineState } from '@/features/events/events'
 import { EventTypeBadge } from '@/features/events/EventTypeMark'
 import { RsvpButtons } from '@/features/events/RsvpButtons'
+import { RsvpBadge, rsvpStyles } from '@/features/events/RsvpMark'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import type { AttendanceChange } from '@/lib/queries'
@@ -33,7 +34,16 @@ import {
 	useSaveNominations,
 	useSaveRsvp,
 } from '@/lib/queries'
-import type { Attendance, EventParticipant, MyParticipation, Nomination, Rsvp, TeamEvent, Transport } from '@/lib/types'
+import type {
+	Attendance,
+	EventParticipant,
+	LinkedEvent,
+	MyParticipation,
+	Nomination,
+	Rsvp,
+	TeamEvent,
+	Transport,
+} from '@/lib/types'
 import { attendanceLabels, nominationLabels } from '@/lib/types'
 
 /** Detail akce. Docházka se po začátku nezapisuje, jen opravuje — proto jsou dvě karty „moje odpověď" podle toho, jestli akce běží, nebo už začala. */
@@ -58,7 +68,7 @@ export function EventPage() {
 	if (query.isPending) return <LoadingState />
 	if (query.error !== null) return <ErrorState error={query.error} onRetry={() => void query.refetch()} />
 
-	const { event, participants, canSeeAttendance } = query.data
+	const { event, participants, canSeeAttendance, travelFollowerEvents } = query.data
 	const isTreasurer = can('treasurer')
 	const isAdmin = can('admin')
 	const writable = !isSeasonClosed
@@ -74,7 +84,14 @@ export function EventPage() {
 				</p>
 			) : null}
 
-			<EventHeader event={event} canManage={isTreasurer} writable={writable} eventId={eventId} seasonId={seasonId} />
+			<EventHeader
+				event={event}
+				canManage={isTreasurer}
+				writable={writable}
+				eventId={eventId}
+				seasonId={seasonId}
+				travelFollowerEvents={travelFollowerEvents}
+			/>
 
 			{/* Sourozenci nesmí sdílet key, jinak si je React při překreslení splete a karta se zdvojí — projevilo se u zápasu, kde vedle sebe stojí odpověď i nominace. */}
 			{event.me === null ? null : (
@@ -114,7 +131,8 @@ export function EventPage() {
 					seasonId={seasonId}
 					participants={participants}
 					writable={writable}
-					rides={event.type === 'match' && event.isHome !== true}
+					rides={event.type === 'match' && event.isHome !== true && event.travelLinkEvent === null}
+					linkedTo={event.travelLinkEvent}
 					deadline={deadline}
 				/>
 			) : null}
@@ -172,9 +190,10 @@ interface EventHeaderProps {
 	writable: boolean
 	eventId: number
 	seasonId: number | null
+	travelFollowerEvents: LinkedEvent[]
 }
 
-function EventHeader({ event, canManage, writable, eventId, seasonId }: EventHeaderProps) {
+function EventHeader({ event, canManage, writable, eventId, seasonId, travelFollowerEvents }: EventHeaderProps) {
 	const navigate = useNavigate()
 	const cancelEvent = useCancelEvent(eventId, seasonId)
 	const deleteEvent = useDeleteEvent(seasonId)
@@ -210,6 +229,33 @@ function EventHeader({ event, canManage, writable, eventId, seasonId }: EventHea
 					{event.opponent === null ? null : <p className="text-ink-muted text-sm">soupeř: {event.opponent}</p>}
 					{event.distanceKm === null ? null : (
 						<p className="text-ink-faint text-sm">{event.distanceKm} km jedním směrem</p>
+					)}
+					{/* Dvojzápas: auta a cesťák nese jen jedna z dvojice akcí, tady je vidět která. */}
+					{event.travelLinkEvent === null ? null : (
+						<p className="text-ink-faint text-sm">
+							Auta a cesťák se nastavují u akce{' '}
+							<Link
+								to={`/akce/${event.travelLinkEvent.id}`}
+								className="text-brand-600 underline-offset-2 hover:underline"
+							>
+								{event.travelLinkEvent.title}
+							</Link>
+							.
+						</p>
+					)}
+					{travelFollowerEvents.length === 0 ? null : (
+						<p className="text-ink-faint text-sm">
+							Cesťák platí i za{' '}
+							{travelFollowerEvents.map((follower, index) => (
+								<span key={follower.id}>
+									{index === 0 ? null : ', '}
+									<Link to={`/akce/${follower.id}`} className="text-brand-600 underline-offset-2 hover:underline">
+										{follower.title}
+									</Link>
+								</span>
+							))}
+							.
+						</p>
 					)}
 				</div>
 
@@ -418,8 +464,19 @@ function MyAnswerCard({ event, me, eventId, seasonId, writable }: MyAnswerCardPr
 				/>
 			</label>
 
+			{/* Dvojzápas: auta se domlouvají u té akce, co nese cesťák. */}
+			{event.type === 'match' && event.isHome !== true && event.travelLinkEvent !== null && draft.rsvp === 'yes' ? (
+				<p className="text-ink-faint mt-3 text-sm">
+					Auta se domlouvají u akce{' '}
+					<Link to={`/akce/${event.travelLinkEvent.id}`} className="text-brand-600 underline-offset-2 hover:underline">
+						{event.travelLinkEvent.title}
+					</Link>
+					.
+				</p>
+			) : null}
+
 			{/* Odvozy jen na zápasy venku a jen u toho, kdo přijede — na trénink i do vlastní haly se každý dopraví sám. */}
-			{event.type === 'match' && event.isHome !== true && draft.rsvp === 'yes' ? (
+			{event.type === 'match' && event.isHome !== true && event.travelLinkEvent === null && draft.rsvp === 'yes' ? (
 				<div className="mt-3 flex flex-col gap-1.5">
 					<span className="text-ink-muted text-sm font-medium">Doprava</span>
 					<div className="border-line bg-surface-2 flex rounded-xl border p-1">
@@ -655,28 +712,6 @@ function LateBadge({ label, muted = false }: { label: string; muted?: boolean })
 	)
 }
 
-/** Barva sama nenese informaci — text i ikona nesou tutéž, pozná se to i na černobílé obrazovce. */
-const rsvpStyles: Record<Rsvp, string> = {
-	yes: 'bg-bonus-500/15 text-bonus',
-	no: 'bg-debt-500/15 text-debt',
-	unknown: 'bg-surface-2 text-ink-faint',
-}
-
-function RsvpBadge({ rsvp }: { rsvp: Rsvp }) {
-	return (
-		<span
-			className={cn(
-				'inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium',
-				rsvpStyles[rsvp],
-			)}
-		>
-			{rsvp === 'yes' ? <CheckIcon className="size-3.5" /> : null}
-			{rsvp === 'no' ? <XIcon className="size-3.5" /> : null}
-			{rsvpLabels[rsvp]}
-		</span>
-	)
-}
-
 /** Zraněný není ani „byl", ani „nebyl" — do procent se nepočítá, tak ani nesvítí. */
 const attendanceStyles: Record<Attendance, string> = {
 	present: 'bg-bonus-500/15 text-bonus',
@@ -714,10 +749,20 @@ interface AttendanceSectionProps {
 	writable: boolean
 	/** U venkovního zápasu jde zpětně opravit i to, kdo jel autem — jinak nevznikne cesťák. */
 	rides: boolean
+	/** Dvojzápas: auta se řeší u týhle akce, ne u té, co se právě opravuje. */
+	linkedTo: LinkedEvent | null
 	deadline: DeadlineState
 }
 
-function AttendanceSection({ eventId, seasonId, participants, writable, rides, deadline }: AttendanceSectionProps) {
+function AttendanceSection({
+	eventId,
+	seasonId,
+	participants,
+	writable,
+	rides,
+	linkedTo,
+	deadline,
+}: AttendanceSectionProps) {
 	const saveAttendance = useSaveAttendance(eventId, seasonId)
 	const [error, setError] = useState<string | null>(null)
 
@@ -757,6 +802,16 @@ function AttendanceSection({ eventId, seasonId, participants, writable, rides, d
 				Docházka se odvozuje z odpovědí sama — stačí zapsat jen výjimky.
 				{rides ? ' Kdo zapomněl říct, že jede autem, se dá doplnit i teď; cesťák pak vznikne sám.' : ''}
 			</p>
+
+			{linkedTo === null ? null : (
+				<p className="text-ink-faint mt-1 text-sm">
+					Auta a cesťák se nastavují u akce{' '}
+					<Link to={`/akce/${linkedTo.id}`} className="text-brand-600 underline-offset-2 hover:underline">
+						{linkedTo.title}
+					</Link>
+					.
+				</p>
+			)}
 
 			<div className="mt-2 flex flex-col gap-2">
 				{sortParticipants(participants).map((participant) => {

@@ -47,6 +47,7 @@ function event(overrides: Partial<TeamEvent> = {}): TeamEvent {
 		opponent: null,
 		note: null,
 		distanceKm: null,
+		travelLinkEvent: null,
 		rsvpDeadlineAt: null,
 		rsvpDeadlineCustom: null,
 		status: 'planned',
@@ -141,5 +142,55 @@ describe('CalendarPage — termín vlastní odpovědi', () => {
 		await renderAs('player')
 
 		expect(screen.getByText('termín brzy')).toBeInTheDocument()
+	})
+})
+
+describe('CalendarPage — vlastní odpověď v seznamu', () => {
+	beforeEach(() => {
+		get.mockReset()
+	})
+
+	it('u další akce ukáže, jak jsem odpověděl', async () => {
+		get.mockResolvedValue({
+			events: [
+				event({ id: 1, title: 'Nejbližší' }),
+				event({ id: 2, title: 'Zápas', me: { ...event().me!, rsvp: 'yes' } }),
+				event({ id: 3, title: 'Trénink', me: { ...event().me!, rsvp: 'no' } }),
+			],
+		})
+
+		await renderAs('player')
+
+		expect(screen.getByText('Přijdu', { selector: 'span' })).toBeInTheDocument()
+		expect(screen.getByText('Nepřijdu', { selector: 'span' })).toBeInTheDocument()
+	})
+
+	it('neznámou odpověď neduplikuje s odznakem termínu', async () => {
+		get.mockResolvedValue({
+			events: [
+				event({ id: 1, title: 'Nejbližší' }),
+				event({ id: 2, title: 'Další', rsvpDeadlineAt: '2020-09-15 18:00:00' }),
+			],
+		})
+
+		await renderAs('player')
+
+		expect(screen.getByText('po termínu')).toBeInTheDocument()
+		expect(screen.queryByText('Nevím')).toBeNull()
+	})
+
+	it('u proběhlé a zrušené akce odznak odpovědi nesvítí', async () => {
+		get.mockResolvedValue({
+			events: [
+				event({ id: 1, title: 'Nejbližší' }),
+				event({ id: 2, title: 'Proběhlá', started: true, me: { ...event().me!, rsvp: 'yes' } }),
+				event({ id: 3, title: 'Zrušená', status: 'cancelled', me: { ...event().me!, rsvp: 'no' } }),
+			],
+		})
+
+		await renderAs('player')
+
+		expect(screen.queryByText('Přijdu', { selector: 'span' })).toBeNull()
+		expect(screen.queryByText('Nepřijdu', { selector: 'span' })).toBeNull()
 	})
 })

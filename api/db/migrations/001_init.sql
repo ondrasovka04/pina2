@@ -160,6 +160,10 @@ CREATE TABLE event (
   opponent             VARCHAR(120) NULL,
   note                 TEXT NULL,
   distance_km          SMALLINT UNSIGNED NULL COMMENT 'vzdalenost od domaci haly k soupeři (jednosmerna), podklad pro cestovni nahradu',
+  -- Dvojzapas: druhy zapas stejneho vyjezdu odkazuje na prvni, ktery jako jediny
+  -- nese vzdalenost a ridice, takze cestak vznikne jen jednou za cestu. Odkazuje
+  -- se vzdy jen "dopredu" na akci bez vlastniho odkazu - retezeni se nepovoluje.
+  travel_link_event_id BIGINT UNSIGNED NULL,
   rsvp_deadline_at     DATETIME NULL COMMENT 'rucni termin pro tuhle akci; NULL = plati vychozi z nastaveni druzstva',
   status               ENUM('planned','cancelled','done') NOT NULL DEFAULT 'planned',
   overridden           TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'rucne upraveno, pregenerovani serie to neprepise',
@@ -167,9 +171,11 @@ CREATE TABLE event (
   PRIMARY KEY (id),
   KEY ix_event_season_date (season_id, starts_at),
   KEY ix_event_series (series_id),
+  KEY ix_event_travel_link (travel_link_event_id),
   CONSTRAINT fk_event_season FOREIGN KEY (season_id) REFERENCES season (id) ON DELETE CASCADE,
   CONSTRAINT fk_event_series FOREIGN KEY (series_id) REFERENCES event_series (id) ON DELETE SET NULL,
-  CONSTRAINT fk_event_location FOREIGN KEY (location_id) REFERENCES location (id) ON DELETE SET NULL
+  CONSTRAINT fk_event_location FOREIGN KEY (location_id) REFERENCES location (id) ON DELETE SET NULL,
+  CONSTRAINT fk_event_travel_link FOREIGN KEY (travel_link_event_id) REFERENCES event (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_czech_ci;
 
 -- Dochazka se NEZAPISUJE, jen OPRAVUJE:

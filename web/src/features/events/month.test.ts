@@ -18,6 +18,7 @@ function event(overrides: Partial<TeamEvent> = {}): TeamEvent {
 		opponent: null,
 		note: null,
 		distanceKm: null,
+		travelLinkEvent: null,
 		rsvpDeadlineAt: null,
 		rsvpDeadlineCustom: null,
 		status: 'planned',

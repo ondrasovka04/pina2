@@ -168,6 +168,37 @@ export function nextEvent(events: TeamEvent[]): TeamEvent | null {
 	return events.find((event) => !event.started && event.status === 'planned') ?? null
 }
 
+/**
+ * Nabídka „hlavních" akcí pro napojení dvojzápasu — zápas smí odkazovat jen na
+ * jiný zápas, který sám na nikoho neodkazuje (žádné řetězení). Server totéž
+ * ověří znovu, tohle jen ušetří klikání na nevalidní volbu.
+ *
+ * Řazeno podle blízkosti k datu upravované akce, ne chronologicky od začátku
+ * sezóny — dvojzápas je vždycky týž den, takže ten pravý kandidát vyskočí
+ * nahoru bez ohledu na to, jestli se hraje v září, nebo v prosinci.
+ */
+export function linkableMatches(
+	events: TeamEvent[],
+	excludeEventId: number | null,
+	referenceStartsAt: string,
+): TeamEvent[] {
+	const reference = parseDateTime(referenceStartsAt).getTime()
+
+	return events
+		.filter(
+			(event) =>
+				event.type === 'match' &&
+				event.status !== 'cancelled' &&
+				event.id !== excludeEventId &&
+				event.travelLinkEvent === null,
+		)
+		.toSorted(
+			(a, b) =>
+				Math.abs(parseDateTime(a.startsAt).getTime() - reference) -
+				Math.abs(parseDateTime(b.startsAt).getTime() - reference),
+		)
+}
+
 /** „12 přijde · 2 ne · 7 neví" — prázdné části se vynechají. */
 export function rsvpSummary(counts: TeamEvent['counts']): string {
 	const parts: string[] = []

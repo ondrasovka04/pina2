@@ -859,6 +859,174 @@ final class EventServiceTest extends DatabaseTestCase
         self::assertNull($event['isHome']);
     }
 
+    // ------------------------------------------------------------ dvojzápas
+
+    public function testLinkedMatchNeverKeepsItsOwnDistance(): void
+    {
+        $admin = $this->identity($this->adminId, Role::Admin);
+        $main  = $this->service->create($admin, $this->seasonId, [
+            ...$this->eventInput(), 'type' => 'match', 'title' => 'Zápas 1',
+        ]);
+
+        $second = $this->service->create($admin, $this->seasonId, [
+            ...$this->eventInput(),
+            'type'              => 'match',
+            'title'             => 'Zápas 2',
+            'distanceKm'        => 52,
+            'travelLinkEventId' => $main['id'],
+        ]);
+
+        self::assertNull($second['distanceKm']);
+        $link = $second['travelLinkEvent'];
+        self::assertNotNull($link);
+        self::assertSame($main['id'], $link['id']);
+        self::assertSame('Zápas 1', $link['title']);
+    }
+
+    public function testOnlyMatchesCanBeLinkedOrLinkedTo(): void
+    {
+        $admin    = $this->identity($this->adminId, Role::Admin);
+        $match    = $this->service->create($admin, $this->seasonId, [...$this->eventInput(), 'type' => 'match']);
+        $training = $this->service->create($admin, $this->seasonId, $this->eventInput());
+
+        $this->expectStatus(400, fn () => $this->service->create($admin, $this->seasonId, [
+            ...$this->eventInput(),
+            'travelLinkEventId' => $match['id'],
+        ]));
+
+        $this->expectStatus(400, fn () => $this->service->create($admin, $this->seasonId, [
+            ...$this->eventInput(),
+            'type'              => 'match',
+            'travelLinkEventId' => $training['id'],
+        ]));
+    }
+
+    public function testTravelLinkCannotChainThroughAnotherFollower(): void
+    {
+        $admin  = $this->identity($this->adminId, Role::Admin);
+        $main   = $this->service->create($admin, $this->seasonId, [...$this->eventInput(), 'type' => 'match']);
+        $second = $this->service->create($admin, $this->seasonId, [
+            ...$this->eventInput(), 'type' => 'match', 'travelLinkEventId' => $main['id'],
+        ]);
+
+        $this->expectStatus(400, fn () => $this->service->create($admin, $this->seasonId, [
+            ...$this->eventInput(), 'type' => 'match', 'travelLinkEventId' => $second['id'],
+        ]));
+    }
+
+    public function testMainEventOfOneDoubleheaderCannotFollowAnother(): void
+    {
+        $admin = $this->identity($this->adminId, Role::Admin);
+        $main  = $this->service->create($admin, $this->seasonId, [...$this->eventInput(), 'type' => 'match']);
+        $this->service->create($admin, $this->seasonId, [
+            ...$this->eventInput(), 'type' => 'match', 'travelLinkEventId' => $main['id'],
+        ]);
+        $otherMain = $this->service->create($admin, $this->seasonId, [...$this->eventInput(), 'type' => 'match']);
+
+        $this->expectStatus(400, fn () => $this->service->update($admin, $main['id'], [
+            'travelLinkEventId' => $otherMain['id'],
+        ]));
+    }
+
+    public function testMultipleFollowersCanShareTheSameMainEvent(): void
+    {
+        $admin = $this->identity($this->adminId, Role::Admin);
+        $main  = $this->service->create($admin, $this->seasonId, [...$this->eventInput(), 'type' => 'match']);
+        $a     = $this->service->create($admin, $this->seasonId, [
+            ...$this->eventInput(), 'type' => 'match', 'title' => 'A', 'travelLinkEventId' => $main['id'],
+        ]);
+        $b = $this->service->create($admin, $this->seasonId, [
+            ...$this->eventInput(), 'type' => 'match', 'title' => 'B', 'travelLinkEventId' => $main['id'],
+        ]);
+
+        $detail    = $this->service->detail($admin, $main['id']);
+        $followers = array_column($detail['travelFollowerEvents'], 'id');
+
+        self::assertEqualsCanonicalizing([$a['id'], $b['id']], $followers);
+    }
+
+    public function testEventCannotLinkToItself(): void
+    {
+        $admin = $this->identity($this->adminId, Role::Admin);
+        $match = $this->service->create($admin, $this->seasonId, [...$this->eventInput(), 'type' => 'match']);
+
+        $this->expectStatus(400, fn () => $this->service->update($admin, $match['id'], [
+            'travelLinkEventId' => $match['id'],
+        ]));
+    }
+
+    public function testDriverCanOnlyBeRecordedOnTheMainEvent(): void
+    {
+        $admin  = $this->identity($this->adminId, Role::Admin);
+        $player = $this->identity($this->playerId, Role::Player);
+
+        $this->setHomeVenue($this->locationId);
+        $this->db->run('INSERT INTO location (club_id, name) VALUES (?, ?)', [$this->clubId, 'Hala soupeře']);
+        $awayId = $this->db->lastInsertId();
+
+        $main = $this->service->create($admin, $this->seasonId, [
+            ...$this->eventInput(), 'type' => 'match', 'locationId' => $awayId, 'distanceKm' => 40,
+        ]);
+        $second = $this->service->create($admin, $this->seasonId, [
+            ...$this->eventInput(),
+            'type'              => 'match',
+            'locationId'        => $awayId,
+            'travelLinkEventId' => $main['id'],
+        ]);
+
+        $this->service->saveRsvp($player, $second['id'], [
+            'rsvp' => 'yes', 'note' => null, 'transport' => 'driver', 'carSeats' => 3,
+        ]);
+
+        $detail = $this->service->detail($player, $second['id']);
+
+        self::assertSame('none', $this->me($detail)['transport']);
+    }
+
+    public function testAttendanceCorrectionIgnoresTransportOnFollowerEvent(): void
+    {
+        $admin = $this->identity($this->adminId, Role::Admin);
+        $this->setHomeVenue($this->locationId);
+        $this->db->run('INSERT INTO location (club_id, name) VALUES (?, ?)', [$this->clubId, 'Hala soupeře']);
+        $awayId = $this->db->lastInsertId();
+
+        $main = $this->service->create($admin, $this->seasonId, [
+            ...$this->eventInput(), 'type' => 'match', 'locationId' => $awayId, 'distanceKm' => 40,
+        ]);
+        $second = $this->service->create($admin, $this->seasonId, [
+            ...$this->eventInput(),
+            'type'              => 'match',
+            'locationId'        => $awayId,
+            'travelLinkEventId' => $main['id'],
+        ]);
+        $this->moveEventToPast($second['id']);
+
+        $this->service->saveAttendance($admin, $second['id'], [
+            ['membershipId' => $this->playerMembership, 'attendance' => 'present', 'transport' => 'driver', 'carSeats' => 3],
+        ]);
+
+        $detail = $this->service->detail($admin, $second['id']);
+
+        self::assertSame('none', $this->participant($detail, $this->playerMembership)['transport']);
+    }
+
+    public function testUnlinkingAllowsDistanceAgain(): void
+    {
+        $admin  = $this->identity($this->adminId, Role::Admin);
+        $main   = $this->service->create($admin, $this->seasonId, [...$this->eventInput(), 'type' => 'match']);
+        $second = $this->service->create($admin, $this->seasonId, [
+            ...$this->eventInput(), 'type' => 'match', 'travelLinkEventId' => $main['id'],
+        ]);
+
+        $updated = $this->service->update($admin, $second['id'], [
+            'travelLinkEventId' => null,
+            'distanceKm'        => 52,
+        ]);
+
+        self::assertNull($updated['travelLinkEvent']);
+        self::assertSame(52, $updated['distanceKm']);
+    }
+
     public function testDeletingOneEventTakesTheAttendanceButNotTheMoney(): void
     {
         $eventId  = $this->makeEvent(2 * self::DAY);
@@ -1247,22 +1415,23 @@ final class EventServiceTest extends DatabaseTestCase
      * @return array{
      *     type:string,title:string,startsAt:string,endsAt:string|null,meetAt:string|null,
      *     locationId:int|null,opponent:string|null,note:string|null,distanceKm:int|null,
-     *     rsvpDeadlineAt:string|null
+     *     travelLinkEventId:int|null,rsvpDeadlineAt:string|null
      * }
      */
     private function eventInput(): array
     {
         return [
-            'type'           => 'training',
-            'title'          => 'Trénink',
-            'startsAt'       => '2026-09-15 19:00:00',
-            'endsAt'         => null,
-            'meetAt'         => null,
-            'locationId'     => $this->locationId,
-            'opponent'       => null,
-            'note'           => null,
-            'distanceKm'     => null,
-            'rsvpDeadlineAt' => null,
+            'type'              => 'training',
+            'title'             => 'Trénink',
+            'startsAt'          => '2026-09-15 19:00:00',
+            'endsAt'            => null,
+            'meetAt'            => null,
+            'locationId'        => $this->locationId,
+            'opponent'          => null,
+            'note'              => null,
+            'distanceKm'        => null,
+            'travelLinkEventId' => null,
+            'rsvpDeadlineAt'    => null,
         ];
     }
 

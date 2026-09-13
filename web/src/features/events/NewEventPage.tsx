@@ -21,9 +21,17 @@ import {
 	weekdayLabels,
 	weekdays,
 } from '@/features/events/events'
+import { TravelLinkField } from '@/features/events/TravelLinkField'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
-import { useCreateEvent, useCreateLocation, useCreateSeries, useLocations, useTeamDetail } from '@/lib/queries'
+import {
+	useCreateEvent,
+	useCreateLocation,
+	useCreateSeries,
+	useEvents,
+	useLocations,
+	useTeamDetail,
+} from '@/lib/queries'
 import type { EventType } from '@/lib/types'
 import { eventTypeLabels, eventTypes } from '@/lib/types'
 
@@ -121,6 +129,7 @@ interface FormProps {
 
 function SingleForm({ seasonId, teamId, clubId, startsOn }: FormProps) {
 	const teamDetail = useTeamDetail(teamId)
+	const events = useEvents(seasonId)
 	const homeLocationId = teamDetail.data?.settings.homeLocationId ?? null
 	const navigate = useNavigate()
 	const create = useCreateEvent(seasonId)
@@ -133,6 +142,7 @@ function SingleForm({ seasonId, teamId, clubId, startsOn }: FormProps) {
 	const [locationId, setLocationId] = useState<number | null>(null)
 	const [opponent, setOpponent] = useState('')
 	const [distanceKm, setDistanceKm] = useState('')
+	const [travelLinkEventId, setTravelLinkEventId] = useState<number | null>(null)
 	const [note, setNote] = useState('')
 	const [rsvpDeadlineAt, setRsvpDeadlineAt] = useState('')
 
@@ -145,6 +155,7 @@ function SingleForm({ seasonId, teamId, clubId, startsOn }: FormProps) {
 
 		const minutes = Number.parseInt(durationMin, 10)
 		const meets = meetBeforeMin.trim() === '' ? null : Number.parseInt(meetBeforeMin, 10)
+		const linked = type === 'match' && travelLinkEventId !== null
 
 		const created = await create.mutateAsync({
 			type,
@@ -154,7 +165,8 @@ function SingleForm({ seasonId, teamId, clubId, startsOn }: FormProps) {
 			meetAt: meets === null || !Number.isFinite(meets) ? null : shiftMinutes(startsAt, -meets),
 			locationId,
 			opponent: type === 'match' && opponent.trim() !== '' ? opponent.trim() : null,
-			distanceKm: type === 'match' && distanceKm.trim() !== '' ? Number.parseInt(distanceKm, 10) : null,
+			distanceKm: type === 'match' && !linked && distanceKm.trim() !== '' ? Number.parseInt(distanceKm, 10) : null,
+			travelLinkEventId: linked ? travelLinkEventId : null,
 			note: note.trim() === '' ? null : note.trim(),
 			rsvpDeadlineAt: rsvpDeadlineAt.trim() === '' ? null : rsvpDeadlineAt,
 		})
@@ -238,8 +250,15 @@ function SingleForm({ seasonId, teamId, clubId, startsOn }: FormProps) {
 					/>
 					<div className="flex flex-col gap-4 p-4">
 						<Field label="Soupeř" value={opponent} onChange={(event) => setOpponent(event.target.value)} />
+						<TravelLinkField
+							events={events.data ?? []}
+							excludeEventId={null}
+							referenceStartsAt={startsAt}
+							value={travelLinkEventId}
+							onChange={setTravelLinkEventId}
+						/>
 						{/* U domácího zápasu by vzdálenost jen svedla k cesťáku za cestu do vlastní haly. */}
-						{atHome ? null : (
+						{atHome || travelLinkEventId !== null ? null : (
 							<Field
 								label="Vzdálenost (km)"
 								type="number"

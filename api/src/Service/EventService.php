@@ -38,6 +38,7 @@ use Pina\Support\RsvpDeadline;
  *     carSeats:int|null,
  *     attendance:string|null
  * }
+ * @phpstan-type LinkedEvent array{id:int,title:string}
  * @phpstan-type EventPayload array{
  *     id:int,
  *     seasonId:int,
@@ -51,6 +52,7 @@ use Pina\Support\RsvpDeadline;
  *     opponent:string|null,
  *     note:string|null,
  *     distanceKm:int|null,
+ *     travelLinkEvent:LinkedEvent|null,
  *     rsvpDeadlineAt:string|null,
  *     rsvpDeadlineCustom:string|null,
  *     status:string,
@@ -81,7 +83,8 @@ use Pina\Support\RsvpDeadline;
  * @phpstan-type EventDetail array{
  *     event:EventPayload,
  *     participants:list<ParticipantPayload>,
- *     canSeeAttendance:bool
+ *     canSeeAttendance:bool,
+ *     travelFollowerEvents:list<LinkedEvent>
  * }
  * @phpstan-type SeriesPayload array{
  *     id:int,
@@ -204,10 +207,30 @@ final class EventService
         $myMembershipId   = $event['me']['membershipId'] ?? null;
 
         return [
-            'event'            => $event,
-            'participants'     => $this->participants($eventId, $seasonId, $teamId, $canSeeAttendance, $myMembershipId),
-            'canSeeAttendance' => $canSeeAttendance,
+            'event'                => $event,
+            'participants'         => $this->participants($eventId, $seasonId, $teamId, $canSeeAttendance, $myMembershipId),
+            'canSeeAttendance'     => $canSeeAttendance,
+            'travelFollowerEvents' => $this->travelFollowerEvents($eventId),
         ];
+    }
+
+    /**
+     * Kdo z dvojzápasu odkazuje na tuhle akci jako na hlavní — jen tehdy vzniká
+     * cesťák i za jejich cestu, i když sami vzdálenost ani řidiče nenesou.
+     *
+     * @return list<LinkedEvent>
+     */
+    private function travelFollowerEvents(int $eventId): array
+    {
+        $rows = $this->db->all(
+            'SELECT id, title FROM event WHERE travel_link_event_id = ? ORDER BY starts_at',
+            [$eventId],
+        );
+
+        return array_map(
+            static fn (array $row): array => ['id' => (int) $row['id'], 'title' => (string) $row['title']],
+            $rows,
+        );
     }
 
     /**
@@ -221,6 +244,7 @@ final class EventService
      *     opponent:string|null,
      *     note:string|null,
      *     distanceKm:int|null,
+     *     travelLinkEventId:int|null,
      *     rsvpDeadlineAt:string|null
      * } $input
      * @return EventPayload
@@ -234,12 +258,19 @@ final class EventService
         $this->assertLocation($input['locationId'], $teamId);
         $this->assertTimes($input['startsAt'], $input['endsAt'], $input['meetAt']);
         $this->assertRsvpDeadline($input['startsAt'], $input['rsvpDeadlineAt']);
+        $this->assertTravelLink($seasonId, $input['type'], null, $input['travelLinkEventId']);
+
+        // Napojená (vedlejší) akce dvojzápasu vzdálenost nenese vůbec — ta patří
+        // hlavní akci výjezdu, jinak by cesťák vznikl dvakrát.
+        $distanceKm = $input['travelLinkEventId'] !== null
+            ? null
+            : $this->distanceFor($teamId, $input['type'], $input['locationId'], $input['distanceKm']);
 
         $this->db->run(
             'INSERT INTO event
                  (season_id, type, title, starts_at, ends_at, meet_at, location_id,
-                  opponent, note, distance_km, rsvp_deadline_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                  opponent, note, distance_km, travel_link_event_id, rsvp_deadline_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [
                 $seasonId,
                 $input['type'],
@@ -250,7 +281,8 @@ final class EventService
                 $input['locationId'],
                 $input['opponent'],
                 $input['note'],
-                $this->distanceFor($teamId, $input['type'], $input['locationId'], $input['distanceKm']),
+                $distanceKm,
+                $input['travelLinkEventId'],
                 $input['rsvpDeadlineAt'],
             ],
         );
@@ -277,7 +309,7 @@ final class EventService
 
         $current = $this->db->first(
             'SELECT type, title, starts_at, ends_at, meet_at, location_id, opponent, note,
-                    distance_km, rsvp_deadline_at, status, series_id
+                    distance_km, travel_link_event_id, rsvp_deadline_at, status, series_id
                FROM event WHERE id = ?',
             [$eventId],
         );
@@ -291,28 +323,36 @@ final class EventService
         $startsAt = $this->pickString($changes, 'startsAt', (string) $current['starts_at']);
         $status   = $this->pickString($changes, 'status', (string) $current['status']);
 
-        $endsAt     = $this->pickNullableString($changes, 'endsAt', $current['ends_at']);
-        $meetAt     = $this->pickNullableString($changes, 'meetAt', $current['meet_at']);
-        $opponent   = $this->pickNullableString($changes, 'opponent', $current['opponent']);
-        $note       = $this->pickNullableString($changes, 'note', $current['note']);
-        $locationId = $this->pickNullableInt($changes, 'locationId', $current['location_id']);
-        $distanceKm = $this->pickNullableInt($changes, 'distanceKm', $current['distance_km']);
-        $deadline   = $this->pickNullableString($changes, 'rsvpDeadlineAt', $current['rsvp_deadline_at']);
+        $endsAt            = $this->pickNullableString($changes, 'endsAt', $current['ends_at']);
+        $meetAt            = $this->pickNullableString($changes, 'meetAt', $current['meet_at']);
+        $opponent          = $this->pickNullableString($changes, 'opponent', $current['opponent']);
+        $note              = $this->pickNullableString($changes, 'note', $current['note']);
+        $locationId        = $this->pickNullableInt($changes, 'locationId', $current['location_id']);
+        $distanceKm        = $this->pickNullableInt($changes, 'distanceKm', $current['distance_km']);
+        $travelLinkEventId = $this->pickNullableInt($changes, 'travelLinkEventId', $current['travel_link_event_id']);
+        $deadline          = $this->pickNullableString($changes, 'rsvpDeadlineAt', $current['rsvp_deadline_at']);
 
         $this->assertType($type);
         $this->assertLocation($locationId, $teamId);
         $this->assertTimes($startsAt, $endsAt, $meetAt);
         $this->assertRsvpDeadline($startsAt, $deadline);
+        $this->assertTravelLink($this->seasonOf($eventId), $type, $eventId, $travelLinkEventId);
 
         if (!in_array($status, ['planned', 'cancelled', 'done'], true)) {
             throw ApiException::validation('Neznámý stav akce.', ['field' => 'status']);
         }
 
+        // Napojená (vedlejší) akce dvojzápasu vzdálenost nenese vůbec — ta patří
+        // hlavní akci výjezdu, jinak by cesťák vznikl dvakrát.
+        $resolvedDistanceKm = $travelLinkEventId !== null
+            ? null
+            : $this->distanceFor($teamId, $type, $locationId, $distanceKm);
+
         $this->db->run(
             'UPDATE event
                 SET type = ?, title = ?, starts_at = ?, ends_at = ?, meet_at = ?, location_id = ?,
-                    opponent = ?, note = ?, distance_km = ?, rsvp_deadline_at = ?, status = ?,
-                    overridden = CASE WHEN series_id IS NULL THEN 0 ELSE 1 END
+                    opponent = ?, note = ?, distance_km = ?, travel_link_event_id = ?, rsvp_deadline_at = ?,
+                    status = ?, overridden = CASE WHEN series_id IS NULL THEN 0 ELSE 1 END
               WHERE id = ?',
             [
                 $type,
@@ -323,7 +363,8 @@ final class EventService
                 $locationId,
                 $opponent,
                 $note,
-                $this->distanceFor($teamId, $type, $locationId, $distanceKm),
+                $resolvedDistanceKm,
+                $travelLinkEventId,
                 $deadline,
                 $status,
                 $eventId,
@@ -863,7 +904,7 @@ final class EventService
 
         $deadlineExpression = RsvpDeadline::sqlExpression();
         $event              = $this->db->first(
-            "SELECT e.starts_at, e.status, e.type, e.location_id, ts.home_location_id,
+            "SELECT e.starts_at, e.status, e.type, e.location_id, e.travel_link_event_id, ts.home_location_id,
                     $deadlineExpression AS rsvp_deadline_at
                FROM event e
                JOIN season s ON s.id = e.season_id
@@ -896,9 +937,11 @@ final class EventService
         }
 
         // Odvozy jen u venkovního zápasu a jen u toho, kdo přijede — na trénink
-        // i domácí zápas se každý dopraví sám. Hodnota se jen srovná na `none`,
-        // ne zamítne chybou, jinak by přepnutí na „nepřijdu" spadlo na 400.
-        $away = (string) $event['type'] === 'match' && $this->resolveHome([
+        // i domácí zápas se každý dopraví sám. U napojené (vedlejší) akce
+        // dvojzápasu se auto řeší u té hlavní, tady se proto nikdy nezapíše.
+        // Hodnota se jen srovná na `none`, ne zamítne chybou, jinak by přepnutí
+        // na „nepřijdu" spadlo na 400.
+        $away = (string) $event['type'] === 'match' && $event['travel_link_event_id'] === null && $this->resolveHome([
             'type'             => $event['type'],
             'home_location_id' => $event['home_location_id'],
             'location_id'      => $event['location_id'],
@@ -967,7 +1010,7 @@ final class EventService
         $this->assertMembers($teamId, array_map(static fn (array $item): int => $item['membershipId'], $items));
 
         $event = $this->db->first(
-            'SELECT e.type, e.location_id,
+            'SELECT e.type, e.location_id, e.travel_link_event_id,
                     (SELECT ts.home_location_id FROM team_settings ts WHERE ts.team_id = ?) AS home_location_id
                FROM event e WHERE e.id = ?',
             [$teamId, $eventId],
@@ -977,7 +1020,10 @@ final class EventService
             throw ApiException::notFound();
         }
 
-        $away = (string) $event['type'] === 'match' && $this->resolveHome($event) !== true;
+        // U napojené (vedlejší) akce dvojzápasu se auto řeší u té hlavní.
+        $away = (string) $event['type'] === 'match'
+            && $event['travel_link_event_id'] === null
+            && $this->resolveHome($event) !== true;
 
         $this->db->transaction(function () use ($eventId, $items, $identity, $away): int {
             foreach ($items as $item) {
@@ -1143,7 +1189,7 @@ final class EventService
         $deadlineExpression = RsvpDeadline::sqlExpression();
 
         return "SELECT e.id, e.season_id, e.series_id, e.type, e.title, e.starts_at, e.ends_at, e.meet_at,
-                       e.opponent, e.note, e.distance_km,
+                       e.opponent, e.note, e.distance_km, e.travel_link_event_id, tl.title AS travel_link_title,
                        e.rsvp_deadline_at AS rsvp_deadline_custom,
                        $deadlineExpression AS rsvp_deadline_at,
                        e.status, e.location_id,
@@ -1165,6 +1211,7 @@ final class EventService
                   JOIN season es ON es.id = e.season_id
                   LEFT JOIN team_settings ts ON ts.team_id = es.team_id
                   LEFT JOIN location l ON l.id = e.location_id
+                  LEFT JOIN event tl ON tl.id = e.travel_link_event_id
                   LEFT JOIN membership mine
                          ON mine.team_id = (SELECT s.team_id FROM season s WHERE s.id = ?)
                         AND mine.user_id = ?
@@ -1191,18 +1238,22 @@ final class EventService
         $distanceKm = $isHome === true || $row['distance_km'] === null ? null : (int) $row['distance_km'];
 
         return [
-            'id'                 => (int) $row['id'],
-            'seasonId'           => (int) $row['season_id'],
-            'seriesId'           => $row['series_id'] === null ? null : (int) $row['series_id'],
-            'type'               => (string) $row['type'],
-            'title'              => (string) $row['title'],
-            'startsAt'           => (string) $row['starts_at'],
-            'endsAt'             => $row['ends_at'] === null ? null : (string) $row['ends_at'],
-            'meetAt'             => $row['meet_at'] === null ? null : (string) $row['meet_at'],
-            'location'           => $this->mapLocation($row),
-            'opponent'           => $row['opponent'] === null ? null : (string) $row['opponent'],
-            'note'               => $row['note'] === null ? null : (string) $row['note'],
-            'distanceKm'         => $distanceKm,
+            'id'              => (int) $row['id'],
+            'seasonId'        => (int) $row['season_id'],
+            'seriesId'        => $row['series_id'] === null ? null : (int) $row['series_id'],
+            'type'            => (string) $row['type'],
+            'title'           => (string) $row['title'],
+            'startsAt'        => (string) $row['starts_at'],
+            'endsAt'          => $row['ends_at'] === null ? null : (string) $row['ends_at'],
+            'meetAt'          => $row['meet_at'] === null ? null : (string) $row['meet_at'],
+            'location'        => $this->mapLocation($row),
+            'opponent'        => $row['opponent'] === null ? null : (string) $row['opponent'],
+            'note'            => $row['note'] === null ? null : (string) $row['note'],
+            'distanceKm'      => $distanceKm,
+            'travelLinkEvent' => $row['travel_link_event_id'] === null ? null : [
+                'id'    => (int) $row['travel_link_event_id'],
+                'title' => (string) $row['travel_link_title'],
+            ],
             'rsvpDeadlineAt'     => $row['rsvp_deadline_at'] === null ? null : (string) $row['rsvp_deadline_at'],
             'rsvpDeadlineCustom' => $row['rsvp_deadline_custom'] === null
                 ? null
@@ -1519,6 +1570,55 @@ final class EventService
         $home = $this->db->value('SELECT home_location_id FROM team_settings WHERE team_id = ?', [$teamId]);
 
         return $home !== null && (int) $home === $locationId ? null : $distanceKm;
+    }
+
+    /**
+     * Dvojzápas: napojit jde jen zápas na jiný zápas téže sezóny, ne sám na sebe.
+     * Odkaz míří vždy jen na hlavní akci výjezdu — ta proto nesmí sama na nikoho
+     * odkazovat (žádné řetězení) a nesmí už mít vlastní navazující akce (nemůže
+     * být zároveň hlavní i vedlejší).
+     */
+    private function assertTravelLink(int $seasonId, string $type, ?int $eventId, ?int $travelLinkEventId): void
+    {
+        if ($travelLinkEventId === null) {
+            return;
+        }
+
+        if ($type !== 'match') {
+            throw ApiException::validation('Napojit jde jen zápas.', ['field' => 'travelLinkEventId']);
+        }
+
+        if ($travelLinkEventId === $eventId) {
+            throw ApiException::validation('Akce nemůže odkazovat sama na sebe.', ['field' => 'travelLinkEventId']);
+        }
+
+        $target = $this->db->first(
+            'SELECT type, travel_link_event_id FROM event WHERE id = ? AND season_id = ?',
+            [$travelLinkEventId, $seasonId],
+        );
+
+        if ($target === null || (string) $target['type'] !== 'match') {
+            throw ApiException::validation(
+                'Vybraná akce neexistuje, nebo není zápas ve stejné sezóně.',
+                ['field' => 'travelLinkEventId'],
+            );
+        }
+
+        if ($target['travel_link_event_id'] !== null) {
+            throw ApiException::validation(
+                'Vybraná akce sama odkazuje na jinou — napojit lze jen na hlavní akci výjezdu.',
+                ['field' => 'travelLinkEventId'],
+            );
+        }
+
+        $hasFollowers = $this->db->value('SELECT id FROM event WHERE travel_link_event_id = ?', [$eventId ?? 0]);
+
+        if ($hasFollowers !== null) {
+            throw ApiException::validation(
+                'Tahle akce je hlavní akcí výjezdu — napojit ji na jinou nejde.',
+                ['field' => 'travelLinkEventId'],
+            );
+        }
     }
 
     /** Místo musí patřit témuž klubu — jinak by šlo přiřadit halu cizího oddílu. */

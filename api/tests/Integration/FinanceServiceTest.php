@@ -254,6 +254,36 @@ final class FinanceServiceTest extends DatabaseTestCase
         self::assertSame(0, $this->balance($this->playerMembership));
     }
 
+    /**
+     * Dvojzápas: vzdálenost i řidiče nese jen hlavní akce výjezdu, vedlejší má
+     * `distance_km` vždy NULL (hlídá `EventService`). I kdyby se na vedlejší
+     * akci přesto objevil řádek s řidičem, sync ho nesmí vzít v potaz —
+     * jinak by cesta vznikla dvakrát.
+     */
+    public function testDoubleheaderProducesOnlyOneTravelClaim(): void
+    {
+        $this->enableTravel();
+        $mainEventId = $this->makeAwayMatch(40);
+
+        $this->db->run(
+            "INSERT INTO event (season_id, type, title, starts_at, distance_km, travel_link_event_id, status)
+             VALUES (?, 'match', 'Zápas venku 2', '2026-08-01 13:00:00', NULL, ?, 'done')",
+            [$this->season, $mainEventId],
+        );
+        $secondEventId = $this->db->lastInsertId();
+        $this->db->run(
+            "INSERT INTO event_participant (event_id, membership_id, rsvp, transport, car_seats)
+             VALUES (?, ?, 'yes', 'driver', 3)",
+            [$secondEventId, $this->playerMembership],
+        );
+
+        $result = $this->service->syncTravelClaims($this->treasurer, $this->season);
+
+        self::assertSame(1, $result['created']);
+        self::assertSame(1, (int) $this->db->value('SELECT COUNT(*) FROM travel_claim'));
+        self::assertSame($mainEventId, (int) $result['items'][0]['eventId']);
+    }
+
     public function testQrAmountMatchesShownBalanceEvenMimoObdobiSezony(): void
     {
         $this->setBankAccount('19-2000145399/0800');

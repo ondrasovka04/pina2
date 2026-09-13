@@ -596,6 +596,12 @@ export interface ClubLocation extends EventLocation {
 	usedByEvents: number
 }
 
+/** Odkaz na jinou akci — u dvojzápasu se ukazuje jak z vedlejší, tak z hlavní. */
+export interface LinkedEvent {
+	id: number
+	title: string
+}
+
 /** Vlastní řádek u akce. `null`, když volající do družstva nepatří. */
 export interface MyParticipation {
 	membershipId: number
@@ -622,6 +628,8 @@ export interface TeamEvent {
 	opponent: string | null
 	note: string | null
 	distanceKm: number | null
+	/** Dvojzápas: tahle akce je „vedlejší" a auta i vzdálenost se nastavují u té odkazované. */
+	travelLinkEvent: LinkedEvent | null
 	rsvpDeadlineAt: string | null
 	rsvpDeadlineCustom: string | null
 	status: EventStatus
@@ -661,6 +669,8 @@ export interface EventDetail {
 	participants: EventParticipant[]
 	/** Hráč docházku ostatních nevidí, dokud ji admin neotevře v nastavení. */
 	canSeeAttendance: boolean
+	/** Dvojzápas: akce, které na tuhle odkazují jako na hlavní — cesťák platí i za ně. */
+	travelFollowerEvents: LinkedEvent[]
 }
 
 export interface EventSeries {

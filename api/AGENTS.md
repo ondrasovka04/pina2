@@ -226,6 +226,20 @@ v `tests/Integration/DatabaseTestCase.php` a neobchází se.
   zahazuje až v payloadu. Kdo přehodí podmínku na samotnou vzdálenost, proplatí
   cestu do vlastní haly. Sazba se ukládá jako snapshot, takže pozdější změna
   sazebníku nepřepočítá už vzniklý nárok.
+- **Dvojzápas nese vzdálenost i řidiče jen na jedné ze dvou akcí.** Tým hraje
+  skoro vždy dva zápasy na jeden výjezd, zapsané jako dvě samostatné `event`
+  položky. `event.travel_link_event_id` (nullable, self-FK) označí tu
+  "vedlejší" — na tu "hlavní", která jediná smí mít `distance_km` a účastníky
+  s `transport = 'driver'`. `EventService::create`/`update` proto na napojené
+  akci vzdálenost vždy zahodí na `NULL` bez ohledu na vstup a `saveRsvp`/
+  `saveAttendance` na ní `transport` vždy srovná na `none` — stejně tiše jako
+  u domácího zápasu, ne chybou. Díky tomu `syncTravelClaims` nemusí o
+  dvojzápasu vůbec vědět: řidič je zapsaný jen jednou, takže cesťák vznikne
+  jen jednou. Odkaz smí mířit jen na zápas, který sám na nic neodkazuje
+  (žádné řetězení) a který ještě nemá vlastní navazující akce (nejde být
+  hlavní i vedlejší zároveň) — `assertTravelLink` obojí hlídá. Docházka,
+  RSVP i prohřešky zůstávají u obou akcí úplně nezávislé, `offence_batch`
+  ostatně na `event_id` žádné omezení 1:1 nemá.
 - **Storno cesťáku sync nevrací.** Načtení z odehraných zápasů čte i stornované
   řádky právě proto, aby je nezaložilo znovu; storno je rozhodnutí pínaře.
   Naopak nárok, u kterého řidič odpadl (oprava docházky, zrušený zápas,

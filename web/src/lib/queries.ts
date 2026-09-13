@@ -892,6 +892,7 @@ export interface EventInput {
 	opponent?: string | null
 	note?: string | null
 	distanceKm?: number | null
+	travelLinkEventId?: number | null
 	rsvpDeadlineAt?: string | null
 }
 
