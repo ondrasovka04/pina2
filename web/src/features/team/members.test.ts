@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { describeBatch, invitationUrl, isLastAdmin, needsActivation, sortMembers } from '@/features/team/members'
+import {
+	describeBatch,
+	hasPlaceholderEmail,
+	invitationUrl,
+	isLastAdmin,
+	needsActivation,
+	sortMembers,
+} from '@/features/team/members'
 import type { MemberStatus, Role, TeamMember } from '@/lib/types'
 
 function member(overrides: Partial<TeamMember> & { id: number; name: string }): TeamMember {
@@ -59,6 +66,16 @@ describe('needsActivation', () => {
 
 	it('neplatí pro toho, kdo z družstva odešel', () => {
 		expect(needsActivation(member({ id: 1, name: 'Adam', hasPassword: false, status: 'left' }))).toBe(false)
+	})
+})
+
+describe('hasPlaceholderEmail', () => {
+	it('pozná zástupnou adresu z migrace', () => {
+		expect(hasPlaceholderEmail(member({ id: 1, name: 'Adam', email: '1@pinaprosek.invalid' }))).toBe(true)
+	})
+
+	it('neplatí pro skutečnou adresu', () => {
+		expect(hasPlaceholderEmail(member({ id: 1, name: 'Adam', email: 'adam@seznam.cz' }))).toBe(false)
 	})
 })
 

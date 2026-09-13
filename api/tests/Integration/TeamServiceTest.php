@@ -715,6 +715,111 @@ final class TeamServiceTest extends DatabaseTestCase
         self::assertSame('player', $member['role']);
     }
 
+    public function testAdminChangesMemberEmailEverywhere(): void
+    {
+        // E-mail je na uživateli stejně jako jméno → změní se všude.
+        [, $juniors] = $this->makeTeam('sk-prosek-junior', 'Prosek - junioři');
+        $userId      = (int) $this->db->value('SELECT user_id FROM membership WHERE id = ?', [$this->playerMembership]);
+        $this->makeMembership($userId, $juniors, 'player');
+
+        $member = $this->service->updateMembership($this->admin, $this->playerMembership, [
+            'email' => 'opravene@prosek.cz',
+        ]);
+
+        self::assertSame('opravene@prosek.cz', $member['email']);
+        self::assertSame('opravene@prosek.cz', (string) $this->db->value('SELECT email FROM `user` WHERE id = ?', [$userId]));
+    }
+
+    public function testEmailChangeRejectsAddressUsedByAnotherAccount(): void
+    {
+        $this->makeUser('jiny@prosek.cz');
+
+        try {
+            $this->service->updateMembership($this->admin, $this->playerMembership, ['email' => 'jiny@prosek.cz']);
+            self::fail('e-mail patří jinému účtu');
+        } catch (ApiException $e) {
+            self::assertSame(400, $e->status);
+            self::assertSame('email', $e->details['field'] ?? null);
+        }
+
+        self::assertSame(
+            'hrac@prosek.cz',
+            (string) $this->db->value('SELECT email FROM `user` WHERE id = (SELECT user_id FROM membership WHERE id = ?)', [
+                $this->playerMembership,
+            ]),
+        );
+    }
+
+    public function testEmailChangeRevokesPendingInvitationForOldAddress(): void
+    {
+        // Aktivační odkaz vydaný na starou adresu nesmí zůstat platný —
+        // jinak by ho mohl použít, kdo tu starou adresu ovládá.
+        $this->service->activationLink($this->admin, $this->playerMembership, sendEmail: false);
+
+        self::assertSame(
+            1,
+            (int) $this->db->value(
+                "SELECT COUNT(*) FROM invitation WHERE team_id = ? AND email = 'hrac@prosek.cz' AND accepted_at IS NULL",
+                [$this->prosekTeam],
+            ),
+        );
+
+        $this->service->updateMembership($this->admin, $this->playerMembership, ['email' => 'opravene@prosek.cz']);
+
+        self::assertSame(
+            0,
+            (int) $this->db->value(
+                "SELECT COUNT(*) FROM invitation WHERE team_id = ? AND email = 'hrac@prosek.cz' AND accepted_at IS NULL",
+                [$this->prosekTeam],
+            ),
+        );
+    }
+
+    public function testResubmittingSameEmailDoesNothing(): void
+    {
+        $this->service->activationLink($this->admin, $this->playerMembership, sendEmail: false);
+
+        $this->service->updateMembership($this->admin, $this->playerMembership, ['email' => 'hrac@prosek.cz']);
+
+        // Beze změny se nevydávaná pozvánka na tutéž adresu neruší a nic se needituje.
+        self::assertSame(
+            1,
+            (int) $this->db->value(
+                "SELECT COUNT(*) FROM invitation WHERE team_id = ? AND email = 'hrac@prosek.cz' AND accepted_at IS NULL",
+                [$this->prosekTeam],
+            ),
+        );
+        self::assertSame(
+            0,
+            (int) $this->db->value("SELECT COUNT(*) FROM audit_log WHERE action = 'email_changed'"),
+        );
+    }
+
+    public function testEmailChangeIsAuditedWithoutStoringTheAddress(): void
+    {
+        $this->service->updateMembership($this->admin, $this->playerMembership, ['email' => 'opravene@prosek.cz']);
+
+        $row = $this->db->first(
+            "SELECT entity, entity_id, payload FROM audit_log WHERE action = 'email_changed'",
+        );
+
+        self::assertNotNull($row);
+        self::assertSame('membership', $row['entity']);
+        self::assertSame($this->playerMembership, (int) $row['entity_id']);
+        // Osobní údaj do stopy nepatří — jen že se stal a u koho.
+        self::assertNull($row['payload']);
+    }
+
+    public function testPlayerCannotChangeAnyonesEmail(): void
+    {
+        try {
+            $this->service->updateMembership($this->player, $this->playerMembership, ['email' => 'jine@prosek.cz']);
+            self::fail('hráč nesmí měnit e-mail, ani svůj vlastní');
+        } catch (ApiException $e) {
+            self::assertSame(403, $e->status);
+        }
+    }
+
     public function testEmptyNameIsRejected(): void
     {
         try {

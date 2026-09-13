@@ -123,6 +123,7 @@ export type AuditAction =
 	| 'settings_changed'
 	| 'role_changed'
 	| 'status_changed'
+	| 'email_changed'
 	| 'activation_link_issued'
 	| 'half_year_changed'
 	| 'closed'

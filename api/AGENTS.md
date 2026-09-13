@@ -126,6 +126,13 @@ v `tests/Integration/DatabaseTestCase.php` a neobchází se.
   maže — jinak by adresáta na tři dny vyřadila z dalších pokusů.
 - **`Mail\Allowlist` je poslední pojistka** mezi vývojem a schránkami skutečných
   lidí. Mimo produkci je prázdný seznam zákaz odesílání.
+- **E-mail patří uživateli, ne členství** — stejně jako jméno. Admin ho opraví
+  v `updateMembership`, hlavní případ je zástupná adresa `@pinaprosek.invalid`
+  z migrace (na tu nejde vydat aktivační odkaz) nebo obyčejný překlep. Změna
+  zruší nevyřízenou pozvánku pro **starou** adresu v tomtéž družstvu — jinak by
+  dřív vydaný aktivační odkaz dál platil na chybnou adresu a mohl by ho použít
+  někdo jiný. Do `audit_log` jde jen že se e-mail změnil a u koho, ne hodnoty
+  samotné — to je osobní údaj a payload je nesmí kopírovat.
 - **Členství je `active`, nebo `left`.** Mezistav „pozastaven" byl ze staré verze
   a nic nerozlišoval — kdo v dané sezóně nehraje, prostě není na její soupisce.
 - **`tokens_valid_from`** u uživatele zneplatní vydané JWT; používá se při změně

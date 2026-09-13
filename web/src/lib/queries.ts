@@ -404,6 +404,7 @@ export function useCreateTeam(clubId: number) {
 
 export interface MembershipChanges {
 	name?: string
+	email?: string
 	role?: Role
 	status?: MemberStatus
 	jerseyNumber?: number | null

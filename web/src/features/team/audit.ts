@@ -94,6 +94,10 @@ export function describeAuditEntry(entry: AuditEntry): string {
 		return `Změnil roli: ${member(entry)}, ${role(stringValue(entry, 'oldRole'))} → ${role(stringValue(entry, 'newRole'))}.`
 	}
 
+	if (entry.action === 'email_changed' && entry.entity === 'membership') {
+		return `Změnil e-mail: ${member(entry)}.`
+	}
+
 	if (entry.action === 'status_changed' && entry.entity === 'membership') {
 		return stringValue(entry, 'newStatus') === 'left'
 			? `Ukončil členství: ${member(entry)}.`

@@ -679,7 +679,7 @@ final class TeamService
     }
 
     /**
-     * @param  array{name?:string,role?:Role,jerseyNumber?:int|null,status?:string} $changes
+     * @param  array{name?:string,email?:string,role?:Role,jerseyNumber?:int|null,status?:string} $changes
      * @return TeamMember
      */
     public function updateMembership(Identity $identity, int $membershipId, array $changes): array
@@ -687,7 +687,10 @@ final class TeamService
         $this->scope->membership($identity, $membershipId, Role::Admin);
 
         $current = $this->db->first(
-            'SELECT id, user_id, team_id, role, status FROM membership WHERE id = ?',
+            'SELECT m.id, m.user_id, m.team_id, m.role, m.status, u.email
+               FROM membership m
+               JOIN `user` u ON u.id = m.user_id
+              WHERE m.id = ?',
             [$membershipId],
         );
 
@@ -700,6 +703,7 @@ final class TeamService
         $sets   = [];
         $params = [];
         $name   = null;
+        $email  = null;
 
         // Jméno je na uživateli, ne na členství — projeví se všude.
         // Admin opravuje přezdívky ze staré verze.
@@ -708,6 +712,22 @@ final class TeamService
 
             if ($name === '') {
                 throw ApiException::validation('Jméno nesmí být prázdné.', ['field' => 'name']);
+            }
+        }
+
+        // Stejně jako jméno: e-mail patří uživateli, ne členství. Hlavní případ
+        // je oprava zástupné adresy ze staré appky (@pinaprosek.invalid), na
+        // kterou nejde vydat aktivační odkaz, nebo obyčejný překlep.
+        if (isset($changes['email'])) {
+            $email = $changes['email'];
+
+            $conflict = $this->db->value(
+                'SELECT id FROM `user` WHERE email = ? AND id <> ?',
+                [$email, $current['user_id']],
+            );
+
+            if ($conflict !== null) {
+                throw ApiException::validation('Tenhle e-mail už používá jiný účet.', ['field' => 'email']);
             }
         }
 
@@ -732,16 +752,19 @@ final class TeamService
             $sets[] = $changes['status'] === 'left' ? 'left_at = NOW()' : 'left_at = NULL';
         }
 
-        if ($sets === [] && !isset($changes['name'])) {
+        if ($sets === [] && !isset($changes['name']) && !isset($changes['email'])) {
             throw ApiException::validation('Není co upravit — pošlete alespoň jedno pole.');
         }
 
         $roleChanged   = isset($changes['role']) && $changes['role']->value !== (string) $current['role'];
         $statusChanged = isset($changes['status']) && $changes['status'] !== (string) $current['status'];
+        $emailChanged  = $email !== null && $email !== (string) $current['email'];
 
         $this->db->transaction(function () use (
             $changes,
             $current,
+            $email,
+            $emailChanged,
             $identity,
             $membershipId,
             $name,
@@ -755,6 +778,22 @@ final class TeamService
                     'UPDATE `user` SET display_name = ? WHERE id = ?',
                     [$name, $current['user_id']],
                 );
+            }
+
+            if ($email !== null) {
+                $this->db->run('UPDATE `user` SET email = ? WHERE id = ?', [$email, $current['user_id']]);
+
+                if ($emailChanged) {
+                    // Zrušit nevyřízenou pozvánku pro starou adresu v tomhle družstvu —
+                    // jinak by dřív vydaný aktivační odkaz pořád platil na chybnou adresu.
+                    $this->db->run(
+                        'DELETE FROM invitation WHERE team_id = ? AND email = ? AND accepted_at IS NULL',
+                        [$current['team_id'], $current['email']],
+                    );
+
+                    // E-mail je osobní údaj, do stopy nepatří — jen že se stal a u koho.
+                    $this->audit->record($identity, (int) $current['team_id'], 'email_changed', 'membership', $membershipId);
+                }
             }
 
             if ($sets !== []) {

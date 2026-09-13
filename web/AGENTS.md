@@ -206,6 +206,7 @@ npm run typecheck && npm run lint && npm test && npm run format
   `useTeamDetail` tahaly dvě obrazovky zvlášť a odpověď na „proplácí tohle
   družstvo cesty?" byla v aplikaci na dvou místech. Sazba a domácí hala zůstávají
   v `TeamSettings`, protože ty potřebuje jen formulář ručního cesťáku.
+
 - **Zapomenutého řidiče doplní pínař v docházce.** Tlačítko „Jel autem?" je
   v `AttendanceSection`, ale jen u venkovního zápasu (`rides`) a jen u toho, kdo
   nebyl označený za nepřítomného. Posílá se `transport` **bez** změny docházky:

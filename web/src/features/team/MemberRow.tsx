@@ -3,11 +3,12 @@ import { useState } from 'react'
 import { Avatar } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
-import { isLastAdmin, needsActivation, roleOrder } from '@/features/team/members'
+import { hasPlaceholderEmail, isLastAdmin, needsActivation, roleOrder } from '@/features/team/members'
 import { cn } from '@/lib/cn'
 import type { MembershipChanges } from '@/lib/queries'
 import type { Role, TeamMember } from '@/lib/types'
 import { memberStatusLabels, roleLabels } from '@/lib/types'
+import { emailError } from '@/lib/validation'
 
 interface MemberRowProps {
 	member: TeamMember
@@ -59,6 +60,9 @@ export function MemberRow({ member, members, isMe, busy, onChange, onActivate }:
 						{needsActivation(member) ? (
 							<span className="border-accent text-ink rounded-full border px-2 py-0.5 text-xs">bez hesla</span>
 						) : null}
+						{hasPlaceholderEmail(member) ? (
+							<span className="bg-debt-500/15 text-debt rounded-full px-2 py-0.5 text-xs">bez e-mailu</span>
+						) : null}
 						{member.status === 'active' ? null : (
 							<span className="bg-surface-2 text-ink-faint rounded-full px-2 py-0.5 text-xs">
 								{memberStatusLabels[member.status]}
@@ -94,6 +98,34 @@ export function MemberRow({ member, members, isMe, busy, onChange, onActivate }:
 						/>
 						<span className="text-ink-faint text-xs">
 							Platí ve všech družstvech, kde hraje — jeden člověk má v klubu jedno jméno.
+						</span>
+					</label>
+
+					<label className="flex flex-col gap-1.5">
+						<span className="text-ink-muted text-sm font-medium">E-mail</span>
+						<input
+							type="email"
+							inputMode="email"
+							disabled={busy}
+							defaultValue={member.email}
+							/* Stejně jako jméno: ukládá se při opuštění pole. */
+							onBlur={(event) => {
+								const next = event.target.value.trim()
+
+								if (next === member.email || emailError(next) !== undefined) {
+									event.target.value = member.email
+
+									return
+								}
+
+								onChange({ email: next })
+							}}
+							className="border-line bg-surface-2 text-ink rounded-xl border px-3 py-2 text-base"
+						/>
+						<span className="text-ink-faint text-xs">
+							{hasPlaceholderEmail(member)
+								? 'Zástupná adresa ze staré appky — dokud ji neopravíte, nepůjde vydat aktivační odkaz.'
+								: 'Je to i přihlašovací adresa, platí pro celý účet napříč všemi jeho družstvy.'}
 						</span>
 					</label>
 

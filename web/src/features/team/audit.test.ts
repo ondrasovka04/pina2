@@ -44,6 +44,14 @@ describe('describeAuditEntry', () => {
 		).toBe('Změnil roli: Eva, hráč → pínař.')
 	})
 
+	it('u změny e-mailu nevypisuje adresu, jen kdo', () => {
+		const description = describeAuditEntry(
+			entry({ action: 'email_changed', entity: 'membership', payload: {}, membershipName: 'Petr' }),
+		)
+
+		expect(description).toBe('Změnil e-mail: Petr.')
+	})
+
 	it('zvládne současnou změnu účtu i sazby', () => {
 		const description = describeAuditEntry(
 			entry({

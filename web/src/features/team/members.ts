@@ -16,6 +16,15 @@ export function needsActivation(member: TeamMember): boolean {
 	return !member.hasPassword && member.status !== 'left'
 }
 
+/**
+ * Zástupná adresa, kterou migrace přidělila účtům bez e-mailu ve staré appce
+ * (`Pina\Service\TeamService::PLACEHOLDER_EMAIL_DOMAIN` — obě strany se musí
+ * měnit společně). Na takovou adresu nejde poslat aktivační odkaz.
+ */
+export function hasPlaceholderEmail(member: TeamMember): boolean {
+	return member.email.endsWith('@pinaprosek.invalid')
+}
+
 // Posledního admina nemůžeme degradovat — server by vrátil 409 LAST_ADMIN.
 export function isLastAdmin(member: TeamMember, members: TeamMember[]): boolean {
 	if (member.role !== 'admin' || member.status === 'left') return false

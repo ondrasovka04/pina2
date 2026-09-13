@@ -130,11 +130,21 @@ final class TeamController
 
     public function updateMembership(Request $request): Response
     {
-        /** @var array{name?:string,role?:Role,jerseyNumber?:int|null,status?:string} $changes */
+        /** @var array{name?:string,email?:string,role?:Role,jerseyNumber?:int|null,status?:string} $changes */
         $changes = [];
 
         if (array_key_exists('name', $request->body)) {
             $changes['name'] = $request->string('name');
+        }
+
+        if (array_key_exists('email', $request->body)) {
+            $email = mb_strtolower($request->string('email'));
+
+            if (filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+                throw ApiException::validation('E-mail nemá platný tvar.', ['field' => 'email']);
+            }
+
+            $changes['email'] = $email;
         }
 
         if (array_key_exists('role', $request->body)) {
