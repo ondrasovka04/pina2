@@ -5,6 +5,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Role, TeamEvent } from '@/lib/types'
 
+vi.mock('@/app/session', () => ({ useCurrentUser: () => ({ id: 1 }) }))
+
+beforeEach(() => {
+	sessionStorage.clear()
+	vi.stubGlobal('scrollTo', vi.fn())
+})
+
 const roles: Role[] = ['player', 'treasurer', 'admin']
 
 let role: Role = 'player'

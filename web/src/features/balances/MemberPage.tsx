@@ -126,7 +126,7 @@ export function MemberPage() {
 
 			<Card className="overflow-hidden">
 				<div className="flex items-center gap-4 px-4 py-4">
-					<Avatar name={member.name} src={member.avatarUrl} jerseyNumber={member.jerseyNumber} />
+					<Avatar name={member.name} src={member.avatarUrl} jerseyNumber={member.jerseyNumber} preview />
 					<div className="min-w-0 flex-1">
 						<p className="truncate text-lg font-semibold">{member.name}</p>
 						<p className="text-ink-muted text-sm">{recordsLabel(member.recordCount)}</p>
@@ -144,8 +144,8 @@ export function MemberPage() {
 				{member.halves === null ? null : <HalvesBreakdown halves={member.halves} periods={balances.data.periods} />}
 			</Card>
 
-			{/* Vlastní konto ukazuje QR už na přehledu dluhů, tam by se zdvojilo. */}
-			{member.balanceCzk > 0 && membershipId !== team?.membershipId ? (
+			{/* Cizí QR smí připravit jen pínař. Vlastní QR už je na přehledu dluhů. */}
+			{can('treasurer') && member.balanceCzk > 0 && membershipId !== team?.membershipId ? (
 				<PaymentQrCard seasonId={seasonId} membershipId={membershipId} title={`QR platba pro ${member.name}`} />
 			) : null}
 

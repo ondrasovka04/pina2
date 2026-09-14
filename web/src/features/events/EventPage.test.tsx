@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { StrictMode } from 'react'
 import { MemoryRouter, Route, Routes } from 'react-router'
@@ -111,6 +111,26 @@ describe('EventPage', () => {
 		get.mockReset()
 		put.mockReset()
 		get.mockResolvedValue(detail())
+	})
+
+	it.each([
+		{ started: false, index: 0 },
+		{ started: false, index: 1 },
+		{ started: true, index: 0 },
+		{ started: true, index: 1 },
+		{ started: true, index: 2 },
+	])('otevře profilovku v sekci $index (akce začala: $started)', async ({ started, index }) => {
+		const user = userEvent.setup()
+		get.mockResolvedValue(detail({ started }, { avatarUrl: '/avatar.png' }))
+		renderPage()
+		const triggers = await screen.findAllByRole('button', { name: 'Zvětšit profilovou fotku: Ondra' })
+		expect(triggers).toHaveLength(started ? 3 : 2)
+		const trigger = triggers[index]
+		if (trigger === undefined) throw new Error('Chybí tlačítko profilové fotky')
+		await user.click(trigger)
+		const dialog = screen.getByRole('dialog', { name: 'Ondra' })
+		expect(within(dialog).getByRole('img')).toHaveAttribute('src', '/avatar.png')
+		await user.click(within(dialog).getByRole('button', { name: 'Zavřít náhled' }))
 	})
 
 	it('má právě jednu sekci s vlastní odpovědí', async () => {

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 
+import { useCurrentUser } from '@/app/session'
 import { useTeam } from '@/app/team'
 import { NoSeasonState } from '@/components/NoSeasonState'
 import { Card, CardHeader } from '@/components/ui/Card'
@@ -19,8 +20,10 @@ import type { EventMonth } from '@/features/events/events'
 import { EventsNav } from '@/features/events/EventsNav'
 import { EventTypeBadge } from '@/features/events/EventTypeMark'
 import { MonthGrid } from '@/features/events/MonthGrid'
-import { RsvpBadge } from '@/features/events/RsvpMark'
 import { RsvpButtons } from '@/features/events/RsvpButtons'
+import { RsvpBadge } from '@/features/events/RsvpMark'
+import { useCalendarNavigation } from '@/features/events/useCalendarNavigation'
+import type { CalendarPeriod as Period, CalendarView as View } from '@/features/events/useCalendarNavigation'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { useEvents, useSaveRsvp } from '@/lib/queries'
@@ -34,13 +37,21 @@ const stripeClass: Record<EventType, string> = {
 }
 
 export function CalendarPage() {
-	const { seasonId, isSeasonClosed, can } = useTeam()
-	const { data, isPending, error, refetch } = useEvents(seasonId)
-	const [view, setView] = useState<View>(storedView)
-	const [month, setMonth] = useState<string | null>(null)
-	const [period, setPeriod] = useState<Period>('upcoming')
-
+	const { seasonId } = useTeam()
+	const user = useCurrentUser()
 	if (seasonId === null) return <NoSeasonState what="akce" />
+
+	return <CalendarContent key={`${user.id}:${seasonId}`} userId={user.id} seasonId={seasonId} />
+}
+
+function CalendarContent({ userId, seasonId }: { userId: number; seasonId: number }) {
+	const { isSeasonClosed, can } = useTeam()
+	const { data, isPending, error, refetch } = useEvents(seasonId)
+	const { view, setView, month, setMonth, period, setPeriod } = useCalendarNavigation(
+		userId,
+		seasonId,
+		!isPending && error === null,
+	)
 
 	if (isPending) return <LoadingState />
 	if (error !== null) return <ErrorState error={error} onRetry={() => void refetch()} />
@@ -82,7 +93,7 @@ export function CalendarPage() {
 				</p>
 			) : null}
 
-			<ViewSwitch value={view} onChange={(next) => setView(rememberView(next))} />
+			<ViewSwitch value={view} onChange={setView} />
 
 			{events.length === 0 ? (
 				<EmptyState
@@ -144,37 +155,11 @@ export function CalendarPage() {
 	)
 }
 
-type View = 'list' | 'grid'
-
-const VIEW_KEY = 'pina.calendarView'
-
-/** Volba pohledu přežije zavření prohlížeče; v Safari v privátním režimu ne, a to nevadí. */
-function storedView(): View {
-	try {
-		return localStorage.getItem(VIEW_KEY) === 'grid' ? 'grid' : 'list'
-	} catch {
-		return 'list'
-	}
-}
-
-function rememberView(view: View): View {
-	try {
-		localStorage.setItem(VIEW_KEY, view)
-	} catch {
-		// Neuložilo se — volba platí do konce relace.
-	}
-
-	return view
-}
-
 function currentMonth(): string {
 	const now = new Date()
 
 	return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 }
-
-/** Nadcházející, nebo proběhlé. Výchozí je „co bude" — kvůli tomu se kalendář otevírá. */
-type Period = 'upcoming' | 'past'
 
 function PeriodSwitch({ value, onChange, past }: { value: Period; onChange: (period: Period) => void; past: number }) {
 	return (

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 
+import { ImagePreviewDialog } from '@/components/ui/ImagePreviewDialog'
 import { cn } from '@/lib/cn'
 
 /** „Ondřej Kopáč" → „OK". Jedno slovo dá jedno písmeno, prázdné jméno pomlčku. */
@@ -20,16 +21,25 @@ interface AvatarProps {
 	jerseyNumber?: number | null
 	size?: 'sm' | 'md'
 	className?: string
+	preview?: boolean
 }
 
-export function Avatar({ name, src = null, jerseyNumber = null, size = 'md', className }: AvatarProps) {
+export function Avatar({
+	name,
+	src = null,
+	jerseyNumber = null,
+	size = 'md',
+	className,
+	preview = false,
+}: AvatarProps) {
 	const [failed, setFailed] = useState(false)
+	const [previewSrc, setPreviewSrc] = useState<string | null>(null)
 
 	useEffect(() => setFailed(false), [src])
 
 	const label = jerseyNumber === null ? initials(name) : String(jerseyNumber)
 
-	return (
+	const avatar = (
 		<span
 			aria-hidden="true"
 			className={cn(
@@ -45,5 +55,25 @@ export function Avatar({ name, src = null, jerseyNumber = null, size = 'md', cla
 				label
 			)}
 		</span>
+	)
+
+	if (!preview) return avatar
+	if (src === null || failed) {
+		return <span className="inline-grid min-h-11 min-w-11 shrink-0 place-items-center">{avatar}</span>
+	}
+
+	return (
+		<>
+			<button
+				type="button"
+				aria-label={`Zvětšit profilovou fotku: ${name}`}
+				aria-haspopup="dialog"
+				onClick={() => setPreviewSrc(src)}
+				className="inline-grid min-h-11 min-w-11 shrink-0 cursor-zoom-in place-items-center rounded-full"
+			>
+				{avatar}
+			</button>
+			{previewSrc === src ? <ImagePreviewDialog src={src} name={name} onClose={() => setPreviewSrc(null)} /> : null}
+		</>
 	)
 }

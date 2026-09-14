@@ -663,7 +663,13 @@ function ParticipantRow({
 
 	return (
 		<div className="border-line/50 flex items-center gap-3 border-b py-2 last:border-b-0">
-			<Avatar name={participant.name} src={participant.avatarUrl} jerseyNumber={participant.jerseyNumber} size="sm" />
+			<Avatar
+				name={participant.name}
+				src={participant.avatarUrl}
+				jerseyNumber={participant.jerseyNumber}
+				size="sm"
+				preview
+			/>
 			<div className="min-w-0 flex-1">
 				<p className="truncate text-sm font-medium">{participant.name}</p>
 				{participant.rsvpNote === null ? null : (
@@ -826,6 +832,7 @@ function AttendanceSection({
 								name={participant.name}
 								src={participant.avatarUrl}
 								jerseyNumber={participant.jerseyNumber}
+								preview
 								size="sm"
 							/>
 							<div className="min-w-0 flex-1">
@@ -942,6 +949,7 @@ function NominationSection({ eventId, participants, writable }: NominationSectio
 							name={participant.name}
 							src={participant.avatarUrl}
 							jerseyNumber={participant.jerseyNumber}
+							preview
 							size="sm"
 						/>
 						<p className="min-w-0 flex-1 truncate text-sm font-medium">{participant.name}</p>
