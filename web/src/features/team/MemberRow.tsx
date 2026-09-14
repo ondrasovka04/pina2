@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { hasPlaceholderEmail, isLastAdmin, needsActivation, roleOrder } from '@/features/team/members'
 import { cn } from '@/lib/cn'
+import { formatPhone } from '@/lib/phone'
 import type { MembershipChanges } from '@/lib/queries'
 import type { Role, TeamMember } from '@/lib/types'
 import { memberStatusLabels, roleLabels } from '@/lib/types'
@@ -48,7 +49,10 @@ export function MemberRow({ member, members, isMe, busy, onChange, onActivate }:
 				type="button"
 				onClick={() => setExpanded((value) => !value)}
 				aria-expanded={expanded}
-				className="flex min-h-14 w-full items-center gap-3 px-1 py-2 text-left"
+				className={cn(
+					'flex w-full items-center gap-3 px-1 text-left',
+					member.phone == null ? 'min-h-14 py-2' : 'min-h-12 pt-2',
+				)}
 			>
 				<Avatar name={member.name} src={member.avatarUrl} jerseyNumber={member.jerseyNumber} size="sm" />
 				<span className="min-w-0 flex-1">
@@ -73,6 +77,15 @@ export function MemberRow({ member, members, isMe, busy, onChange, onActivate }:
 				</span>
 				<span className="text-ink-muted shrink-0 text-xs">{roleLabels[member.role]}</span>
 			</button>
+
+			{member.phone == null ? null : (
+				<a
+					href={`tel:${member.phone}`}
+					className="text-ink-faint ml-12 flex w-fit items-center pr-1 pb-2 text-xs underline"
+				>
+					{formatPhone(member.phone)}
+				</a>
+			)}
 
 			{expanded ? (
 				<div className="flex flex-col gap-3 px-1 pt-1 pb-4">

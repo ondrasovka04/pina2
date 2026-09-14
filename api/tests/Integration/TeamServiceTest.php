@@ -52,6 +52,51 @@ final class TeamServiceTest extends DatabaseTestCase
         $this->player           = $this->identity($playerId, 'hrac@prosek.cz', $this->prosekTeam, Role::Player);
     }
 
+    public function testPhonesAreVisibleOnlyToActiveTeamAdmins(): void
+    {
+        $this->db->run('UPDATE `user` SET phone = ? WHERE id = ?', ['+420777123456', $this->player->userId]);
+        $phones = array_column($this->service->members($this->admin, $this->prosekTeam), 'phone', 'userId');
+        self::assertSame('+420777123456', $phones[$this->player->userId]);
+        $updated = $this->service->updateMembership($this->admin, $this->playerMembership, ['jerseyNumber' => 12]);
+        self::assertSame('+420777123456', $updated['phone']);
+
+        foreach (['player', 'treasurer'] as $role) {
+            $this->db->run('UPDATE membership SET role = ? WHERE id = ?', [$role, $this->playerMembership]);
+            self::assertSame([null, null], array_column($this->service->members($this->player, $this->prosekTeam), 'phone'));
+        }
+
+        // Ani dříve vydaná adminská identita nesmí přežít odebrání role v DB.
+        $this->db->run("UPDATE membership SET role = 'player' WHERE user_id = ?", [$this->admin->userId]);
+        self::assertSame([null, null], array_column($this->service->members($this->admin, $this->prosekTeam), 'phone'));
+    }
+
+    public function testPlatformAdminDoesNotGetPhonesWithoutActiveTeamAdminRole(): void
+    {
+        $this->db->run('UPDATE `user` SET phone = ? WHERE id = ?', ['+420777123456', $this->player->userId]);
+        $identity = new Identity($this->admin->userId, 'admin@prosek.cz', 'Admin', true, []);
+        $this->db->run("UPDATE membership SET status = 'left' WHERE user_id = ?", [$identity->userId]);
+        self::assertSame([null, null], array_column($this->service->members($identity, $this->prosekTeam), 'phone'));
+        $this->db->run('DELETE FROM membership WHERE user_id = ?', [$identity->userId]);
+        self::assertSame([null], array_column($this->service->members($identity, $this->prosekTeam), 'phone'));
+        $updated = $this->service->updateMembership($identity, $this->playerMembership, ['jerseyNumber' => 12]);
+        self::assertNull($updated['phone']);
+    }
+
+    public function testAdminOfAnotherTeamCannotReadPhoneNumbers(): void
+    {
+        $this->db->run('UPDATE `user` SET phone = ? WHERE id = ?', ['+420777123456', $this->player->userId]);
+        $this->makeMembership($this->player->userId, $this->benatkyTeam, 'player');
+        $this->makeMembership($this->admin->userId, $this->benatkyTeam, 'player');
+        self::assertSame([null, null], array_column($this->service->members($this->admin, $this->benatkyTeam), 'phone'));
+        $this->db->run('DELETE FROM membership WHERE user_id = ? AND team_id = ?', [$this->admin->userId, $this->benatkyTeam]);
+        try {
+            $this->service->members($this->admin, $this->benatkyTeam);
+            self::fail('Cizí družstvo nesmí být dostupné.');
+        } catch (ApiException $error) {
+            self::assertSame(404, $error->status);
+        }
+    }
+
     public function testMyTeamsListsOnlyOwnMemberships(): void
     {
         // Jeden člověk v dvou týmech → dvě membership, v každém jiná role.

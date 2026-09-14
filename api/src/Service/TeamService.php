@@ -51,6 +51,7 @@ use Pina\Support\RsvpDeadline;
  *     name:string,
  *     avatarUrl:string|null,
  *     email:string,
+ *     phone:string|null,
  *     role:string,
  *     status:string,
  *     jerseyNumber:int|null,
@@ -359,14 +360,16 @@ final class TeamService
     {
         $this->scope->team($identity, $teamId, Role::Player);
 
+        $canSeePhones = $this->canSeePhones($identity, $teamId);
+
         $rows = $this->db->all(
             'SELECT m.id, m.user_id, m.role, m.status, m.jersey_number, m.payment_reference, m.joined_at,
-                    u.display_name, u.email, u.avatar_url, u.password_hash IS NOT NULL AS has_password
+                    u.display_name, u.email, u.avatar_url, CASE WHEN ? THEN u.phone ELSE NULL END AS phone, u.password_hash IS NOT NULL AS has_password
                FROM membership m
                JOIN `user` u ON u.id = m.user_id
               WHERE m.team_id = ?
               ORDER BY FIELD(m.status, \'active\', \'left\'), u.display_name',
-            [$teamId],
+            [$canSeePhones ? 1 : 0, $teamId],
         );
 
         return array_map(static fn (array $row): array => [
@@ -375,6 +378,7 @@ final class TeamService
             'name'             => (string) $row['display_name'],
             'avatarUrl'        => $row['avatar_url'] === null ? null : (string) $row['avatar_url'],
             'email'            => (string) $row['email'],
+            'phone'            => $row['phone'] === null ? null : (string) $row['phone'],
             'role'             => (string) $row['role'],
             'status'           => (string) $row['status'],
             'jerseyNumber'     => $row['jersey_number'] === null ? null : (int) $row['jersey_number'],
@@ -823,7 +827,7 @@ final class TeamService
             }
         });
 
-        return $this->memberPayload($membershipId);
+        return $this->memberPayload($membershipId, $this->canSeePhones($identity, (int) $current['team_id']));
     }
 
     /**
@@ -1093,6 +1097,15 @@ final class TeamService
         ];
     }
 
+    private function canSeePhones(Identity $identity, int $teamId): bool
+    {
+        // Provozní správce ani admin jiného družstva tím nezíská cizí kontakty.
+        return $this->db->value(
+            "SELECT role FROM membership WHERE user_id = ? AND team_id = ? AND status = 'active'",
+            [$identity->userId, $teamId],
+        ) === Role::Admin->value;
+    }
+
     private function assertRsvpDeadlineHours(?int $hours, string $field): void
     {
         if ($hours !== null && ($hours < 1 || $hours > 720)) {
@@ -1106,15 +1119,15 @@ final class TeamService
     /**
      * @return TeamMember
      */
-    private function memberPayload(int $membershipId): array
+    private function memberPayload(int $membershipId, bool $canSeePhones): array
     {
         $row = $this->db->first(
             'SELECT m.id, m.user_id, m.role, m.status, m.jersey_number, m.payment_reference, m.joined_at,
-                    u.display_name, u.email, u.avatar_url, u.password_hash IS NOT NULL AS has_password
+                    u.display_name, u.email, u.avatar_url, CASE WHEN ? THEN u.phone ELSE NULL END AS phone, u.password_hash IS NOT NULL AS has_password
                FROM membership m
                JOIN `user` u ON u.id = m.user_id
               WHERE m.id = ?',
-            [$membershipId],
+            [$canSeePhones ? 1 : 0, $membershipId],
         );
 
         if ($row === null) {
@@ -1127,6 +1140,7 @@ final class TeamService
             'name'             => (string) $row['display_name'],
             'avatarUrl'        => $row['avatar_url'] === null ? null : (string) $row['avatar_url'],
             'email'            => (string) $row['email'],
+            'phone'            => $row['phone'] === null ? null : (string) $row['phone'],
             'role'             => (string) $row['role'],
             'status'           => (string) $row['status'],
             'jerseyNumber'     => $row['jersey_number'] === null ? null : (int) $row['jersey_number'],

@@ -303,7 +303,7 @@ export function NewBatchPage() {
 								className="border-line bg-surface-2 text-ink rounded-xl border px-3 py-2.5 text-base"
 							/>
 						</label>
-						<label className="flex flex-2 flex-col gap-1.5">
+						<label className="flex min-w-0 flex-2 flex-col gap-1.5">
 							<span className="text-ink-muted text-sm font-medium">Popis (nepovinný)</span>
 							<input
 								type="text"
@@ -311,7 +311,7 @@ export function NewBatchPage() {
 								onChange={(event) => setTitle(event.target.value)}
 								placeholder="Trénink, zápas s Benátkami…"
 								maxLength={120}
-								className="border-line bg-surface-2 text-ink placeholder:text-ink-faint rounded-xl border px-3 py-2.5 text-base"
+								className="border-line bg-surface-2 text-ink placeholder:text-ink-faint w-full max-w-full min-w-0 rounded-xl border px-3 py-2.5 text-base"
 							/>
 						</label>
 					</div>

@@ -288,7 +288,7 @@ v `tests/Integration/DatabaseTestCase.php` a neobchází se.
   Stejná past má druhou podobu: sloupec, který se **zapisuje, ale nikdo ho nečte**.
   Vypadá živě, a přitom je to jen osobní údaj bez účelu. Takhle zmizely
   `refresh_token.user_agent` a `.ip` (měly sloužit obrazovce „přihlášená
-  zařízení", která nevznikla), `user.last_login_at`, `user.phone` a úspěšné
+  zařízení", která nevznikla), `user.last_login_at` a úspěšné
   řádky v `login_attempt`. Nic z toho `audit_log` nenahradil a nemá nahrazovat:
   ten zaznamenává rozhodnutí o penězích a oprávněních, ne přihlašování.
 - **Audit patří do stejné transakce jako změna.** Volá se viditelně ze
@@ -369,3 +369,8 @@ v `tests/Integration/DatabaseTestCase.php` a neobchází se.
 Hosting nemá SSH. `api/src`, `api/vendor` a `.env` se nahrávají **nad web root**
 (`open_basedir` tam sahá, internet ne), `api/public/*` do `public_html/api/`.
 Composer se pouští lokálně a `vendor/` se nahrává hotové.
+
+- **Telefon si vyplňuje hráč v profilu.** `user.phone` je nepovinný kontakt ve
+  tvaru `+420` a devíti číslic. Čte jej vlastník v `/me` a skutečný aktivní admin
+  daného družstva v seznamu členů. Hráč, pínař ani samotný provozní správce
+  cizí číslo nedostane. Telefon nepatří do auditu.

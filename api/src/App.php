@@ -108,6 +108,7 @@ final class App
 
         // Vyžadují přihlášení
         $router->get('/api/v1/me', $authCtrl->me(...));
+        $router->put('/api/v1/me/phone', $authCtrl->savePhone(...));
         $router->post('/api/v1/auth/logout-everywhere', $authCtrl->logoutEverywhere(...));
         $router->post('/api/v1/auth/password', $authCtrl->changePassword(...));
         $router->get('/api/v1/me/calendar-feeds', $calendarCtrl->index(...));

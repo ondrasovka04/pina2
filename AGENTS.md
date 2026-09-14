@@ -99,7 +99,7 @@ a čísla se dělí na pololetí podle data u sezóny. Hotová je i **F5**: inst
 PWA, Web Push se dvěma osobními volbami a odběr kalendáře přes `webcal://`.
 Nad rámec fází mají hráči i kluby **obrázky** — normalizované PNG na disku
 v `api/storage/images/`, ne v databázi.
-**F6** (párování plateb z banky) teprve bude. Tabulka fází je v README.
+**F6** (párování plateb z banky) teprve bude.
 
 **Docházku a kalendář lze vypnout pro celé družstvo.** Výchozí stav je zapnuto,
 a to i pro družstvo bez řádku v `team_settings`. Vypnutí skryje akce, účast,

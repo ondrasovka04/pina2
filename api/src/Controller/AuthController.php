@@ -134,6 +134,16 @@ final class AuthController
         return Response::noContent()->withCookie($this->refreshCookie('', expired: true));
     }
 
+    public function savePhone(Request $request): Response
+    {
+        if (!array_key_exists('phone', $request->body)
+            || ($request->body['phone'] !== null && !is_string($request->body['phone']))) {
+            throw ApiException::validation('Telefon musí být text nebo prázdná hodnota.', ['field' => 'phone']);
+        }
+
+        return Response::ok($this->auth->savePhone($request->identity(), $request->body['phone']));
+    }
+
     public function me(Request $request): Response
     {
         return Response::ok($this->auth->userPayload($request->identity()->userId));

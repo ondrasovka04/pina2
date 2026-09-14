@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pina\Tests\Integration;
 
 use Pina\Auth\AuthService;
+use Pina\Auth\Identity;
 use Pina\Auth\PasswordService;
 use Pina\Auth\Role;
 use Pina\Auth\TokenService;
@@ -29,6 +30,48 @@ final class AuthFlowTest extends DatabaseTestCase
         $this->auth    = new AuthService($this->db, $this->tokens, $passwords, $this->limiter);
 
         [, $this->teamId] = $this->makeTeam('sk-prosek', 'Prosek - muži');
+    }
+
+    public function testPhoneIsSavedForItsOwnerAndCanBeCleared(): void
+    {
+        $userId   = $this->makeUser('telefon@example.cz');
+        $otherId  = $this->makeUser('jiny@example.cz');
+        $identity = new Identity($userId, 'telefon@example.cz', 'Telefon', false, []);
+        self::assertNull($this->auth->userPayload($userId)['phone']);
+
+        self::assertSame(['phone' => '+420777123456'], $this->auth->savePhone($identity, '777 123 456'));
+        self::assertSame('+420777123456', $this->auth->userPayload($userId)['phone']);
+        self::assertNull($this->auth->userPayload($otherId)['phone']);
+
+        $this->auth->savePhone($identity, '+420 606 123 456');
+        self::assertSame('+420606123456', $this->auth->userPayload($userId)['phone']);
+        $this->auth->savePhone($identity, null);
+        self::assertNull($this->auth->userPayload($userId)['phone']);
+    }
+
+    public function testInvalidPhoneDoesNotOverwriteSavedNumber(): void
+    {
+        $userId   = $this->makeUser('telefon@example.cz');
+        $identity = new Identity($userId, 'telefon@example.cz', 'Telefon', false, []);
+        $this->auth->savePhone($identity, '777123456');
+        try {
+            $this->auth->savePhone($identity, '+421777123456');
+            self::fail('Cizí předvolba nesmí projít.');
+        } catch (ApiException $error) {
+            self::assertSame('phone', $error->details['field']);
+            self::assertSame('+420777123456', $this->auth->userPayload($userId)['phone']);
+        }
+    }
+
+    public function testPhoneMigrationPreservesExistingAccounts(): void
+    {
+        $userId = $this->makeUser('pred-migraci@example.cz');
+        $this->db->run('ALTER TABLE `user` DROP COLUMN phone');
+        $sql = file_get_contents(__DIR__ . '/../../db/migrations/002_user_phone.sql');
+        self::assertIsString($sql);
+        $this->db->pdo()->exec($sql);
+        self::assertSame('pred-migraci@example.cz', $this->auth->userPayload($userId)['email']);
+        self::assertNull($this->auth->userPayload($userId)['phone']);
     }
 
     private function invite(string $email, string $role = 'player'): string

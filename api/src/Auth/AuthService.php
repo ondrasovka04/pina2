@@ -7,6 +7,7 @@ namespace Pina\Auth;
 use Pina\Http\ApiException;
 use Pina\Http\RateLimiter;
 use Pina\Support\Config;
+use Pina\Support\CzechPhone;
 use Pina\Support\Database;
 use Pina\Support\PaymentReference;
 
@@ -209,11 +210,20 @@ final class AuthService
         $this->tokens->invalidateAccessTokens($userId);
     }
 
+    /** @return array{phone:string|null} */
+    public function savePhone(Identity $identity, ?string $phone): array
+    {
+        $phone = CzechPhone::normalize($phone);
+        $this->db->run('UPDATE `user` SET phone = ? WHERE id = ?', [$phone, $identity->userId]);
+
+        return ['phone' => $phone];
+    }
+
     /** @return array<string,mixed> */
     public function userPayload(int $userId): array
     {
         $user = $this->db->first(
-            'SELECT id, email, display_name, avatar_url, is_platform_admin FROM `user` WHERE id = ?',
+            'SELECT id, email, display_name, avatar_url, phone, is_platform_admin FROM `user` WHERE id = ?',
             [$userId],
         );
 
@@ -237,6 +247,7 @@ final class AuthService
             'email'         => $user['email'],
             'name'          => $user['display_name'],
             'avatarUrl'     => $user['avatar_url'] === null ? null : (string) $user['avatar_url'],
+            'phone'         => $user['phone'] === null ? null : (string) $user['phone'],
             'platformAdmin' => (bool) $user['is_platform_admin'],
             // Údaj o nasazení, ne o uživateli — musí být stále dostupný.
             'mailEnabled' => Config::bool('MAIL_ENABLED') && Config::get('MAIL_PASSWORD', '') !== '',

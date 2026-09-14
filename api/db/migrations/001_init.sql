@@ -48,6 +48,7 @@ CREATE TABLE `user` (
   display_name      VARCHAR(120) NOT NULL,
   password_hash     VARCHAR(255) NULL COMMENT 'NULL = pozvany ucet, heslo si nastavi sam',
   avatar_url        VARCHAR(255) NULL,
+  phone             VARCHAR(13) NULL COMMENT 'ceske cislo s predponou +420; kontakt pro adminy druzstev',
   is_platform_admin TINYINT(1) NOT NULL DEFAULT 0,
   -- Vydane JWT nelze zneplatnit (server si je nepamatuje). Posunutim tohoto
   -- razitka na 'ted' se odmitnou vsechny drive vydane tokeny -- pouziva se pri

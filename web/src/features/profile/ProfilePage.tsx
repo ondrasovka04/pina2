@@ -21,6 +21,7 @@ import { roleLabels } from '@/lib/types'
 import { AppInstallCard } from './AppInstallCard'
 import { CalendarFeedsCard } from './CalendarFeedsCard'
 import { NotificationsCard } from './NotificationsCard'
+import { PhoneCard } from './PhoneCard'
 
 export function ProfilePage() {
 	const user = useCurrentUser()
@@ -36,6 +37,8 @@ export function ProfilePage() {
 			</div>
 
 			<ProfileImageCard />
+
+			<PhoneCard />
 
 			<MyTeamsCard />
 

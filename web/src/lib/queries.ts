@@ -345,6 +345,15 @@ export function useTeamDetail(teamId: number | null) {
  * dávky, platby, cesťáky). Vypisovat klíče po jednom znamená na jeden zapomenout,
  * takže se zneplatní cache celá — je to jedno kliknutí za rok.
  */
+export function useSavePhone() {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: (phone: string | null) => api.put<{ phone: string | null }>('/me/phone', { phone }),
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.teams }),
+	})
+}
+
 export function useSaveUserImage() {
 	const queryClient = useQueryClient()
 

@@ -22,6 +22,7 @@ export interface Membership {
 }
 
 export interface CurrentUser {
+	phone: string | null
 	id: number
 	email: string
 	name: string
@@ -98,6 +99,8 @@ export interface RosterEntry {
 
 /** Člen družstva napříč sezónami — zdroj, ze kterého se soupiska sestavuje. */
 export interface TeamMember {
+	/** Kontakt vidí jen admin daného družstva; ostatním server vrací null. */
+	phone: string | null
 	id: number
 	userId: number
 	name: string

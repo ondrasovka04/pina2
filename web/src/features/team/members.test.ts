@@ -14,6 +14,7 @@ function member(overrides: Partial<TeamMember> & { id: number; name: string }): 
 	return {
 		userId: overrides.id,
 		avatarUrl: null,
+		phone: null,
 		email: `${overrides.name}@prosek.cz`,
 		role: 'player' as Role,
 		status: 'active' as MemberStatus,
