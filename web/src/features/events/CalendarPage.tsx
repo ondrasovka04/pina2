@@ -7,6 +7,7 @@ import { NoSeasonState } from '@/components/NoSeasonState'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { CalendarIcon, ChevronRightIcon, MapPinIcon, PlusIcon } from '@/components/ui/icons'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States'
+import { CalendarRsvpRow } from '@/features/events/CalendarRsvpRow'
 import {
 	canAnswer,
 	deadlineState,
@@ -14,6 +15,7 @@ import {
 	formatEventTime,
 	groupByMonth,
 	nextEvent,
+	navigationUrl,
 	rsvpSummary,
 } from '@/features/events/events'
 import type { EventMonth } from '@/features/events/events'
@@ -24,6 +26,7 @@ import { RsvpButtons } from '@/features/events/RsvpButtons'
 import { RsvpBadge } from '@/features/events/RsvpMark'
 import { useCalendarNavigation } from '@/features/events/useCalendarNavigation'
 import type { CalendarPeriod as Period, CalendarView as View } from '@/features/events/useCalendarNavigation'
+import { useRsvpConfirmation } from '@/features/events/useRsvpConfirmation'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { useEvents, useSaveRsvp } from '@/lib/queries'
@@ -120,7 +123,7 @@ function CalendarContent({ userId, seasonId }: { userId: number; seasonId: numbe
 					{highlighted === null ? null : (
 						<div className="flex flex-col gap-2">
 							<h2 className="text-lg font-semibold">Nejbližší akce</h2>
-							<NextEventCard event={highlighted} seasonId={seasonId} disabled={isSeasonClosed} />
+							<NextEventCard key={highlighted.id} event={highlighted} seasonId={seasonId} disabled={isSeasonClosed} />
 						</div>
 					)}
 
@@ -137,7 +140,7 @@ function CalendarContent({ userId, seasonId }: { userId: number; seasonId: numbe
 							) : (
 								<div className="flex flex-col gap-4">
 									{listedMonths.map((group) => (
-										<MonthSection key={group.key} month={group} />
+										<MonthSection key={group.key} month={group} seasonId={seasonId} disabled={isSeasonClosed} />
 									))}
 								</div>
 							)}
@@ -219,7 +222,7 @@ function ViewSwitch({ value, onChange }: { value: View; onChange: (view: View) =
 	)
 }
 
-function MonthSection({ month }: { month: EventMonth }) {
+function MonthSection({ month, seasonId, disabled }: { month: EventMonth; seasonId: number; disabled: boolean }) {
 	return (
 		<div>
 			<div
@@ -230,14 +233,14 @@ function MonthSection({ month }: { month: EventMonth }) {
 			</div>
 			<Card className="divide-line/60 divide-y overflow-hidden">
 				{month.events.map((event) => (
-					<EventRow key={event.id} event={event} />
+					<EventRow key={event.id} event={event} seasonId={seasonId} disabled={disabled} />
 				))}
 			</Card>
 		</div>
 	)
 }
 
-function EventRow({ event }: { event: TeamEvent }) {
+function EventRow({ event, seasonId, disabled }: { event: TeamEvent; seasonId: number; disabled: boolean }) {
 	const cancelled = event.status === 'cancelled'
 	const deadline = deadlineState(event)
 	const deadlineLabel =
@@ -257,13 +260,13 @@ function EventRow({ event }: { event: TeamEvent }) {
 	 */
 	const myRsvp = cancelled || event.started || deadlineLabel !== null ? null : (event.me?.rsvp ?? null)
 
-	return (
+	const link = (
 		<Link
 			to={`/akce/${event.id}`}
 			className={
 				cancelled
-					? 'flex items-center gap-3 px-4 py-3 opacity-60'
-					: 'hover:bg-surface-2 flex items-center gap-3 px-4 py-3 transition-colors first:rounded-t-2xl last:rounded-b-2xl'
+					? 'flex min-w-0 flex-1 items-center gap-3 px-4 py-3 opacity-60'
+					: 'hover:bg-surface-2 flex min-w-0 flex-1 items-center gap-3 px-4 py-3 transition-colors'
 			}
 		>
 			{/* Barevný pruh nese typ akce, štítek vedle času ho pojmenuje. */}
@@ -300,6 +303,14 @@ function EventRow({ event }: { event: TeamEvent }) {
 			<ChevronRightIcon className="text-ink-faint size-4 shrink-0" />
 		</Link>
 	)
+
+	return canAnswer(event) && !disabled ? (
+		<CalendarRsvpRow event={event} seasonId={seasonId}>
+			{link}
+		</CalendarRsvpRow>
+	) : (
+		link
+	)
 }
 
 /** Proběhlá akce ukazuje mou docházku, budoucí souhrn odpovědí celého týmu. */
@@ -320,15 +331,22 @@ function NextEventCard({ event, seasonId, disabled }: { event: TeamEvent; season
 
 	const canRespond = canAnswer(event) && !disabled
 	const currentRsvp = event.me?.rsvp ?? 'unknown'
+	const { requestSave, confirmation } = useRsvpConfirmation(event, (rsvp: Rsvp) => void respond(rsvp))
+	const mapUrl = event.location === null ? null : navigationUrl(event.location)
 
 	async function respond(rsvp: Rsvp) {
-		if (event.me === null) return
+		if (event.me === null || !canRespond || saveRsvp.isPending) return
 
 		setError(null)
 		setPending(rsvp)
 
 		try {
-			await saveRsvp.mutateAsync({ rsvp, transport: event.me.transport, carSeats: event.me.carSeats })
+			await saveRsvp.mutateAsync({
+				rsvp,
+				note: event.me.rsvpNote,
+				transport: event.me.transport,
+				carSeats: event.me.carSeats,
+			})
 		} catch (cause) {
 			setError(cause instanceof ApiError ? cause.message : 'Odpověď se nepodařilo uložit.')
 		} finally {
@@ -337,10 +355,15 @@ function NextEventCard({ event, seasonId, disabled }: { event: TeamEvent; season
 	}
 
 	return (
-		<Card className="overflow-hidden">
+		<Card className="relative isolate overflow-hidden transition-colors has-[[data-event-link]:hover]:bg-[color-mix(in_oklab,var(--color-surface-1),var(--color-surface-2))]">
+			{confirmation}
 			<CardHeader
 				title={
-					<Link to={`/akce/${event.id}`} className="hover:underline">
+					<Link
+						to={`/akce/${event.id}`}
+						data-event-link
+						className="focus-visible:after:outline-accent after:absolute after:inset-0 after:z-0 after:rounded-2xl focus-visible:after:outline-2"
+					>
 						{event.title}
 						{event.type === 'match' && event.opponent !== null ? ` · ${event.opponent}` : ''}
 					</Link>
@@ -354,11 +377,21 @@ function NextEventCard({ event, seasonId, disabled }: { event: TeamEvent; season
 			/>
 
 			<div className="flex flex-col gap-3 px-4 py-4">
-				{event.location === null ? null : (
+				{event.location === null ? null : mapUrl === null ? (
 					<p className="text-ink-muted flex items-center gap-1.5 text-sm">
 						<MapPinIcon className="size-4 shrink-0" />
 						{event.location.name}
 					</p>
+				) : (
+					<a
+						href={mapUrl}
+						target="_blank"
+						rel="noopener noreferrer"
+						className="text-ink-muted hover:text-ink relative z-10 -my-3 flex min-h-11 items-center gap-1.5 self-start text-sm underline underline-offset-2"
+					>
+						<MapPinIcon className="size-4 shrink-0" />
+						{event.location.name}
+					</a>
 				)}
 
 				<p className="text-ink-faint text-sm">{rsvpSummary(event.counts)}</p>
@@ -366,7 +399,15 @@ function NextEventCard({ event, seasonId, disabled }: { event: TeamEvent; season
 				<CalendarDeadlineNotice event={event} />
 
 				{canRespond ? (
-					<RsvpButtons value={currentRsvp} onChange={(rsvp) => void respond(rsvp)} pending={pending} />
+					<div className="relative z-10">
+						<RsvpButtons
+							value={currentRsvp}
+							onChange={(rsvp) => {
+								if (rsvp !== currentRsvp && pending === null) requestSave(rsvp)
+							}}
+							pending={pending}
+						/>
+					</div>
 				) : disabled ? (
 					<p className="text-ink-faint text-sm">Sezóna je uzavřená, odpověď se tu nedá měnit.</p>
 				) : null}

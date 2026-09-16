@@ -23,6 +23,7 @@ import type { DeadlineState } from '@/features/events/events'
 import { EventTypeBadge } from '@/features/events/EventTypeMark'
 import { RsvpButtons } from '@/features/events/RsvpButtons'
 import { RsvpBadge, rsvpStyles } from '@/features/events/RsvpMark'
+import { useRsvpConfirmation } from '@/features/events/useRsvpConfirmation'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import type { AttendanceChange } from '@/lib/queries'
@@ -300,7 +301,7 @@ function EventHeader({ event, canManage, writable, eventId, seasonId, travelFoll
 								href={url}
 								target="_blank"
 								rel="noreferrer"
-								className="text-brand-600 underline-offset-2 hover:underline"
+								className="text-ink-muted hover:text-ink underline underline-offset-2"
 							>
 								{event.location.name}
 							</a>
@@ -394,7 +395,22 @@ function MyAnswerCard({ event, me, eventId, seasonId, writable }: MyAnswerCardPr
 	const editable = canAnswer(event) && writable
 	const deadline = deadlineState(event)
 
+	const { requestSave, confirmation } = useRsvpConfirmation(event, commit)
+
 	function save(next: RsvpDraft) {
+		if (!editable || saveRsvp.isPending) return
+		if (
+			next.rsvp === me.rsvp &&
+			next.note.trim() === (me.rsvpNote ?? '') &&
+			next.transport === me.transport &&
+			(next.transport === 'driver' ? next.carSeats : null) === me.carSeats
+		)
+			return
+		requestSave(next)
+	}
+
+	function commit(next: RsvpDraft) {
+		if (!editable || saveRsvp.isPending) return
 		setDraft(next)
 		setError(null)
 		saveRsvp.mutate(
@@ -439,11 +455,12 @@ function MyAnswerCard({ event, me, eventId, seasonId, writable }: MyAnswerCardPr
 
 	return (
 		<Card className="px-4 py-4">
+			{confirmation}
 			<h2 className="font-semibold">Moje odpověď</h2>
 
 			<AnswerDeadline event={event} me={me} state={deadline} />
 
-			<div className="mt-3">
+			<div className="mt-3" data-rsvp-controls>
 				<RsvpButtons
 					value={draft.rsvp}
 					onChange={(rsvp) => save({ ...draft, rsvp })}
@@ -457,7 +474,11 @@ function MyAnswerCard({ event, me, eventId, seasonId, writable }: MyAnswerCardPr
 					value={draft.note}
 					disabled={saveRsvp.isPending}
 					onChange={(event_) => setDraft((current) => ({ ...current, note: event_.target.value }))}
-					onBlur={() => save(draft)}
+					onBlur={(e) => {
+						// Klepnutí na účast odešle rozepsanou poznámku spolu s novou odpovědí.
+						if (e.relatedTarget instanceof Element && e.relatedTarget.closest('[data-rsvp-controls]')) return
+						save(draft)
+					}}
 					rows={2}
 					placeholder="Nepovinné"
 					className="border-line bg-surface-2 text-ink placeholder:text-ink-faint rounded-xl border px-3 py-2.5 text-base"

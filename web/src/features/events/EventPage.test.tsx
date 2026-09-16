@@ -133,6 +133,36 @@ describe('EventPage', () => {
 		await user.click(within(dialog).getByRole('button', { name: 'Zavřít náhled' }))
 	})
 
+	it('změnu účasti po termínu odešle až po potvrzení a nezamění ji za uložení poznámky', async () => {
+		const user = userEvent.setup()
+		const late = detail({ rsvpDeadlineAt: '2020-01-01 00:00:00' })
+		get.mockResolvedValue(late)
+		put.mockResolvedValue(late)
+		renderPage()
+		await screen.findByRole('heading', { name: 'Moje odpověď' })
+		await user.type(screen.getByRole('textbox', { name: 'Poznámka' }), 'Nestíhám')
+		await user.click(screen.getByRole('button', { name: 'Nepřijdu' }))
+		const modal = screen.getByRole('dialog', { name: 'Změnit účast po termínu?' })
+		expect(put).not.toHaveBeenCalled()
+		await user.click(within(modal).getByRole('button', { name: 'Zrušit' }))
+		expect(put).not.toHaveBeenCalled()
+		expect(screen.getByRole('button', { name: 'Přijdu' })).toHaveAttribute('aria-pressed', 'true')
+		await user.click(screen.getByRole('button', { name: 'Nepřijdu' }))
+		await user.click(within(modal).getByRole('button', { name: 'Ano, uložit změnu' }))
+		await waitFor(() => expect(put).toHaveBeenCalledTimes(1))
+		expect(put).toHaveBeenCalledWith('/events/10/rsvp', expect.objectContaining({ rsvp: 'no', note: 'Nestíhám' }))
+	})
+
+	it('po termínu varuje i před uložením samotné poznámky', async () => {
+		const user = userEvent.setup()
+		get.mockResolvedValue(detail({ rsvpDeadlineAt: '2020-01-01 00:00:00' }))
+		renderPage()
+		await user.type(await screen.findByRole('textbox', { name: 'Poznámka' }), 'Nová poznámka')
+		await user.tab()
+		expect(screen.getByRole('dialog', { name: 'Změnit účast po termínu?' })).toBeInTheDocument()
+		expect(put).not.toHaveBeenCalled()
+	})
+
 	it('má právě jednu sekci s vlastní odpovědí', async () => {
 		renderPage()
 

@@ -1,9 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { Role, TeamEvent } from '@/lib/types'
+import { ApiError } from '@/lib/api'
+import type { EventDetail, Role, TeamEvent } from '@/lib/types'
 
 vi.mock('@/app/session', () => ({ useCurrentUser: () => ({ id: 1 }) }))
 
@@ -15,23 +17,24 @@ beforeEach(() => {
 const roles: Role[] = ['player', 'treasurer', 'admin']
 
 let role: Role = 'player'
+let seasonClosed = false
 
 vi.mock('@/app/team', () => ({
 	useTeam: () => ({
 		team: { id: 4, name: 'Muži', clubId: 1, clubName: 'SK Prosek' },
 		season: { id: 10, name: '26/27' },
 		seasonId: 10,
-		isSeasonClosed: false,
+		isSeasonClosed: seasonClosed,
 		can: (needed: Role) => roles.indexOf(role) >= roles.indexOf(needed),
 	}),
 }))
 
-const get = vi.fn().mockResolvedValue({ events: [] })
+const { get, put } = vi.hoisted(() => ({ get: vi.fn().mockResolvedValue({ events: [] }), put: vi.fn() }))
 
 vi.mock('@/lib/api', async (importOriginal) => {
 	const actual = await importOriginal<typeof import('@/lib/api')>()
 
-	return { ...actual, api: { ...actual.api, get } }
+	return { ...actual, api: { ...actual.api, get, put } }
 })
 
 const { CalendarPage } = await import('@/features/events/CalendarPage')
@@ -199,5 +202,224 @@ describe('CalendarPage — vlastní odpověď v seznamu', () => {
 
 		expect(screen.queryByText('Přijdu', { selector: 'span' })).toBeNull()
 		expect(screen.queryByText('Nepřijdu', { selector: 'span' })).toBeNull()
+	})
+})
+
+function scrollingRow() {
+	const button = screen.getByRole('button', { name: 'Účast na akci: Další' })
+	const row = button.parentElement?.parentElement
+	if (row === null || row === undefined) throw new Error('Chybí posuvný řádek')
+	Object.defineProperties(row, {
+		clientWidth: { value: 320 },
+		scrollWidth: { value: 480 },
+		scrollTo: {
+			value: ({ left }: ScrollToOptions) => {
+				row.scrollLeft = left ?? 0
+				fireEvent.scroll(row)
+			},
+		},
+	})
+	return { row, button }
+}
+
+describe('CalendarPage — rychlá odpověď v seznamu', () => {
+	beforeEach(() => {
+		seasonClosed = false
+		put.mockReset()
+		get.mockReset()
+		get.mockResolvedValue({ events: [event(), event({ id: 2, title: 'Další' })] })
+		vi.stubGlobal(
+			'matchMedia',
+			vi.fn(() => ({ matches: true })),
+		)
+	})
+
+	it.each([true, false])('po termínu vyžádá potvrzení před odesláním (nejbližší: %s)', async (nearest) => {
+		const user = userEvent.setup()
+		const late = event({
+			id: nearest ? 1 : 2,
+			title: nearest ? 'Nejbližší' : 'Další',
+			rsvpDeadlineAt: '2020-01-01 00:00:00',
+			me: { ...event().me!, rsvp: 'yes' },
+		})
+		get.mockResolvedValue({ events: nearest ? [late] : [event(), late] })
+		put.mockResolvedValue({
+			event: { ...late, me: { ...late.me!, rsvp: 'no' } },
+			participants: [],
+			canSeeAttendance: false,
+			travelFollowerEvents: [],
+		})
+		await renderAs('player')
+		if (!nearest) await user.click(scrollingRow().button)
+		const choice = screen.getByRole('button', { name: nearest ? 'Nepřijdu' : 'Nejdu' })
+		await user.click(choice)
+		const modal = screen.getByRole('dialog', { name: 'Změnit účast po termínu?' })
+		expect(within(modal).getByText(/příplatek/)).toBeInTheDocument()
+		expect(put).not.toHaveBeenCalled()
+		await user.click(within(modal).getByRole('button', { name: 'Zrušit' }))
+		expect(put).not.toHaveBeenCalled()
+		await user.click(choice)
+		await user.click(within(modal).getByRole('button', { name: 'Ano, uložit změnu' }))
+		await waitFor(() => expect(put).toHaveBeenCalledTimes(1))
+		expect(put).toHaveBeenCalledWith(`/events/${late.id}/rsvp`, expect.objectContaining({ rsvp: 'no' }))
+	})
+
+	it('opakované klepnutí na stejnou účast po termínu nic neodesílá', async () => {
+		const user = userEvent.setup()
+		get.mockResolvedValue({
+			events: [event({ rsvpDeadlineAt: '2020-01-01 00:00:00', me: { ...event().me!, rsvp: 'yes' } })],
+		})
+		await renderAs('player')
+		await user.click(screen.getByRole('button', { name: 'Přijdu' }))
+		expect(put).not.toHaveBeenCalled()
+		expect(screen.queryByRole('dialog')).toBeNull()
+	})
+
+	it('nejbližší akce nabízí mapu podle adresy a zachová odkaz na detail', async () => {
+		get.mockResolvedValue({
+			events: [
+				event({ location: { id: 1, name: 'Hala', address: 'Lovosická 559, Praha', lat: null, lng: null, note: null } }),
+			],
+		})
+		await renderAs('player')
+		expect(screen.getByRole('link', { name: 'Hala' })).toHaveAttribute(
+			'href',
+			'https://www.google.com/maps/dir/?api=1&destination=Lovosick%C3%A1%20559%2C%20Praha',
+		)
+		expect(screen.getByRole('link', { name: 'Trénink' })).toHaveAttribute('href', '/akce/1')
+	})
+
+	it('odtažení jen odkryje nabídku a nic neodešle; návrat ji schová', async () => {
+		await renderAs('player')
+		const { row, button } = scrollingRow()
+		expect(screen.queryByRole('button', { name: 'Jdu' })).toBeNull()
+		fireEvent.scroll(row, { target: { scrollLeft: 160 } })
+		expect(button).toHaveAttribute('aria-expanded', 'true')
+		expect(screen.getByRole('button', { name: 'Jdu' })).toBeInTheDocument()
+		expect(put).not.toHaveBeenCalled()
+		fireEvent.scroll(row, { target: { scrollLeft: 0 } })
+		expect(screen.queryByRole('button', { name: 'Jdu' })).toBeNull()
+	})
+
+	it.each(['yes', 'no'] as const)('uloží %s, zachová poznámku a dopravu a obnoví seznam', async (rsvp) => {
+		const user = userEvent.setup()
+		const next = event({
+			id: 2,
+			title: 'Další',
+			type: 'match',
+			me: {
+				...event().me!,
+				rsvpNote: 'Přijedu rovnou do haly',
+				transport: 'driver',
+				carSeats: 3,
+			},
+		})
+		get.mockResolvedValue({ events: [event(), next] })
+		put.mockImplementation(async () => {
+			const updated = { ...next, me: { ...next.me!, rsvp } }
+			get.mockResolvedValue({ events: [event(), updated] })
+			return {
+				event: updated,
+				participants: [],
+				canSeeAttendance: false,
+				travelFollowerEvents: [],
+			} satisfies EventDetail
+		})
+		await renderAs('player')
+		const { button, row } = scrollingRow()
+		await user.click(button)
+		await user.click(screen.getByRole('button', { name: rsvp === 'yes' ? 'Jdu' : 'Nejdu' }))
+		expect(put).toHaveBeenCalledWith('/events/2/rsvp', {
+			rsvp,
+			note: 'Přijedu rovnou do haly',
+			transport: 'driver',
+			carSeats: 3,
+		})
+		expect(await screen.findByRole('status')).toHaveTextContent(rsvp === 'yes' ? /^Uloženo: jdu$/ : /^Uloženo: nejdu$/)
+		await waitFor(() => expect(within(row).getByText(rsvp === 'yes' ? 'Přijdu' : 'Nepřijdu')).toBeInTheDocument())
+		expect(button).toHaveAttribute('aria-expanded', 'false')
+	})
+
+	it('při chybě ponechá nabídku i původní odpověď a dovolí opakování', async () => {
+		const user = userEvent.setup()
+		put.mockRejectedValue(new ApiError(409, 'EVENT_STARTED', 'Akce už začala, odpověď se nedá změnit.'))
+		await renderAs('player')
+		const { button } = scrollingRow()
+		await user.click(button)
+		await user.click(screen.getByRole('button', { name: 'Jdu' }))
+		expect(await screen.findByRole('alert')).toHaveTextContent('Akce už začala')
+		expect(button).toHaveAttribute('aria-expanded', 'true')
+		expect(screen.getByRole('button', { name: 'Jdu' })).toBeEnabled()
+		expect(screen.queryByRole('status')).toBeNull()
+	})
+
+	it('během ukládání nepovolí druhou odpověď', async () => {
+		const user = userEvent.setup()
+		let finish: ((detail: EventDetail) => void) | undefined
+		put.mockImplementation(
+			() =>
+				new Promise<EventDetail>((resolve) => {
+					finish = resolve
+				}),
+		)
+		await renderAs('player')
+		const { button } = scrollingRow()
+		await user.click(button)
+		await user.click(screen.getByRole('button', { name: 'Jdu' }))
+		expect(screen.getByRole('button', { name: 'Ukládám…' })).toBeDisabled()
+		const no = screen.getByRole('button', { name: 'Nejdu' })
+		expect(no).toBeDisabled()
+		await user.click(no)
+		expect(put).toHaveBeenCalledTimes(1)
+		await act(async () =>
+			finish?.({ event: event({ id: 2 }), participants: [], canSeeAttendance: false, travelFollowerEvents: [] }),
+		)
+	})
+
+	it('nabídku zpřístupní klávesnicí a Escape ji zavře', async () => {
+		const user = userEvent.setup()
+		await renderAs('player')
+		const { button } = scrollingRow()
+		button.focus()
+		await user.keyboard('{Enter}')
+		expect(screen.getByRole('button', { name: 'Jdu' })).toBeInTheDocument()
+		await user.keyboard('{Escape}')
+		expect(button).toHaveFocus()
+		expect(button).toHaveAttribute('aria-expanded', 'false')
+	})
+
+	it('po termínu stále dovolí odpověď a označí prošlý termín', async () => {
+		get.mockResolvedValue({
+			events: [event(), event({ id: 2, title: 'Další', rsvpDeadlineAt: '2020-01-01 00:00:00' })],
+		})
+		await renderAs('player')
+		expect(screen.getByText('po termínu')).toBeInTheDocument()
+		expect(screen.getByRole('button', { name: 'Účast na akci: Další' })).toBeInTheDocument()
+	})
+
+	it.each([{ status: 'cancelled' as const }, { me: null }])(
+		'nenabídne odpověď pro nepřístupnou akci %j',
+		async (overrides) => {
+			get.mockResolvedValue({ events: [event(), event({ id: 2, title: 'Další', ...overrides })] })
+			await renderAs('player')
+			expect(screen.queryByRole('button', { name: 'Účast na akci: Další' })).toBeNull()
+		},
+	)
+
+	it.each([false, true])('nenabídne odpověď u proběhlé akce (sezóna uzavřená: %s)', async (closed) => {
+		const user = userEvent.setup()
+		seasonClosed = closed
+		get.mockResolvedValue({ events: [event(), event({ id: 2, title: 'Další', started: true })] })
+		await renderAs('player')
+		await user.click(screen.getByRole('button', { name: 'Proběhlé (1)' }))
+		expect(screen.getByRole('link', { name: /Další/ })).toBeInTheDocument()
+		expect(screen.queryByRole('button', { name: /Účast na akci/ })).toBeNull()
+		seasonClosed = false
+	})
+	it('nenabídne odpověď na budoucí akci v uzavřené sezóně', async () => {
+		seasonClosed = true
+		await renderAs('player')
+		expect(screen.queryByRole('button', { name: /Účast na akci/ })).toBeNull()
+		seasonClosed = false
 	})
 })
