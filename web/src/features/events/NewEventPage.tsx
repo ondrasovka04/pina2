@@ -43,7 +43,9 @@ export function NewEventPage() {
 	const { team, season, seasonId, can, isSeasonClosed } = useTeam()
 	const [repeats, setRepeats] = useState(false)
 
-	if (seasonId === null || season === null) return <NoSeasonState what="akce" />
+	if (seasonId === null || season === null) {
+		return <NoSeasonState what="akce" />
+	}
 
 	if (!can('treasurer')) {
 		return (
@@ -482,7 +484,9 @@ function LocationCard({
 	const [address, setAddress] = useState('')
 
 	async function add() {
-		if (clubId === null || name.trim() === '') return
+		if (clubId === null || name.trim() === '') {
+			return
+		}
 
 		const created = await create.mutateAsync({
 			name: name.trim(),
@@ -562,7 +566,9 @@ function NoteField({ value, onChange }: { value: string; onChange: (value: strin
 
 /** Hláška ze serveru je konkrétnější než cokoli, co bychom vymysleli tady. */
 function ErrorLine({ error }: { error: unknown }) {
-	if (error === null || error === undefined) return null
+	if (error === null || error === undefined) {
+		return null
+	}
 
 	return (
 		<p role="alert" className="bg-debt-500/15 text-debt rounded-xl px-3 py-2 text-sm">

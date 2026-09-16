@@ -36,7 +36,9 @@ async function openPanel(as: Role) {
 	)
 
 	const trigger = screen.queryByRole('button', { expanded: false })
-	if (trigger !== null) await user.click(trigger)
+	if (trigger !== null) {
+		await user.click(trigger)
+	}
 }
 
 describe('TeamSwitcher — kudy se kdo dostane ke správě', () => {

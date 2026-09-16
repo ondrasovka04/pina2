@@ -23,8 +23,12 @@ export function TeamRescue({ teamId, teamName }: { teamId: number; teamName: str
 	const [issued, setIssued] = useState<IssuedLink | null>(null)
 	const [error, setError] = useState<string | null>(null)
 
-	if (members.isPending) return <LoadingState />
-	if (members.error !== null) return <ErrorState error={members.error} onRetry={() => void members.refetch()} />
+	if (members.isPending) {
+		return <LoadingState />
+	}
+	if (members.error !== null) {
+		return <ErrorState error={members.error} onRetry={() => void members.refetch()} />
+	}
 
 	const all = sortMembers(members.data ?? [])
 	// Admini nahoru — je pro ně primární.

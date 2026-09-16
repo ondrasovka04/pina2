@@ -126,7 +126,9 @@ describe('EventPage', () => {
 		const triggers = await screen.findAllByRole('button', { name: 'Zvětšit profilovou fotku: Ondra' })
 		expect(triggers).toHaveLength(started ? 3 : 2)
 		const trigger = triggers[index]
-		if (trigger === undefined) throw new Error('Chybí tlačítko profilové fotky')
+		if (trigger === undefined) {
+			throw new Error('Chybí tlačítko profilové fotky')
+		}
 		await user.click(trigger)
 		const dialog = screen.getByRole('dialog', { name: 'Ondra' })
 		expect(within(dialog).getByRole('img')).toHaveAttribute('src', '/avatar.png')

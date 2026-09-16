@@ -25,18 +25,26 @@ export function findAutoRuleConflict(
 	rule: AutoRule,
 	eventType: AutoEventType,
 ): AutoRuleConflict | null {
-	if (rule === 'none') return null
+	if (rule === 'none') {
+		return null
+	}
 
 	const other = others.find((candidate) => {
-		if (candidate.archivedAt !== null) return false
-		if (toAutoRule(candidate.autoRule) !== rule) return false
+		if (candidate.archivedAt !== null) {
+			return false
+		}
+		if (toAutoRule(candidate.autoRule) !== rule) {
+			return false
+		}
 
 		const candidateEventType = toAutoEventType(candidate.autoEventType)
 
 		return candidateEventType === eventType || candidateEventType === 'any' || eventType === 'any'
 	})
 
-	if (other === undefined) return null
+	if (other === undefined) {
+		return null
+	}
 
 	const otherEventType = toAutoEventType(other.autoEventType)
 	const otherIsAny = otherEventType === 'any'

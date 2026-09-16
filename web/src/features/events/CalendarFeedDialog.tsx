@@ -23,11 +23,15 @@ export function CalendarFeedDialog({ feed, onClose }: CalendarFeedDialogProps) {
 
 	useEffect(() => {
 		const dialog = dialogRef.current
-		if (dialog === null) return
+		if (dialog === null) {
+			return
+		}
 
 		if (feed !== null) {
 			setCopied(false)
-			if (!dialog.open) dialog.showModal()
+			if (!dialog.open) {
+				dialog.showModal()
+			}
 		} else if (dialog.open) {
 			dialog.close()
 		}
@@ -36,7 +40,9 @@ export function CalendarFeedDialog({ feed, onClose }: CalendarFeedDialogProps) {
 	const urls = feed === null ? null : calendarFeedUrls(feed.token, window.location.origin)
 
 	async function copy() {
-		if (urls === null) return
+		if (urls === null) {
+			return
+		}
 
 		try {
 			await navigator.clipboard.writeText(urls.webcal)
@@ -55,7 +61,9 @@ export function CalendarFeedDialog({ feed, onClose }: CalendarFeedDialogProps) {
 				onClose()
 			}}
 			onClick={(event) => {
-				if (event.target === dialogRef.current) onClose()
+				if (event.target === dialogRef.current) {
+					onClose()
+				}
 			}}
 			className="border-line bg-surface-1 text-ink m-auto w-[min(30rem,calc(100vw-2rem))] rounded-2xl border p-5 shadow-xl backdrop:bg-black/50"
 		>

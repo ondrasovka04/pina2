@@ -11,8 +11,12 @@ interface MoneyProps {
 }
 
 function toneClass(czk: number, tone: Tone): string {
-	if (czk < 0) return 'text-bonus'
-	if (tone === 'balance') return czk > 0 ? 'text-debt' : 'text-ink-faint'
+	if (czk < 0) {
+		return 'text-bonus'
+	}
+	if (tone === 'balance') {
+		return czk > 0 ? 'text-debt' : 'text-ink-faint'
+	}
 
 	return 'text-ink'
 }

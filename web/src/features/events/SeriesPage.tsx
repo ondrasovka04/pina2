@@ -32,7 +32,9 @@ import { eventTypeLabels, eventTypes, formatDate } from '@/lib/types'
 export function SeriesPage() {
 	const { team, season, seasonId, can, isSeasonClosed } = useTeam()
 
-	if (seasonId === null || season === null) return <NoSeasonState what="opakované akce" />
+	if (seasonId === null || season === null) {
+		return <NoSeasonState what="opakované akce" />
+	}
 
 	if (!can('treasurer')) {
 		return (
@@ -73,7 +75,9 @@ function SeriesList({ seasonId, clubId }: { seasonId: number; clubId: number | n
 	const eventsQuery = useEvents(seasonId)
 	const [deleteMessage, setDeleteMessage] = useState<string | null>(null)
 
-	if (seriesQuery.isPending || eventsQuery.isPending) return <LoadingState />
+	if (seriesQuery.isPending || eventsQuery.isPending) {
+		return <LoadingState />
+	}
 	if (seriesQuery.error !== null) {
 		return <ErrorState error={seriesQuery.error} onRetry={() => void seriesQuery.refetch()} />
 	}
@@ -535,7 +539,9 @@ function TypePicker({ value, onChange }: { value: EventType; onChange: (value: E
 
 /** Hláška ze serveru je konkrétnější než cokoli, co bychom vymysleli tady. */
 function ErrorLine({ error }: { error: unknown }) {
-	if (error === null || error === undefined) return null
+	if (error === null || error === undefined) {
+		return null
+	}
 
 	return (
 		<p role="alert" className="bg-debt-500/15 text-debt rounded-xl px-3 py-2 text-sm">
@@ -548,9 +554,15 @@ function ErrorLine({ error }: { error: unknown }) {
 function describeSeriesChange(result: SeriesChangeResult): string {
 	const parts: string[] = []
 
-	if (result.updated > 0) parts.push(`Upraveno ${plural(result.updated, 'termín', 'termíny', 'termínů')}`)
-	if (result.created > 0) parts.push(plural(result.created, 'přibyl', 'přibyly', 'přibylo'))
-	if (result.deleted > 0) parts.push(plural(result.deleted, 'se smazal', 'se smazaly', 'se smazalo'))
+	if (result.updated > 0) {
+		parts.push(`Upraveno ${plural(result.updated, 'termín', 'termíny', 'termínů')}`)
+	}
+	if (result.created > 0) {
+		parts.push(plural(result.created, 'přibyl', 'přibyly', 'přibylo'))
+	}
+	if (result.deleted > 0) {
+		parts.push(plural(result.deleted, 'se smazal', 'se smazaly', 'se smazalo'))
+	}
 	if (result.skipped > 0) {
 		parts.push(
 			plural(
@@ -568,7 +580,9 @@ function describeSeriesChange(result: SeriesChangeResult): string {
 function describeSeriesDeletion(result: { deleted: number; kept: number }): string {
 	const parts = [`Smazáno ${plural(result.deleted, 'termín', 'termíny', 'termínů')}`]
 
-	if (result.kept > 0) parts.push(`${plural(result.kept, 'zůstal', 'zůstaly', 'zůstalo')} beze změny`)
+	if (result.kept > 0) {
+		parts.push(`${plural(result.kept, 'zůstal', 'zůstaly', 'zůstalo')} beze změny`)
+	}
 
 	return `${parts.join(', ')}.`
 }

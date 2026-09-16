@@ -40,8 +40,11 @@ function readDataUrl(file: File): Promise<string> {
 	return new Promise((resolve, reject) => {
 		const reader = new FileReader()
 		reader.addEventListener('load', () => {
-			if (typeof reader.result === 'string') resolve(reader.result)
-			else reject(new Error('Obrázek se nepodařilo načíst.'))
+			if (typeof reader.result === 'string') {
+				resolve(reader.result)
+			} else {
+				reject(new Error('Obrázek se nepodařilo načíst.'))
+			}
 		})
 		reader.addEventListener('error', () => reject(new Error('Obrázek se nepodařilo načíst.')))
 		reader.readAsDataURL(file)
@@ -61,10 +64,14 @@ async function downscaled(dataUrl: string, type: string): Promise<string | null>
 	try {
 		const canvas = document.createElement('canvas')
 		const context = canvas.getContext('2d')
-		if (context === null) return null
+		if (context === null) {
+			return null
+		}
 
 		const image = await loadImage(dataUrl)
-		if (image === null) return null
+		if (image === null) {
+			return null
+		}
 
 		const size = scaledSize(image.naturalWidth, image.naturalHeight)
 		canvas.width = size.width
@@ -121,7 +128,9 @@ export function ImageUpload({ name, imageUrl, shape = 'circle', onSave }: ImageU
 	}
 
 	async function choose(file: File | undefined) {
-		if (file === undefined) return
+		if (file === undefined) {
+			return
+		}
 
 		// Zhasnout hned po výběru, ne až se odesílá — přečíst a zmenšit velkou fotku chvíli trvá.
 		setBusy(true)

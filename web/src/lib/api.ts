@@ -53,7 +53,9 @@ async function refreshAccessToken(): Promise<boolean> {
 				credentials: 'include',
 			})
 
-			if (!response.ok) return false
+			if (!response.ok) {
+				return false
+			}
 
 			const data = (await response.json()) as { accessToken: string }
 			accessToken = data.accessToken
@@ -72,12 +74,20 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 	const { method = 'GET', body, signal, skipRefresh = false } = options
 
 	const headers: Record<string, string> = {}
-	if (accessToken !== null) headers['Authorization'] = `Bearer ${accessToken}`
-	if (body !== undefined) headers['Content-Type'] = 'application/json'
+	if (accessToken !== null) {
+		headers['Authorization'] = `Bearer ${accessToken}`
+	}
+	if (body !== undefined) {
+		headers['Content-Type'] = 'application/json'
+	}
 
 	const init: RequestInit = { method, headers, credentials: 'include' }
-	if (body !== undefined) init.body = JSON.stringify(body)
-	if (signal !== undefined) init.signal = signal
+	if (body !== undefined) {
+		init.body = JSON.stringify(body)
+	}
+	if (signal !== undefined) {
+		init.signal = signal
+	}
 
 	const response = await fetch(path.startsWith('/api') ? path : `/api/v1${path}`, init)
 

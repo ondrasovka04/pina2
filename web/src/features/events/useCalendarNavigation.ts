@@ -39,8 +39,9 @@ function readSnapshot(key: string): CalendarSnapshot | null {
 			typeof value.scrollY !== 'number' ||
 			!Number.isFinite(value.scrollY) ||
 			value.scrollY < 0
-		)
+		) {
 			return null
+		}
 
 		return { view: value.view, period: value.period, month: value.month, scrollY: value.scrollY }
 	} catch {
@@ -70,8 +71,12 @@ export function useCalendarNavigation(userId: number, seasonId: number, ready: b
 	useLayoutEffect(() => {
 		// Router může mezitím ukázat krátký stav načítání. Obnovujeme až nad
 		// hotovým seznamem, jinak prohlížeč ořízne uloženou pozici k nule.
-		if (!ready) return
-		if (scrollY.current !== null) window.scrollTo({ top: scrollY.current, behavior: 'instant' })
+		if (!ready) {
+			return
+		}
+		if (scrollY.current !== null) {
+			window.scrollTo({ top: scrollY.current, behavior: 'instant' })
+		}
 		const rememberScroll = () => {
 			scrollY.current = window.scrollY
 		}

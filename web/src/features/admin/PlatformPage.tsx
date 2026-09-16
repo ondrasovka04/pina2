@@ -30,8 +30,12 @@ export function PlatformPage() {
 		)
 	}
 
-	if (isPending) return <LoadingState />
-	if (error !== null) return <ErrorState error={error} onRetry={() => void refetch()} />
+	if (isPending) {
+		return <LoadingState />
+	}
+	if (error !== null) {
+		return <ErrorState error={error} onRetry={() => void refetch()} />
+	}
 
 	const clubs = data ?? []
 

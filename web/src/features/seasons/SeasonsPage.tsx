@@ -43,8 +43,12 @@ export function SeasonsPage() {
 		)
 	}
 
-	if (isPending) return <LoadingState />
-	if (error !== null) return <ErrorState error={error} onRetry={() => void refetch()} />
+	if (isPending) {
+		return <LoadingState />
+	}
+	if (error !== null) {
+		return <ErrorState error={error} onRetry={() => void refetch()} />
+	}
 
 	if (seasons.length === 0) {
 		return (
@@ -243,21 +247,29 @@ function RosterSection({
 	members: MembersQuery
 	onSave: (membershipIds: number[]) => Promise<unknown>
 }) {
-	if (roster.isPending || (!closed && members.isPending)) return <LoadingState />
-	if (roster.error !== null) return <ErrorState error={roster.error} onRetry={() => void roster.refetch()} />
+	if (roster.isPending || (!closed && members.isPending)) {
+		return <LoadingState />
+	}
+	if (roster.error !== null) {
+		return <ErrorState error={roster.error} onRetry={() => void roster.refetch()} />
+	}
 	if (!closed && members.error !== null) {
 		return <ErrorState error={members.error} onRetry={() => void members.refetch()} />
 	}
 
 	const rosterEntries = roster.data ?? []
 
-	if (closed) return <RosterReadOnly roster={rosterEntries} />
+	if (closed) {
+		return <RosterReadOnly roster={rosterEntries} />
+	}
 
 	return <RosterEditor members={members.data ?? []} roster={rosterEntries} onSave={onSave} />
 }
 
 function RosterReadOnly({ roster }: { roster: RosterEntry[] }) {
-	if (roster.length === 0) return <p className="text-ink-muted text-sm">Soupiska je prázdná.</p>
+	if (roster.length === 0) {
+		return <p className="text-ink-muted text-sm">Soupiska je prázdná.</p>
+	}
 
 	return (
 		<div className="divide-line/50 divide-y">
@@ -312,8 +324,11 @@ function RosterEditor({
 
 	function toggle(id: number) {
 		const next = new Set(latest.current)
-		if (next.has(id)) next.delete(id)
-		else next.add(id)
+		if (next.has(id)) {
+			next.delete(id)
+		} else {
+			next.add(id)
+		}
 
 		latest.current = next
 		setSelected(next)

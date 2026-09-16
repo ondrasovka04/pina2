@@ -27,8 +27,12 @@ function fieldMessage(error: unknown, field: string): string | undefined {
 
 /** Obecná hláška — chyba z API bez konkrétního pole, nebo síťová chyba. */
 function generalMessage(error: unknown): string | undefined {
-	if (error === null || error === undefined) return undefined
-	if (error instanceof ApiError) return error.field === undefined ? error.message : undefined
+	if (error === null || error === undefined) {
+		return undefined
+	}
+	if (error instanceof ApiError) {
+		return error.field === undefined ? error.message : undefined
+	}
 
 	return 'Něco se pokazilo. Zkuste to prosím znovu.'
 }
@@ -58,8 +62,12 @@ export function LocationsPage() {
 		)
 	}
 
-	if (locations.isPending) return <LoadingState />
-	if (locations.error !== null) return <ErrorState error={locations.error} onRetry={() => void locations.refetch()} />
+	if (locations.isPending) {
+		return <LoadingState />
+	}
+	if (locations.error !== null) {
+		return <ErrorState error={locations.error} onRetry={() => void locations.refetch()} />
+	}
 
 	const items = sortLocations(locations.data ?? [])
 

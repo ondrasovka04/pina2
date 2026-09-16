@@ -2,6 +2,16 @@
 	"$schema": "./node_modules/oxlint/configuration_schema.json",
 	"plugins": ["react", "typescript", "unicorn"],
 	"categories": { "correctness": "error", "suspicious": "warn", "perf": "warn" },
-	"rules": { "react/react-in-jsx-scope": "off" },
+	"rules": {
+		"react/react-in-jsx-scope": "off",
+		"curly": ["error", "all"],
+		"prefer-const": "error",
+		"no-var": "error",
+		"eqeqeq": ["error", "always"],
+		"no-duplicate-imports": ["error", { "allowSeparateTypeImports": true }],
+		"typescript/no-explicit-any": "error",
+		"unicorn/prefer-number-properties": "error",
+		"no-else-return": "error"
+	},
 	"ignorePatterns": ["node_modules", "dist"]
 }

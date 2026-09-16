@@ -8,7 +8,9 @@ export function PwaUpdatePrompt() {
 		updateServiceWorker,
 	} = useRegisterSW()
 
-	if (!needRefresh) return null
+	if (!needRefresh) {
+		return null
+	}
 
 	return (
 		<div

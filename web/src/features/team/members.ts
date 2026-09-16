@@ -27,7 +27,9 @@ export function hasPlaceholderEmail(member: TeamMember): boolean {
 
 // Posledního admina nemůžeme degradovat — server by vrátil 409 LAST_ADMIN.
 export function isLastAdmin(member: TeamMember, members: TeamMember[]): boolean {
-	if (member.role !== 'admin' || member.status === 'left') return false
+	if (member.role !== 'admin' || member.status === 'left') {
+		return false
+	}
 
 	return !members.some((other) => other.id !== member.id && other.role === 'admin' && other.status !== 'left')
 }
@@ -38,8 +40,12 @@ export const roleOrder: Role[] = ['player', 'treasurer', 'admin']
 export function describeBatch(result: ActivationBatch): string {
 	const parts: string[] = [`Odesláno ${result.sent}`]
 
-	if (result.failed > 0) parts.push(`${result.failed} neodešlo`)
-	if (result.skipped > 0) parts.push(`${result.skipped} bez použitelné adresy`)
+	if (result.failed > 0) {
+		parts.push(`${result.failed} neodešlo`)
+	}
+	if (result.skipped > 0) {
+		parts.push(`${result.skipped} bez použitelné adresy`)
+	}
 
 	const zbyva = result.remaining + result.failed
 

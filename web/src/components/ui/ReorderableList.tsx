@@ -47,7 +47,9 @@ export function ReorderableList<T>({ items, getKey, getLabel, renderItem, onReor
 	const order = [...known, ...added]
 
 	function commit(from: number, to: number) {
-		if (to === from || to < 0 || to >= order.length) return
+		if (to === from || to < 0 || to >= order.length) {
+			return
+		}
 
 		const next = moveItem(order, from, to)
 		setOrderKeys(next.map(getKey))
@@ -56,17 +58,23 @@ export function ReorderableList<T>({ items, getKey, getLabel, renderItem, onReor
 
 	function startDrag(index: number, key: number, clientY: number) {
 		const rows = containerRef.current?.children
-		if (rows === undefined) return
+		if (rows === undefined) {
+			return
+		}
 
 		const midpoints: number[] = []
 		let height = 0
 
 		for (let position = 0; position < rows.length; position++) {
 			const rect = rows[position]?.getBoundingClientRect()
-			if (rect === undefined) continue
+			if (rect === undefined) {
+				continue
+			}
 
 			midpoints.push(rect.top + window.scrollY + rect.height / 2)
-			if (position === index) height = rect.height
+			if (position === index) {
+				height = rect.height
+			}
 		}
 
 		setDrag({
@@ -82,7 +90,9 @@ export function ReorderableList<T>({ items, getKey, getLabel, renderItem, onReor
 
 	function onMove(clientY: number) {
 		setDrag((current) => {
-			if (current === null) return current
+			if (current === null) {
+				return current
+			}
 
 			const pageY = clientY + window.scrollY
 
@@ -95,18 +105,25 @@ export function ReorderableList<T>({ items, getKey, getLabel, renderItem, onReor
 
 		// U pětačtyřiceti položek se bez samočinného rolování nedá dotáhnout
 		// položka z konce seznamu nahoru.
-		if (clientY < SCROLL_ZONE) window.scrollBy(0, -SCROLL_STEP)
-		else if (clientY > window.innerHeight - SCROLL_ZONE) window.scrollBy(0, SCROLL_STEP)
+		if (clientY < SCROLL_ZONE) {
+			window.scrollBy(0, -SCROLL_STEP)
+		} else if (clientY > window.innerHeight - SCROLL_ZONE) {
+			window.scrollBy(0, SCROLL_STEP)
+		}
 	}
 
 	function endDrag() {
-		if (drag !== null) commit(drag.fromIndex, drag.targetIndex)
+		if (drag !== null) {
+			commit(drag.fromIndex, drag.targetIndex)
+		}
 
 		setDrag(null)
 	}
 
 	function shiftOf(index: number): number {
-		if (drag === null) return 0
+		if (drag === null) {
+			return 0
+		}
 
 		// Tažený řádek sleduje prst, ostatní uhýbají o jeho výšku.
 		return index === drag.fromIndex ? drag.offsetY : shift(index, drag.fromIndex, drag.targetIndex, drag.height)
@@ -141,13 +158,17 @@ export function ReorderableList<T>({ items, getKey, getLabel, renderItem, onReor
 								startDrag(index, key, event.clientY)
 							}}
 							onPointerMove={(event) => {
-								if (dragged) onMove(event.clientY)
+								if (dragged) {
+									onMove(event.clientY)
+								}
 							}}
 							onPointerUp={endDrag}
 							onPointerCancel={() => setDrag(null)}
 							onKeyDown={(event) => {
 								const step = event.key === 'ArrowUp' ? -1 : event.key === 'ArrowDown' ? 1 : 0
-								if (step === 0) return
+								if (step === 0) {
+									return
+								}
 
 								event.preventDefault()
 								commit(index, index + step)

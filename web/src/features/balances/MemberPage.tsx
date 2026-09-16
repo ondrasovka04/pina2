@@ -61,23 +61,35 @@ export function MemberPage() {
 	const [voidingPaymentId, setVoidingPaymentId] = useState<number | null>(null)
 	const [voidingTravelId, setVoidingTravelId] = useState<number | null>(null)
 
-	if (!validId) return <Navigate to="/dluhy" replace />
+	if (!validId) {
+		return <Navigate to="/dluhy" replace />
+	}
 
 	if (seasonId === null) {
 		return <NoSeasonState />
 	}
 
-	if (balances.isPending || records.isPending || payments.isPending || travelClaims.isPending) return <LoadingState />
-	if (balances.error !== null) return <ErrorState error={balances.error} onRetry={() => void balances.refetch()} />
-	if (records.error !== null) return <ErrorState error={records.error} onRetry={() => void records.refetch()} />
-	if (payments.error !== null) return <ErrorState error={payments.error} onRetry={() => void payments.refetch()} />
+	if (balances.isPending || records.isPending || payments.isPending || travelClaims.isPending) {
+		return <LoadingState />
+	}
+	if (balances.error !== null) {
+		return <ErrorState error={balances.error} onRetry={() => void balances.refetch()} />
+	}
+	if (records.error !== null) {
+		return <ErrorState error={records.error} onRetry={() => void records.refetch()} />
+	}
+	if (payments.error !== null) {
+		return <ErrorState error={payments.error} onRetry={() => void payments.refetch()} />
+	}
 	if (travelClaims.error !== null) {
 		return <ErrorState error={travelClaims.error} onRetry={() => void travelClaims.refetch()} />
 	}
 
 	const member = balances.data.members.find((item) => item.membershipId === membershipId)
 
-	if (member === undefined) return <Navigate to="/dluhy" replace />
+	if (member === undefined) {
+		return <Navigate to="/dluhy" replace />
+	}
 
 	const canManage = can('treasurer') && !isSeasonClosed
 	const groups = groupByDate(records.data.items)
@@ -93,7 +105,9 @@ export function MemberPage() {
 				confirmLabel="Stornovat"
 				danger
 				onConfirm={() => {
-					if (voidingRecordId !== null) voidRecord.mutate(voidingRecordId)
+					if (voidingRecordId !== null) {
+						voidRecord.mutate(voidingRecordId)
+					}
 					setVoidingRecordId(null)
 				}}
 				onCancel={() => setVoidingRecordId(null)}
@@ -101,7 +115,9 @@ export function MemberPage() {
 			<PaymentVoidDialog
 				open={voidingPaymentId !== null}
 				onConfirm={(reason) => {
-					if (voidingPaymentId !== null) voidPayment.mutate({ paymentId: voidingPaymentId, reason })
+					if (voidingPaymentId !== null) {
+						voidPayment.mutate({ paymentId: voidingPaymentId, reason })
+					}
 					setVoidingPaymentId(null)
 				}}
 				onCancel={() => setVoidingPaymentId(null)}
@@ -113,7 +129,9 @@ export function MemberPage() {
 				confirmLabel="Stornovat"
 				danger
 				onConfirm={() => {
-					if (voidingTravelId !== null) voidTravel.mutate(voidingTravelId)
+					if (voidingTravelId !== null) {
+						voidTravel.mutate(voidingTravelId)
+					}
 					setVoidingTravelId(null)
 				}}
 				onCancel={() => setVoidingTravelId(null)}

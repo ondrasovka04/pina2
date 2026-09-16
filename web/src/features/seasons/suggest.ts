@@ -8,7 +8,9 @@ export interface SeasonSuggestion {
 
 export function addYear(iso: string): string {
 	const [year, month, day] = iso.slice(0, 10).split('-').map(Number)
-	if (year === undefined || month === undefined || day === undefined) return iso
+	if (year === undefined || month === undefined || day === undefined) {
+		return iso
+	}
 
 	const next = new Date(Date.UTC(year + 1, month - 1, day))
 	const overflowed = next.getUTCMonth() !== month - 1
@@ -23,7 +25,9 @@ function short(year: number): string {
 
 export function nextSeasonName(name: string): string | null {
 	const match = /^(\d{2})\/(\d{2})$/.exec(name.trim())
-	if (match === null) return null
+	if (match === null) {
+		return null
+	}
 
 	const from = Number(match[1])
 	const to = Number(match[2])

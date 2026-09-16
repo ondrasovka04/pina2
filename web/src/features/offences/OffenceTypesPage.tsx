@@ -80,7 +80,9 @@ export function OffenceTypesPage() {
 
 	const groups = useMemo(() => {
 		const byCategory = new Map<CategoryKey, OffenceType[]>()
-		for (const key of categoryOrder) byCategory.set(key, [])
+		for (const key of categoryOrder) {
+			byCategory.set(key, [])
+		}
 
 		for (const item of active) {
 			const key: CategoryKey = item.category ?? 'other'
@@ -96,8 +98,12 @@ export function OffenceTypesPage() {
 		return <NoSeasonState what="sazebník" />
 	}
 
-	if (isPending) return <LoadingState />
-	if (error !== null) return <ErrorState error={error} onRetry={() => void refetch()} />
+	if (isPending) {
+		return <LoadingState />
+	}
+	if (error !== null) {
+		return <ErrorState error={error} onRetry={() => void refetch()} />
+	}
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -267,8 +273,12 @@ function fieldMessage(error: unknown, field: string): string | undefined {
 
 /** Obecná hláška — chyba z API bez konkrétního pole, nebo síťová chyba. */
 function generalMessage(error: unknown): string | undefined {
-	if (error === null || error === undefined) return undefined
-	if (error instanceof ApiError) return error.field === undefined ? error.message : undefined
+	if (error === null || error === undefined) {
+		return undefined
+	}
+	if (error instanceof ApiError) {
+		return error.field === undefined ? error.message : undefined
+	}
 
 	return 'Něco se pokazilo. Zkuste to prosím znovu.'
 }
@@ -353,7 +363,9 @@ function CreateOffenceTypeForm({ seasonId, allItems, onDone }: CreateOffenceType
 		event.preventDefault()
 
 		const amountCzk = Number.parseInt(amount, 10)
-		if (Number.isNaN(amountCzk)) return
+		if (Number.isNaN(amountCzk)) {
+			return
+		}
 
 		create.mutate(
 			{ name: name.trim(), amountCzk, category: category === '' ? null : category, autoRule, autoEventType },
@@ -458,7 +470,9 @@ function EditOffenceTypeForm({ item, allItems, saving, error, onCancel, onSave }
 		event.preventDefault()
 
 		const amountCzk = Number.parseInt(amount, 10)
-		if (Number.isNaN(amountCzk)) return
+		if (Number.isNaN(amountCzk)) {
+			return
+		}
 
 		onSave({ name: name.trim(), amountCzk, category: category === '' ? null : category, autoRule, autoEventType })
 	}

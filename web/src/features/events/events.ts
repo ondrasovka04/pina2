@@ -39,7 +39,9 @@ export function parseDateTime(value: string): Date {
 export function formatEventTime(startsAt: string): string {
 	const date = parseDateTime(startsAt)
 
-	if (Number.isNaN(date.getTime())) return startsAt
+	if (Number.isNaN(date.getTime())) {
+		return startsAt
+	}
 
 	return new Intl.DateTimeFormat('cs-CZ', {
 		weekday: 'short',
@@ -53,7 +55,9 @@ export function formatEventTime(startsAt: string): string {
 export function formatTime(value: string): string {
 	const date = parseDateTime(value)
 
-	if (Number.isNaN(date.getTime())) return value
+	if (Number.isNaN(date.getTime())) {
+		return value
+	}
 
 	return new Intl.DateTimeFormat('cs-CZ', { hour: '2-digit', minute: '2-digit' }).format(date)
 }
@@ -64,13 +68,19 @@ export type DeadlineState = 'none' | 'open' | 'soon' | 'passed'
 const DEADLINE_SOON_MS = 12 * 60 * 60 * 1000
 
 export function deadlineState(event: Pick<TeamEvent, 'rsvpDeadlineAt'>, now = new Date()): DeadlineState {
-	if (event.rsvpDeadlineAt === null) return 'none'
+	if (event.rsvpDeadlineAt === null) {
+		return 'none'
+	}
 
 	const deadline = parseDateTime(event.rsvpDeadlineAt)
 	const remaining = deadline.getTime() - now.getTime()
 
-	if (Number.isNaN(remaining)) return 'none'
-	if (remaining <= 0) return 'passed'
+	if (Number.isNaN(remaining)) {
+		return 'none'
+	}
+	if (remaining <= 0) {
+		return 'passed'
+	}
 
 	return remaining <= DEADLINE_SOON_MS ? 'soon' : 'open'
 }
@@ -96,14 +106,22 @@ function calendarDaysBetween(from: Date, to: Date): number {
 export function formatDeadline(value: string, now = new Date()): string {
 	const date = parseDateTime(value)
 
-	if (Number.isNaN(date.getTime())) return `do ${value}`
+	if (Number.isNaN(date.getTime())) {
+		return `do ${value}`
+	}
 
 	const time = formatTime(value)
 	const days = calendarDaysBetween(now, date)
 
-	if (days === 0) return `do ${time}`
-	if (days === 1) return `do zítřejších ${time}`
-	if (days > 1 && days < 7) return `do ${deadlineDays[date.getDay()]} ${time}`
+	if (days === 0) {
+		return `do ${time}`
+	}
+	if (days === 1) {
+		return `do zítřejších ${time}`
+	}
+	if (days > 1 && days < 7) {
+		return `do ${deadlineDays[date.getDay()]} ${time}`
+	}
 
 	return `do ${new Intl.DateTimeFormat('cs-CZ', { day: 'numeric', month: 'numeric' }).format(date)} ${time}`
 }
@@ -150,7 +168,9 @@ export function groupByMonth(events: TeamEvent[]): EventMonth[] {
 function monthLabel(startsAt: string): string {
 	const date = parseDateTime(startsAt)
 
-	if (Number.isNaN(date.getTime())) return startsAt.slice(0, 7)
+	if (Number.isNaN(date.getTime())) {
+		return startsAt.slice(0, 7)
+	}
 
 	return new Intl.DateTimeFormat('cs-CZ', { month: 'long', year: 'numeric' }).format(date)
 }
@@ -203,9 +223,15 @@ export function linkableMatches(
 export function rsvpSummary(counts: TeamEvent['counts']): string {
 	const parts: string[] = []
 
-	if (counts.yes > 0) parts.push(`${counts.yes} přijde`)
-	if (counts.no > 0) parts.push(`${counts.no} ne`)
-	if (counts.unknown > 0) parts.push(`${counts.unknown} neví`)
+	if (counts.yes > 0) {
+		parts.push(`${counts.yes} přijde`)
+	}
+	if (counts.no > 0) {
+		parts.push(`${counts.no} ne`)
+	}
+	if (counts.unknown > 0) {
+		parts.push(`${counts.unknown} neví`)
+	}
 
 	return parts.length === 0 ? 'Zatím nikdo neodpověděl' : parts.join(' · ')
 }
@@ -214,7 +240,9 @@ export function rsvpSummary(counts: TeamEvent['counts']): string {
 export function driverSummary(participants: EventParticipant[]): string | null {
 	const drivers = participants.filter((person) => person.transport === 'driver' && person.rsvp === 'yes')
 
-	if (drivers.length === 0) return null
+	if (drivers.length === 0) {
+		return null
+	}
 
 	const seats = drivers.reduce((total, driver) => total + (driver.carSeats ?? 0), 0)
 
@@ -232,7 +260,9 @@ export function formatRatio(ratio: number | null): string {
 export function buildRrule(days: readonly Weekday[], interval = 1): string {
 	const ordered = weekdays.filter((day) => days.includes(day))
 
-	if (ordered.length === 0) return ''
+	if (ordered.length === 0) {
+		return ''
+	}
 
 	const every = interval > 1 ? `;INTERVAL=${interval}` : ''
 
@@ -245,7 +275,9 @@ export function parseRrule(rrule: string): { days: Weekday[]; interval: number }
 
 	for (const chunk of rrule.split(';')) {
 		const [key, value] = chunk.split('=')
-		if (key !== undefined && value !== undefined) parts.set(key.trim().toUpperCase(), value.trim().toUpperCase())
+		if (key !== undefined && value !== undefined) {
+			parts.set(key.trim().toUpperCase(), value.trim().toUpperCase())
+		}
 	}
 
 	const byDay = parts.get('BYDAY')?.split(',') ?? []
@@ -261,7 +293,9 @@ export function parseRrule(rrule: string): { days: Weekday[]; interval: number }
 export function describeRrule(rrule: string, startTime: string): string {
 	const { days, interval } = parseRrule(rrule)
 
-	if (days.length === 0) return 'Vyberte aspoň jeden den'
+	if (days.length === 0) {
+		return 'Vyberte aspoň jeden den'
+	}
 
 	const names = days.map((day) => weekdayNames[day])
 	const listed = names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} a ${names.at(-1)}`
@@ -304,7 +338,9 @@ function pad(part: number): string {
 export function shiftMinutes(value: string, minutes: number): string {
 	const date = parseDateTime(value)
 
-	if (Number.isNaN(date.getTime())) return value
+	if (Number.isNaN(date.getTime())) {
+		return value
+	}
 
 	date.setMinutes(date.getMinutes() + minutes)
 
@@ -327,7 +363,9 @@ export function todayOrLater(seasonStart: string, today = new Date()): string {
 /** Setřídí účastníky pro zápis docházky: soupiska nahoře, pak podle jména. */
 export function sortParticipants(participants: EventParticipant[]): EventParticipant[] {
 	return participants.toSorted((a, b) => {
-		if (a.onRoster !== b.onRoster) return a.onRoster ? -1 : 1
+		if (a.onRoster !== b.onRoster) {
+			return a.onRoster ? -1 : 1
+		}
 
 		return a.name.localeCompare(b.name, 'cs')
 	})

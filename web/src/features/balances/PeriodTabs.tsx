@@ -13,7 +13,9 @@ interface PeriodTabsProps {
  * jediné období a přepínač se nevykreslí — jedna záložka není volba.
  */
 export function PeriodTabs({ periods, active, onChange }: PeriodTabsProps) {
-	if (periods.length < 2) return null
+	if (periods.length < 2) {
+		return null
+	}
 
 	const current = periods.find((period) => period.key === active)
 

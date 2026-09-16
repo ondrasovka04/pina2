@@ -50,21 +50,29 @@ export function suggestFromAttendance(
 	const unexcused = ruleFor(types, 'unexcused_absence', event.type)
 	const lateRsvp = event.rsvpDeadlineAt === null ? undefined : ruleFor(types, 'late_rsvp', event.type)
 
-	if (excused === undefined && unexcused === undefined && lateRsvp === undefined) return emptyDraft
+	if (excused === undefined && unexcused === undefined && lateRsvp === undefined) {
+		return emptyDraft
+	}
 
 	const draft: Record<string, number> = {}
 
 	for (const participant of participants) {
 		// Kdo na soupisce není, tomu se nic nenavrhuje — nemá kde chybět.
-		if (!participant.onRoster) continue
-		if (participant.attendance === 'injured') continue
+		if (!participant.onRoster) {
+			continue
+		}
+		if (participant.attendance === 'injured') {
+			continue
+		}
 
 		if (participant.attendance === 'absent') {
 			// Chybí-li odpovídající položka sazebníku, nenavrhne se nic — strhnout
 			// špatnou absenci jen proto, že položka chybí, by bylo horší.
 			const type = participant.rsvp === 'no' ? excused : unexcused
 
-			if (type !== undefined) draft[draftKey(participant.membershipId, type.id)] = 1
+			if (type !== undefined) {
+				draft[draftKey(participant.membershipId, type.id)] = 1
+			}
 		}
 
 		const neverAnsweredButCame = participant.rsvp === 'unknown' && participant.attendance === 'present'
@@ -126,7 +134,9 @@ export function summarizeDraft(
 		const type = typeById.get(offenceTypeId)
 
 		// Hráč nebo prohřešek zmizel — přeskok, ne pád s rozepsanou dávkou
-		if (member === undefined || type === undefined) continue
+		if (member === undefined || type === undefined) {
+			continue
+		}
 
 		const itemTotal = type.amountCzk * count
 

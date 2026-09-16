@@ -24,11 +24,15 @@ export function OneTimeLinkDialog({ link, title, description, onClose }: OneTime
 
 	useEffect(() => {
 		const dialog = dialogRef.current
-		if (dialog === null) return
+		if (dialog === null) {
+			return
+		}
 
 		if (link !== null) {
 			setCopied(false)
-			if (!dialog.open) dialog.showModal()
+			if (!dialog.open) {
+				dialog.showModal()
+			}
 		} else if (dialog.open) {
 			dialog.close()
 		}
@@ -56,7 +60,9 @@ export function OneTimeLinkDialog({ link, title, description, onClose }: OneTime
 				onClose()
 			}}
 			onClick={(event) => {
-				if (event.target === dialogRef.current) onClose()
+				if (event.target === dialogRef.current) {
+					onClose()
+				}
 			}}
 			className="border-line bg-surface-1 text-ink m-auto w-[min(28rem,calc(100vw-2rem))] rounded-2xl border p-5 shadow-xl backdrop:bg-black/50"
 		>

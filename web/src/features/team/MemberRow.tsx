@@ -28,9 +28,12 @@ export function MemberRow({ member, members, isMe, busy, onChange, onActivate }:
 
 	const lastAdmin = isLastAdmin(member, members)
 	const left = member.status === 'left'
+	const phone = member.phone ?? null
 
 	function changeRole(role: Role) {
-		if (role === member.role) return
+		if (role === member.role) {
+			return
+		}
 
 		// Degradace sebe sama je nevratná vlastními silami — dál už na tuhle
 		// obrazovku nebude mít přístup.
@@ -51,7 +54,7 @@ export function MemberRow({ member, members, isMe, busy, onChange, onActivate }:
 				aria-expanded={expanded}
 				className={cn(
 					'flex w-full items-center gap-3 px-1 text-left',
-					member.phone == null ? 'min-h-14 py-2' : 'min-h-12 pt-2',
+					phone === null ? 'min-h-14 py-2' : 'min-h-12 pt-2',
 				)}
 			>
 				<Avatar name={member.name} src={member.avatarUrl} jerseyNumber={member.jerseyNumber} size="sm" />
@@ -78,12 +81,9 @@ export function MemberRow({ member, members, isMe, busy, onChange, onActivate }:
 				<span className="text-ink-muted shrink-0 text-xs">{roleLabels[member.role]}</span>
 			</button>
 
-			{member.phone == null ? null : (
-				<a
-					href={`tel:${member.phone}`}
-					className="text-ink-faint ml-12 flex w-fit items-center pr-1 pb-2 text-xs underline"
-				>
-					{formatPhone(member.phone)}
+			{phone === null ? null : (
+				<a href={`tel:${phone}`} className="text-ink-faint ml-12 flex w-fit items-center pr-1 pb-2 text-xs underline">
+					{formatPhone(phone)}
 				</a>
 			)}
 
@@ -186,8 +186,12 @@ export function MemberRow({ member, members, isMe, busy, onChange, onActivate }:
 								const raw = event.target.value.trim()
 								const next = raw === '' ? null : Number(raw)
 
-								if (next === member.jerseyNumber) return
-								if (next !== null && (!Number.isInteger(next) || next < 1 || next > 99)) return
+								if (next === member.jerseyNumber) {
+									return
+								}
+								if (next !== null && (!Number.isInteger(next) || next < 1 || next > 99)) {
+									return
+								}
 
 								onChange({ jerseyNumber: next })
 							}}
@@ -236,7 +240,9 @@ export function MemberRow({ member, members, isMe, busy, onChange, onActivate }:
 				confirmLabel="Vzdát se"
 				danger
 				onConfirm={() => {
-					if (confirmingSelfDemote !== null) onChange({ role: confirmingSelfDemote })
+					if (confirmingSelfDemote !== null) {
+						onChange({ role: confirmingSelfDemote })
+					}
 					setConfirmingSelfDemote(null)
 				}}
 				onCancel={() => setConfirmingSelfDemote(null)}

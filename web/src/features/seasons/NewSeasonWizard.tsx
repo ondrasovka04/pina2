@@ -75,15 +75,21 @@ export function NewSeasonWizard() {
 	const filledFrom = useRef<number | null>(null)
 
 	useEffect(() => {
-		if (sourceSeasonId === null || filledFrom.current === sourceSeasonId) return
-		if (sourceTypes.data === undefined || sourceRoster.data === undefined) return
+		if (sourceSeasonId === null || filledFrom.current === sourceSeasonId) {
+			return
+		}
+		if (sourceTypes.data === undefined || sourceRoster.data === undefined) {
+			return
+		}
 
 		filledFrom.current = sourceSeasonId
 		setPrices(Object.fromEntries(sourceTypes.data.map((type) => [type.id, String(type.amountCzk)])))
 		setRosterIds(new Set(sourceRoster.data.map((entry) => entry.membershipId)))
 	}, [sourceSeasonId, sourceTypes.data, sourceRoster.data])
 
-	if (team === null) return <Navigate to="/dluhy" replace />
+	if (team === null) {
+		return <Navigate to="/dluhy" replace />
+	}
 
 	if (!can('admin')) {
 		return (
@@ -95,7 +101,9 @@ export function NewSeasonWizard() {
 	}
 
 	async function submit() {
-		if (team === null) return
+		if (team === null) {
+			return
+		}
 
 		setSaving(true)
 		setError(null)
@@ -328,8 +336,11 @@ export function NewSeasonWizard() {
 												onChange={() =>
 													setPrices((current) => {
 														const next = { ...current }
-														if (selected) delete next[type.id]
-														else next[type.id] = String(type.amountCzk)
+														if (selected) {
+															delete next[type.id]
+														} else {
+															next[type.id] = String(type.amountCzk)
+														}
 
 														return next
 													})
@@ -399,8 +410,11 @@ export function NewSeasonWizard() {
 														onChange={() =>
 															setRosterIds((current) => {
 																const next = new Set(current)
-																if (checked) next.delete(member.id)
-																else next.add(member.id)
+																if (checked) {
+																	next.delete(member.id)
+																} else {
+																	next.add(member.id)
+																}
 
 																return next
 															})

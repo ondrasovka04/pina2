@@ -18,9 +18,15 @@ export function AttendancePage() {
 
 	const summary = useAttendanceSummary(seasonId, type === 'all' ? undefined : type)
 
-	if (seasonId === null) return <NoSeasonState what="docházku" />
-	if (summary.isPending) return <LoadingState />
-	if (summary.error !== null) return <ErrorState error={summary.error} onRetry={() => void summary.refetch()} />
+	if (seasonId === null) {
+		return <NoSeasonState what="docházku" />
+	}
+	if (summary.isPending) {
+		return <LoadingState />
+	}
+	if (summary.error !== null) {
+		return <ErrorState error={summary.error} onRetry={() => void summary.refetch()} />
+	}
 
 	const rows = summary.data
 	const alone = rows.length === 1
@@ -58,7 +64,9 @@ export function AttendancePage() {
 /** Nejvyšší účast nahoru; kdo nemá z čeho počítat, patří dolů. */
 function byRatio(a: AttendanceRow, b: AttendanceRow): number {
 	if (a.ratio === null || b.ratio === null) {
-		if (a.ratio === b.ratio) return a.name.localeCompare(b.name, 'cs')
+		if (a.ratio === b.ratio) {
+			return a.name.localeCompare(b.name, 'cs')
+		}
 
 		return a.ratio === null ? 1 : -1
 	}
@@ -91,7 +99,9 @@ function AttendanceLine({ row }: { row: AttendanceRow }) {
 
 /** Pruh je doplněk k číslu, ne jeho náhrada — sám o sobě žádnou informaci nenese. */
 function Bar({ ratio }: { ratio: number | null }) {
-	if (ratio === null) return <div className="hidden w-24 sm:block" />
+	if (ratio === null) {
+		return <div className="hidden w-24 sm:block" />
+	}
 
 	return (
 		<div className="bg-surface-3 hidden h-2 w-24 overflow-hidden rounded-full sm:block" aria-hidden="true">

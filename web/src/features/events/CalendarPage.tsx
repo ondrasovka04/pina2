@@ -7,7 +7,7 @@ import { NoSeasonState } from '@/components/NoSeasonState'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { CalendarIcon, ChevronRightIcon, MapPinIcon, PlusIcon } from '@/components/ui/icons'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States'
-import { CalendarRsvpRow } from '@/features/events/CalendarRsvpRow'
+import { CalendarRsvpRow, CalendarRsvpRows } from '@/features/events/CalendarRsvpRow'
 import {
 	canAnswer,
 	deadlineState,
@@ -42,7 +42,9 @@ const stripeClass: Record<EventType, string> = {
 export function CalendarPage() {
 	const { seasonId } = useTeam()
 	const user = useCurrentUser()
-	if (seasonId === null) return <NoSeasonState what="akce" />
+	if (seasonId === null) {
+		return <NoSeasonState what="akce" />
+	}
 
 	return <CalendarContent key={`${user.id}:${seasonId}`} userId={user.id} seasonId={seasonId} />
 }
@@ -56,8 +58,12 @@ function CalendarContent({ userId, seasonId }: { userId: number; seasonId: numbe
 		!isPending && error === null,
 	)
 
-	if (isPending) return <LoadingState />
-	if (error !== null) return <ErrorState error={error} onRetry={() => void refetch()} />
+	if (isPending) {
+		return <LoadingState />
+	}
+	if (error !== null) {
+		return <ErrorState error={error} onRetry={() => void refetch()} />
+	}
 
 	const events = data ?? []
 	// Zakládat akce smí pínař — kalendář je provoz družstva, ne správa účtů.
@@ -138,11 +144,13 @@ function CalendarContent({ userId, seasonId }: { userId: number; seasonId: numbe
 									{period === 'upcoming' ? 'Další akce zatím naplánovaná není.' : 'Zatím nic neproběhlo.'}
 								</p>
 							) : (
-								<div className="flex flex-col gap-4">
-									{listedMonths.map((group) => (
-										<MonthSection key={group.key} month={group} seasonId={seasonId} disabled={isSeasonClosed} />
-									))}
-								</div>
+								<CalendarRsvpRows>
+									<div className="flex flex-col gap-4">
+										{listedMonths.map((group) => (
+											<MonthSection key={group.key} month={group} seasonId={seasonId} disabled={isSeasonClosed} />
+										))}
+									</div>
+								</CalendarRsvpRows>
 							)}
 
 							{period === 'past' ? (
@@ -335,7 +343,9 @@ function NextEventCard({ event, seasonId, disabled }: { event: TeamEvent; season
 	const mapUrl = event.location === null ? null : navigationUrl(event.location)
 
 	async function respond(rsvp: Rsvp) {
-		if (event.me === null || !canRespond || saveRsvp.isPending) return
+		if (event.me === null || !canRespond || saveRsvp.isPending) {
+			return
+		}
 
 		setError(null)
 		setPending(rsvp)
@@ -403,7 +413,9 @@ function NextEventCard({ event, seasonId, disabled }: { event: TeamEvent; season
 						<RsvpButtons
 							value={currentRsvp}
 							onChange={(rsvp) => {
-								if (rsvp !== currentRsvp && pending === null) requestSave(rsvp)
+								if (rsvp !== currentRsvp && pending === null) {
+									requestSave(rsvp)
+								}
 							}}
 							pending={pending}
 						/>
@@ -422,13 +434,19 @@ function CalendarDeadlineNotice({ event }: { event: TeamEvent }) {
 	if (event.rsvpDeadlineAt !== null && event.me?.rsvpLate === true) {
 		return <p className="text-debt text-sm">Zapsáno pozdě.</p>
 	}
-	if (event.me?.rsvp !== 'unknown' || event.rsvpDeadlineAt === null) return null
+	if (event.me?.rsvp !== 'unknown' || event.rsvpDeadlineAt === null) {
+		return null
+	}
 
 	const state = deadlineState(event)
 	const deadline = formatDeadline(event.rsvpDeadlineAt)
 
-	if (state === 'open') return <p className="text-ink-faint text-sm">Zapiš se {deadline}.</p>
-	if (state === 'soon') return <p className="text-debt text-sm">Zapiš se {deadline}, potom už půjde o pozdní zápis.</p>
+	if (state === 'open') {
+		return <p className="text-ink-faint text-sm">Zapiš se {deadline}.</p>
+	}
+	if (state === 'soon') {
+		return <p className="text-debt text-sm">Zapiš se {deadline}, potom už půjde o pozdní zápis.</p>
+	}
 	if (state === 'passed') {
 		return <p className="text-debt text-sm">Termín už uplynul; odpověď bude označená jako pozdní.</p>
 	}

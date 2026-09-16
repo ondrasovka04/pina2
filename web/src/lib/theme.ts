@@ -34,7 +34,9 @@ export function prefersDark(): boolean {
 }
 
 export function resolveTheme(preference: ThemePreference): ResolvedTheme {
-	if (preference !== 'system') return preference
+	if (preference !== 'system') {
+		return preference
+	}
 
 	return prefersDark() ? 'dark' : 'light'
 }

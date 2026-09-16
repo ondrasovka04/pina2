@@ -44,7 +44,9 @@ function groupByMonth(batches: BatchListItem[]): BatchMonth[] {
 function monthLabel(occurredOn: string): string {
 	const date = new Date(`${occurredOn.slice(0, 10)}T00:00:00`)
 
-	if (Number.isNaN(date.getTime())) return occurredOn.slice(0, 7)
+	if (Number.isNaN(date.getTime())) {
+		return occurredOn.slice(0, 7)
+	}
 
 	return new Intl.DateTimeFormat('cs-CZ', { month: 'long', year: 'numeric' }).format(date)
 }
@@ -61,14 +63,20 @@ export function BatchesPage() {
 		return <NoSeasonState what="zápisy" />
 	}
 
-	if (batches.isPending) return <LoadingState />
-	if (batches.error !== null) return <ErrorState error={batches.error} onRetry={() => void batches.refetch()} />
+	if (batches.isPending) {
+		return <LoadingState />
+	}
+	if (batches.error !== null) {
+		return <ErrorState error={batches.error} onRetry={() => void batches.refetch()} />
+	}
 
 	const canVoid = can('treasurer') && !isSeasonClosed
 	const months = groupByMonth(batches.data)
 
 	async function confirmVoid() {
-		if (voidingBatchId === null) return
+		if (voidingBatchId === null) {
+			return
+		}
 
 		setVoidError(null)
 

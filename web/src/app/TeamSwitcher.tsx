@@ -18,15 +18,23 @@ export function TeamSwitcher() {
 
 	// Zavření Escapem nebo kliknutím mimo
 	useEffect(() => {
-		if (!open) return
+		if (!open) {
+			return
+		}
 
 		function onKeyDown(event: KeyboardEvent) {
-			if (event.key === 'Escape') setOpen(false)
+			if (event.key === 'Escape') {
+				setOpen(false)
+			}
 		}
 
 		function onPointerDown(event: PointerEvent) {
-			if (!(event.target instanceof Node)) return
-			if (containerRef.current?.contains(event.target) === true) return
+			if (!(event.target instanceof Node)) {
+				return
+			}
+			if (containerRef.current?.contains(event.target) === true) {
+				return
+			}
 
 			setOpen(false)
 		}
@@ -40,7 +48,9 @@ export function TeamSwitcher() {
 		}
 	}, [open])
 
-	if (team === null) return null
+	if (team === null) {
+		return null
+	}
 
 	// Panel se otevírá i s jediným družstvem a sezónou — pínař i admin musí mít
 	// kudy na sezóny, série a místa, i když není co přepínat.
@@ -189,8 +199,12 @@ export function TeamSwitcher() {
 }
 
 function seasonDetail(season: Season): string {
-	if (season.isCurrent) return 'probíhá'
-	if (season.closedAt !== null) return 'uzavřená'
+	if (season.isCurrent) {
+		return 'probíhá'
+	}
+	if (season.closedAt !== null) {
+		return 'uzavřená'
+	}
 
 	return 'otevřená'
 }

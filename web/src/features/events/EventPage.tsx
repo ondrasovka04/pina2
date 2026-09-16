@@ -66,8 +66,12 @@ export function EventPage() {
 		)
 	}
 
-	if (query.isPending) return <LoadingState />
-	if (query.error !== null) return <ErrorState error={query.error} onRetry={() => void query.refetch()} />
+	if (query.isPending) {
+		return <LoadingState />
+	}
+	if (query.error !== null) {
+		return <ErrorState error={query.error} onRetry={() => void query.refetch()} />
+	}
 
 	const { event, participants, canSeeAttendance, travelFollowerEvents } = query.data
 	const isTreasurer = can('treasurer')
@@ -363,7 +367,9 @@ function draftFrom(me: MyParticipation): RsvpDraft {
 }
 
 function clampSeats(value: number): number {
-	if (Number.isNaN(value)) return 0
+	if (Number.isNaN(value)) {
+		return 0
+	}
 
 	return Math.min(8, Math.max(0, Math.trunc(value)))
 }
@@ -398,19 +404,24 @@ function MyAnswerCard({ event, me, eventId, seasonId, writable }: MyAnswerCardPr
 	const { requestSave, confirmation } = useRsvpConfirmation(event, commit)
 
 	function save(next: RsvpDraft) {
-		if (!editable || saveRsvp.isPending) return
+		if (!editable || saveRsvp.isPending) {
+			return
+		}
 		if (
 			next.rsvp === me.rsvp &&
 			next.note.trim() === (me.rsvpNote ?? '') &&
 			next.transport === me.transport &&
 			(next.transport === 'driver' ? next.carSeats : null) === me.carSeats
-		)
+		) {
 			return
+		}
 		requestSave(next)
 	}
 
 	function commit(next: RsvpDraft) {
-		if (!editable || saveRsvp.isPending) return
+		if (!editable || saveRsvp.isPending) {
+			return
+		}
 		setDraft(next)
 		setError(null)
 		saveRsvp.mutate(
@@ -476,7 +487,9 @@ function MyAnswerCard({ event, me, eventId, seasonId, writable }: MyAnswerCardPr
 					onChange={(event_) => setDraft((current) => ({ ...current, note: event_.target.value }))}
 					onBlur={(e) => {
 						// Klepnutí na účast odešle rozepsanou poznámku spolu s novou odpovědí.
-						if (e.relatedTarget instanceof Element && e.relatedTarget.closest('[data-rsvp-controls]')) return
+						if (e.relatedTarget instanceof Element && e.relatedTarget.closest('[data-rsvp-controls]')) {
+							return
+						}
 						save(draft)
 					}}
 					rows={2}
@@ -545,16 +558,22 @@ function MyAnswerCard({ event, me, eventId, seasonId, writable }: MyAnswerCardPr
 }
 
 function AnswerDeadline({ event, me, state }: { event: TeamEvent; me: MyParticipation; state: DeadlineState }) {
-	if (event.rsvpDeadlineAt === null) return null
+	if (event.rsvpDeadlineAt === null) {
+		return null
+	}
 	if (me.rsvpLate) {
 		return (
 			<span className="bg-debt-500/15 text-debt mt-2 inline-flex rounded-full px-2 py-0.5 text-xs">Zapsáno pozdě</span>
 		)
 	}
-	if (me.rsvp !== 'unknown') return null
+	if (me.rsvp !== 'unknown') {
+		return null
+	}
 
 	const deadline = formatDeadline(event.rsvpDeadlineAt)
-	if (state === 'open') return <p className="text-ink-faint mt-2 text-sm">Zapiš se {deadline}.</p>
+	if (state === 'open') {
+		return <p className="text-ink-faint mt-2 text-sm">Zapiš se {deadline}.</p>
+	}
 	if (state === 'soon') {
 		return <p className="text-debt mt-2 text-sm">Zapiš se {deadline}, potom už půjde o pozdní zápis.</p>
 	}

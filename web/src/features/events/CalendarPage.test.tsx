@@ -205,21 +205,24 @@ describe('CalendarPage — vlastní odpověď v seznamu', () => {
 	})
 })
 
-function scrollingRow() {
-	const button = screen.getByRole('button', { name: 'Účast na akci: Další' })
+function scrollingRow(title = 'Další') {
+	const button = screen.getByRole('button', { name: `Účast na akci: ${title}` })
 	const row = button.parentElement?.parentElement
-	if (row === null || row === undefined) throw new Error('Chybí posuvný řádek')
+	if (row === null || row === undefined) {
+		throw new Error('Chybí posuvný řádek')
+	}
+	const scrollTo = vi.fn(({ left }: ScrollToOptions) => {
+		row.scrollLeft = left ?? 0
+		fireEvent.scroll(row)
+	})
 	Object.defineProperties(row, {
 		clientWidth: { value: 320 },
 		scrollWidth: { value: 480 },
 		scrollTo: {
-			value: ({ left }: ScrollToOptions) => {
-				row.scrollLeft = left ?? 0
-				fireEvent.scroll(row)
-			},
+			value: scrollTo,
 		},
 	})
-	return { row, button }
+	return { row, button, scrollTo }
 }
 
 describe('CalendarPage — rychlá odpověď v seznamu', () => {
@@ -250,7 +253,9 @@ describe('CalendarPage — rychlá odpověď v seznamu', () => {
 			travelFollowerEvents: [],
 		})
 		await renderAs('player')
-		if (!nearest) await user.click(scrollingRow().button)
+		if (!nearest) {
+			await user.click(scrollingRow().button)
+		}
 		const choice = screen.getByRole('button', { name: nearest ? 'Nepřijdu' : 'Nejdu' })
 		await user.click(choice)
 		const modal = screen.getByRole('dialog', { name: 'Změnit účast po termínu?' })
@@ -299,6 +304,54 @@ describe('CalendarPage — rychlá odpověď v seznamu', () => {
 		expect(put).not.toHaveBeenCalled()
 		fireEvent.scroll(row, { target: { scrollLeft: 0 } })
 		expect(screen.queryByRole('button', { name: 'Jdu' })).toBeNull()
+	})
+
+	it.each(['gesto', 'šipka'])('otevření přes %s zavře předchozí řádek i v jiném měsíci', async (method) => {
+		const user = userEvent.setup()
+		get.mockResolvedValue({
+			events: [
+				event(),
+				event({ id: 2, title: 'Další' }),
+				event({ id: 3, title: 'Říjnová', startsAt: '2099-10-15 19:00:00' }),
+			],
+		})
+		await renderAs('player')
+		const first = scrollingRow()
+		const second = scrollingRow('Říjnová')
+		await user.click(first.button)
+		if (method === 'gesto') {
+			fireEvent.scroll(second.row, { target: { scrollLeft: 160 } })
+		} else {
+			await user.click(second.button)
+		}
+		expect(first.row.scrollLeft).toBe(0)
+		expect(first.button).toHaveAttribute('aria-expanded', 'false')
+		expect(second.button).toHaveAttribute('aria-expanded', 'true')
+		expect(screen.getAllByRole('button', { name: 'Jdu' })).toHaveLength(1)
+		await user.click(first.button)
+		expect(second.row.scrollLeft).toBe(0)
+		expect(second.button).toHaveAttribute('aria-expanded', 'false')
+		expect(first.button).toHaveAttribute('aria-expanded', 'true')
+		expect(put).not.toHaveBeenCalled()
+	})
+
+	it('dobíhající animace zavření znovu neotevře starý řádek', async () => {
+		get.mockResolvedValue({ events: [event(), event({ id: 2, title: 'Další' }), event({ id: 3, title: 'Třetí' })] })
+		await renderAs('player')
+		const first = scrollingRow()
+		const second = scrollingRow('Třetí')
+		fireEvent.scroll(first.row, { target: { scrollLeft: 160 } })
+		first.scrollTo.mockImplementationOnce(() => {})
+		fireEvent.scroll(second.row, { target: { scrollLeft: 160 } })
+		for (const scrollLeft of [120, 60, 0]) {
+			fireEvent.scroll(first.row, { target: { scrollLeft } })
+			expect(first.button).toHaveAttribute('aria-expanded', 'false')
+			expect(second.button).toHaveAttribute('aria-expanded', 'true')
+		}
+		fireEvent.scroll(first.row, { target: { scrollLeft: 160 } })
+		expect(first.button).toHaveAttribute('aria-expanded', 'true')
+		expect(second.row.scrollLeft).toBe(0)
+		expect(put).not.toHaveBeenCalled()
 	})
 
 	it.each(['yes', 'no'] as const)('uloží %s, zachová poznámku a dopravu a obnoví seznam', async (rsvp) => {

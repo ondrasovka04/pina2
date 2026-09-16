@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react'
-import { useEffect, useId, useRef, useState } from 'react'
+import type { ReactNode, RefObject } from 'react'
+import { createContext, useContext, useEffect, useId, useRef, useState } from 'react'
 
 import { ArrowLeftIcon, CheckIcon, XIcon } from '@/components/ui/icons'
 import { useRsvpConfirmation } from '@/features/events/useRsvpConfirmation'
@@ -14,9 +14,23 @@ interface CalendarRsvpRowProps {
 	children: ReactNode
 }
 
+interface OpenRow {
+	element: HTMLDivElement
+	close: () => void
+}
+
+const OpenRowContext = createContext<RefObject<OpenRow | null> | null>(null)
+
+export function CalendarRsvpRows({ children }: { children: ReactNode }) {
+	const openRow = useRef<OpenRow | null>(null)
+	return <OpenRowContext value={openRow}>{children}</OpenRowContext>
+}
+
 /** Nativní posouvání rozliší vodorovné gesto od rolování stránky i klepnutí na odkaz. */
 export function CalendarRsvpRow({ event, seasonId, children }: CalendarRsvpRowProps) {
+	const openRow = useContext(OpenRowContext)
 	const scroller = useRef<HTMLDivElement>(null)
+	const closing = useRef(false)
 	const toggle = useRef<HTMLButtonElement>(null)
 	const actionsId = useId()
 	const [revealed, setRevealed] = useState(false)
@@ -27,16 +41,44 @@ export function CalendarRsvpRow({ event, seasonId, children }: CalendarRsvpRowPr
 	const saveRsvp = useSaveRsvp(event.id, seasonId)
 
 	useEffect(() => {
-		if (saved === null) return
+		const element = scroller.current
+		return () => {
+			if (openRow?.current?.element === element) {
+				openRow.current = null
+			}
+		}
+	}, [openRow])
+
+	useEffect(() => {
+		if (saved === null) {
+			return
+		}
 		const timeout = window.setTimeout(() => setSaved(null), 3000)
 		return () => window.clearTimeout(timeout)
 	}, [saved])
 
 	const { requestSave, confirmation } = useRsvpConfirmation(event, (rsvp: 'yes' | 'no') => void respond(rsvp))
 
+	function claimRow(element: HTMLDivElement) {
+		if (openRow === null || openRow.current?.element === element) {
+			return
+		}
+		const previous = openRow.current
+		openRow.current = { element, close: () => reveal(false) }
+		previous?.close()
+	}
+
 	function reveal(open: boolean) {
 		const element = scroller.current
-		if (element === null) return
+		if (element === null) {
+			return
+		}
+		closing.current = !open
+		if (open) {
+			claimRow(element)
+		} else {
+			setRevealed(false)
+		}
 		element.scrollTo({
 			left: open ? element.scrollWidth - element.clientWidth : 0,
 			behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
@@ -44,7 +86,9 @@ export function CalendarRsvpRow({ event, seasonId, children }: CalendarRsvpRowPr
 	}
 
 	async function respond(rsvp: 'yes' | 'no') {
-		if (event.me === null || saving.current) return
+		if (event.me === null || saving.current) {
+			return
+		}
 		saving.current = true
 		setPending(rsvp)
 		setError(null)
@@ -72,7 +116,20 @@ export function CalendarRsvpRow({ event, seasonId, children }: CalendarRsvpRowPr
 			{confirmation}
 			<div
 				ref={scroller}
-				onScroll={(e) => setRevealed(e.currentTarget.scrollLeft > 1)}
+				onScroll={(e) => {
+					const element = e.currentTarget
+					const open = element.scrollLeft > 1
+					if (!open) {
+						closing.current = false
+						if (openRow?.current?.element === element) {
+							openRow.current = null
+						}
+					} else if (!closing.current) {
+						claimRow(element)
+					}
+					// Dobíhající zavírání nesmí přebrat nabídku nově otevřenému řádku.
+					setRevealed(open && !closing.current)
+				}}
 				onKeyDown={(e) => {
 					if (e.key === 'Escape' && revealed) {
 						toggle.current?.focus({ preventScroll: true })
@@ -110,7 +167,9 @@ export function CalendarRsvpRow({ event, seasonId, children }: CalendarRsvpRowPr
 							aria-pressed={event.me?.rsvp === rsvp}
 							disabled={pending !== null}
 							onClick={() => {
-								if (event.me?.rsvp !== rsvp && !saving.current) requestSave(rsvp)
+								if (event.me?.rsvp !== rsvp && !saving.current) {
+									requestSave(rsvp)
+								}
 							}}
 							className={cn(
 								'flex min-h-11 w-20 flex-col items-center justify-center gap-1 border-2 px-1 py-2 text-sm font-semibold disabled:opacity-50',

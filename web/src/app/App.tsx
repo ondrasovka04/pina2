@@ -45,7 +45,9 @@ const queryClient = new QueryClient({
 			staleTime: 30_000,
 			// Slabý signál v hale — opakovat jen chyby, ne 4xx
 			retry: (failureCount, error) => {
-				if (error instanceof ApiError && error.status < 500) return false
+				if (error instanceof ApiError && error.status < 500) {
+					return false
+				}
 
 				return failureCount < 2
 			},
@@ -127,8 +129,12 @@ function Splash() {
 function Protected() {
 	const { status } = useSession()
 
-	if (status === 'loading') return <Splash />
-	if (status === 'anonymous') return <Navigate to="/prihlaseni" replace />
+	if (status === 'loading') {
+		return <Splash />
+	}
+	if (status === 'anonymous') {
+		return <Navigate to="/prihlaseni" replace />
+	}
 
 	return (
 		<TeamProvider>
@@ -152,8 +158,12 @@ function AttendanceOnly() {
 function AnonymousOnly() {
 	const { status } = useSession()
 
-	if (status === 'loading') return <Splash />
-	if (status === 'authenticated') return <Navigate to="/" replace />
+	if (status === 'loading') {
+		return <Splash />
+	}
+	if (status === 'authenticated') {
+		return <Navigate to="/" replace />
+	}
 
 	return <LoginPage />
 }

@@ -24,14 +24,18 @@ const SessionContext = createContext<SessionValue | null>(null)
 
 export function useSession(): SessionValue {
 	const value = use(SessionContext)
-	if (value === null) throw new Error('useSession musí být uvnitř <SessionProvider>')
+	if (value === null) {
+		throw new Error('useSession musí být uvnitř <SessionProvider>')
+	}
 
 	return value
 }
 
 export function useCurrentUser(): CurrentUser {
 	const { user } = useSession()
-	if (user === null) throw new Error('useCurrentUser mimo přihlášenou část aplikace')
+	if (user === null) {
+		throw new Error('useCurrentUser mimo přihlášenou část aplikace')
+	}
 
 	return user
 }
@@ -52,12 +56,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 		void api
 			.get<CurrentUser>('/me')
 			.then((me) => {
-				if (cancelled) return
+				if (cancelled) {
+					return
+				}
 				setUser(me)
 				setStatus('authenticated')
 			})
 			.catch(() => {
-				if (cancelled) return
+				if (cancelled) {
+					return
+				}
 				setStatus('anonymous')
 			})
 

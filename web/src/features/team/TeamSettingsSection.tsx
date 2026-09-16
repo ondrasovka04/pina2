@@ -40,8 +40,12 @@ function fieldMessage(error: unknown, field: string): string | undefined {
 
 /** Obecná hláška — chyba z API bez konkrétního pole, nebo síťová chyba. */
 function generalMessage(error: unknown): string | undefined {
-	if (error === null || error === undefined) return undefined
-	if (error instanceof ApiError) return error.field === undefined ? error.message : undefined
+	if (error === null || error === undefined) {
+		return undefined
+	}
+	if (error instanceof ApiError) {
+		return error.field === undefined ? error.message : undefined
+	}
 
 	return 'Něco se pokazilo. Zkuste to prosím znovu.'
 }
@@ -96,7 +100,9 @@ export function TeamSettingsSection({ team }: { team: TeamDetail }) {
 	// Vlastní uložení sem dorazí taky, ale to se od `confirmed` neliší, takže hlášku
 	// „uloženo" nesmaže.
 	useEffect(() => {
-		if (settingsEqual(team.settings, confirmed.current)) return
+		if (settingsEqual(team.settings, confirmed.current)) {
+			return
+		}
 
 		confirmed.current = team.settings
 		latest.current = team.settings
@@ -108,7 +114,9 @@ export function TeamSettingsSection({ team }: { team: TeamDetail }) {
 		setStatus('idle')
 	}, [team.id, team.settings])
 
-	if (!can('admin')) return null
+	if (!can('admin')) {
+		return null
+	}
 
 	/** Zapíše hodnotu do formuláře. Samo o sobě neukládá. */
 	function stage(changes: Partial<TeamSettings>): TeamSettings {
@@ -158,16 +166,24 @@ export function TeamSettingsSection({ team }: { team: TeamDetail }) {
 			.then(async () => {
 				await save.mutateAsync(next)
 
-				if (forTeam !== shownTeamId.current) return
+				if (forTeam !== shownTeamId.current) {
+					return
+				}
 
 				confirmed.current = next
-				if (seq === pending.current) setStatus('saved')
+				if (seq === pending.current) {
+					setStatus('saved')
+				}
 			})
 			.catch(() => {
-				if (forTeam !== shownTeamId.current) return
+				if (forTeam !== shownTeamId.current) {
+					return
+				}
 				// Selhalo starší uložení a mezitím přišla další změna — tu nechme být.
 				// Obrazovka nesmí zahodit, co uživatel právě naklikal.
-				if (seq !== pending.current) return
+				if (seq !== pending.current) {
+					return
+				}
 
 				latest.current = confirmed.current
 				setSettings(confirmed.current)
@@ -185,8 +201,11 @@ export function TeamSettingsSection({ team }: { team: TeamDetail }) {
 
 		const parsed = Number.parseFloat(raw.replace(',', '.'))
 
-		if (Number.isFinite(parsed)) apply({ travelRateCzkKm: parsed }, TEXT_DELAY_MS)
-		else hold({ travelRateCzkKm: confirmed.current.travelRateCzkKm })
+		if (Number.isFinite(parsed)) {
+			apply({ travelRateCzkKm: parsed }, TEXT_DELAY_MS)
+		} else {
+			hold({ travelRateCzkKm: confirmed.current.travelRateCzkKm })
+		}
 	}
 
 	/**
@@ -199,14 +218,21 @@ export function TeamSettingsSection({ team }: { team: TeamDetail }) {
 
 		const account = raw.trim()
 
-		if (account === '') apply({ bankAccount: null }, TEXT_DELAY_MS)
-		else if (looksLikeBankAccount(account)) apply({ bankAccount: account }, TEXT_DELAY_MS)
-		else hold({ bankAccount: confirmed.current.bankAccount })
+		if (account === '') {
+			apply({ bankAccount: null }, TEXT_DELAY_MS)
+		} else if (looksLikeBankAccount(account)) {
+			apply({ bankAccount: account }, TEXT_DELAY_MS)
+		} else {
+			hold({ bankAccount: confirmed.current.bankAccount })
+		}
 	}
 
 	function changeDeadline(raw: string, field: 'rsvpDeadlineTrainingHours' | 'rsvpDeadlineMatchHours') {
-		if (field === 'rsvpDeadlineTrainingHours') setTrainingDeadlineInput(raw)
-		else setMatchDeadlineInput(raw)
+		if (field === 'rsvpDeadlineTrainingHours') {
+			setTrainingDeadlineInput(raw)
+		} else {
+			setMatchDeadlineInput(raw)
+		}
 
 		if (raw.trim() === '') {
 			apply({ [field]: null }, TEXT_DELAY_MS)
@@ -214,8 +240,11 @@ export function TeamSettingsSection({ team }: { team: TeamDetail }) {
 		}
 
 		const parsed = Number(raw)
-		if (Number.isInteger(parsed)) apply({ [field]: parsed }, TEXT_DELAY_MS)
-		else hold({ [field]: confirmed.current[field] })
+		if (Number.isInteger(parsed)) {
+			apply({ [field]: parsed }, TEXT_DELAY_MS)
+		} else {
+			hold({ [field]: confirmed.current[field] })
+		}
 	}
 
 	const locationList = locations.data ?? []

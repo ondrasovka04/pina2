@@ -37,7 +37,9 @@ export function BalancesPage() {
 
 	// Pořadí v žebříčku — nevytahujeme si to na první místo, to by zbilo zábavu
 	const myRank = useMemo(() => {
-		if (me === undefined) return null
+		if (me === undefined) {
+			return null
+		}
 		const order = (data?.members ?? []).toSorted((a, b) => memberBalance(b, period) - memberBalance(a, period))
 
 		return order.findIndex((member) => member.membershipId === me.membershipId) + 1
@@ -47,8 +49,12 @@ export function BalancesPage() {
 		return <NoSeasonState />
 	}
 
-	if (isPending) return <LoadingState />
-	if (error !== null) return <ErrorState error={error} onRetry={() => void refetch()} />
+	if (isPending) {
+		return <LoadingState />
+	}
+	if (error !== null) {
+		return <ErrorState error={error} onRetry={() => void refetch()} />
+	}
 
 	const totals = teamSums(data, period)
 

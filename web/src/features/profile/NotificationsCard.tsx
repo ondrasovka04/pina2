@@ -33,10 +33,15 @@ const options: Array<{ key: keyof NotificationPreferences; label: string; descri
  * instalace potřeba není, ani v Safari; brání jen iPhone a iPad.
  */
 function blockedReason(available: boolean | undefined): string | null {
-	if (!supportsPush()) return 'Tenhle prohlížeč oznámení neumí. Zkuste Chrome nebo Safari.'
-	if (needsInstallForPush())
+	if (!supportsPush()) {
+		return 'Tenhle prohlížeč oznámení neumí. Zkuste Chrome nebo Safari.'
+	}
+	if (needsInstallForPush()) {
 		return 'iPhone a iPad oznámení povolí až aplikaci na ploše. Přidejte si Pínu a otevřete ji z ikony.'
-	if (available === false) return 'Server oznámení zatím nemá nastavená, chybí mu VAPID klíče.'
+	}
+	if (available === false) {
+		return 'Server oznámení zatím nemá nastavená, chybí mu VAPID klíče.'
+	}
 
 	return null
 }
@@ -64,10 +69,14 @@ export function NotificationsCard() {
 		let cancelled = false
 		void currentPushSubscription()
 			.then((subscription) => {
-				if (!cancelled) setDeviceSubscription(subscription)
+				if (!cancelled) {
+					setDeviceSubscription(subscription)
+				}
 			})
 			.finally(() => {
-				if (!cancelled) setCheckingDevice(false)
+				if (!cancelled) {
+					setCheckingDevice(false)
+				}
 			})
 
 		return () => {
@@ -76,8 +85,10 @@ export function NotificationsCard() {
 	}, [])
 
 	async function enable() {
-		const publicKey = settings.data?.publicKey
-		if (publicKey == null) return
+		const publicKey = settings.data?.publicKey ?? null
+		if (publicKey === null) {
+			return
+		}
 
 		setLocalError(null)
 		setWorking(true)
@@ -93,7 +104,9 @@ export function NotificationsCard() {
 	}
 
 	async function disable() {
-		if (deviceSubscription === null) return
+		if (deviceSubscription === null) {
+			return
+		}
 
 		setLocalError(null)
 		setWorking(true)
@@ -110,12 +123,14 @@ export function NotificationsCard() {
 
 	function toggle(key: keyof NotificationPreferences) {
 		const current = settings.data?.preferences
-		if (current === undefined) return
+		if (current === undefined) {
+			return
+		}
 
 		void savePreferences.mutateAsync({ ...current, [key]: !current[key] }).catch(() => undefined)
 	}
 
-	const error = localError ?? settings.error?.message ?? subscribe.error?.message ?? unsubscribe.error?.message
+	const error = localError ?? settings.error?.message ?? subscribe.error?.message ?? unsubscribe.error?.message ?? null
 	const busy = checkingDevice || working || subscribe.isPending || unsubscribe.isPending
 	const blocked = blockedReason(settings.data?.available)
 	/**
@@ -197,7 +212,7 @@ export function NotificationsCard() {
 				</p>
 			)}
 
-			{error == null && savePreferences.error === null ? null : (
+			{error === null && savePreferences.error === null ? null : (
 				<p role="alert" className="text-debt border-line/50 border-t px-4 py-3 text-sm">
 					{error ?? savePreferences.error?.message}
 				</p>

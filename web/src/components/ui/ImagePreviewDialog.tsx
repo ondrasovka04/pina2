@@ -16,7 +16,9 @@ export function ImagePreviewDialog({ src, name, onClose }: ImagePreviewDialogPro
 
 	useEffect(() => {
 		const dialog = ref.current
-		if (dialog === null) return
+		if (dialog === null) {
+			return
+		}
 
 		const previousFocus = document.activeElement
 		const overflow = document.body.style.overflow
@@ -42,7 +44,9 @@ export function ImagePreviewDialog({ src, name, onClose }: ImagePreviewDialogPro
 				onClose()
 			}}
 			onClick={(event) => {
-				if (event.target === event.currentTarget) onClose()
+				if (event.target === event.currentTarget) {
+					onClose()
+				}
 			}}
 			className="border-line bg-surface-1 text-ink backdrop:bg-surface-0/70 m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg rounded-2xl border p-0 shadow-xl backdrop:backdrop-blur-md"
 		>

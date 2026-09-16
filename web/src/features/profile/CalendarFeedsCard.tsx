@@ -40,7 +40,9 @@ export function CalendarFeedsCard() {
 		})),
 		...teams.flatMap((team) => {
 			const season = team.currentSeason
-			if (!team.attendanceEnabled || season === null || activeSeasons.has(season.id)) return []
+			if (!team.attendanceEnabled || season === null || activeSeasons.has(season.id)) {
+				return []
+			}
 
 			return [
 				{
@@ -99,7 +101,9 @@ function CalendarFeedRow({ row, onIssued }: CalendarFeedRowProps) {
 	}
 
 	async function remove() {
-		if (row.feed === null) return
+		if (row.feed === null) {
+			return
+		}
 
 		try {
 			await revoke.mutateAsync(row.feed.id)

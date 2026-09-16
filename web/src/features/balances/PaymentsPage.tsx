@@ -55,11 +55,21 @@ export function PaymentsPage() {
 	const [voidingClaimId, setVoidingClaimId] = useState<number | null>(null)
 	const [syncMessage, setSyncMessage] = useState<string | null>(null)
 
-	if (seasonId === null) return <NoSeasonState />
-	if (balances.isPending || payments.isPending || claims.isPending) return <LoadingState />
-	if (balances.error !== null) return <ErrorState error={balances.error} onRetry={() => void balances.refetch()} />
-	if (payments.error !== null) return <ErrorState error={payments.error} onRetry={() => void payments.refetch()} />
-	if (claims.error !== null) return <ErrorState error={claims.error} onRetry={() => void claims.refetch()} />
+	if (seasonId === null) {
+		return <NoSeasonState />
+	}
+	if (balances.isPending || payments.isPending || claims.isPending) {
+		return <LoadingState />
+	}
+	if (balances.error !== null) {
+		return <ErrorState error={balances.error} onRetry={() => void balances.refetch()} />
+	}
+	if (payments.error !== null) {
+		return <ErrorState error={payments.error} onRetry={() => void payments.refetch()} />
+	}
+	if (claims.error !== null) {
+		return <ErrorState error={claims.error} onRetry={() => void claims.refetch()} />
+	}
 
 	const canManage = can('treasurer') && !isSeasonClosed
 	const travelEnabled = team?.travelEnabled === true
@@ -83,7 +93,9 @@ export function PaymentsPage() {
 			<PaymentVoidDialog
 				open={voidingPaymentId !== null}
 				onConfirm={(reason) => {
-					if (voidingPaymentId !== null) voidPayment.mutate({ paymentId: voidingPaymentId, reason })
+					if (voidingPaymentId !== null) {
+						voidPayment.mutate({ paymentId: voidingPaymentId, reason })
+					}
 					setVoidingPaymentId(null)
 				}}
 				onCancel={() => setVoidingPaymentId(null)}
@@ -95,7 +107,9 @@ export function PaymentsPage() {
 				confirmLabel="Stornovat"
 				danger
 				onConfirm={() => {
-					if (voidingClaimId !== null) voidClaim.mutate(voidingClaimId)
+					if (voidingClaimId !== null) {
+						voidClaim.mutate(voidingClaimId)
+					}
 					setVoidingClaimId(null)
 				}}
 				onCancel={() => setVoidingClaimId(null)}

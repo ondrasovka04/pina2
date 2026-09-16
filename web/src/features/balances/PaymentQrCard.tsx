@@ -37,12 +37,16 @@ export function PaymentQrCard({ seasonId, membershipId, title = 'Zaplatit pínu'
 				}),
 			)
 			.then((url) => {
-				if (active) setImage(url)
+				if (active) {
+					setImage(url)
+				}
 			})
 			// Knihovna se dotahuje zvlášť, takže v hale bez signálu nemusí dojít.
 			// Číslo účtu a VS pod obrázkem stačí k ruční platbě — čekání naslepo ne.
 			.catch(() => {
-				if (active) setDrawFailed(true)
+				if (active) {
+					setDrawFailed(true)
+				}
 			})
 
 		return () => {
@@ -52,7 +56,9 @@ export function PaymentQrCard({ seasonId, membershipId, title = 'Zaplatit pínu'
 
 	// Karta je doplněk pod zůstatkem: kdo nic nedluží, ji neuvidí vůbec. Proto se
 	// při načítání nic nevykreslí — jinak by na stránce bliknul velký spinner a zmizel.
-	if (qr.isPending) return null
+	if (qr.isPending) {
+		return null
+	}
 	if (qr.error !== null) {
 		return (
 			<Card className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
@@ -65,7 +71,9 @@ export function PaymentQrCard({ seasonId, membershipId, title = 'Zaplatit pínu'
 	}
 
 	const data = qr.data
-	if (data.amountCzk <= 0) return null
+	if (data.amountCzk <= 0) {
+		return null
+	}
 
 	return (
 		<Card className="overflow-hidden">

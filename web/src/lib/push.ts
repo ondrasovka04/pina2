@@ -24,27 +24,37 @@ export function supportsPush(): boolean {
  * není dotykové, instalace nepomůže, protože takový prohlížeč push neumí vůbec.
  */
 export function needsInstallForPush(): boolean {
-	if (supportsPush() || isStandalone()) return false
+	if (supportsPush() || isStandalone()) {
+		return false
+	}
 
 	return isHandheld()
 }
 
 export async function currentPushSubscription(): Promise<PushSubscription | null> {
-	if (!supportsPush()) return null
+	if (!supportsPush()) {
+		return null
+	}
 
 	const registration = await navigator.serviceWorker.getRegistration()
 	return registration === undefined ? null : registration.pushManager.getSubscription()
 }
 
 export async function createPushSubscription(publicKey: string): Promise<PushSubscription> {
-	if (!supportsPush()) throw new Error('Tento prohlížeč oznámení nepodporuje.')
+	if (!supportsPush()) {
+		throw new Error('Tento prohlížeč oznámení nepodporuje.')
+	}
 
 	const permission = await Notification.requestPermission()
-	if (permission !== 'granted') throw new Error('Oznámení nejsou v prohlížeči povolená.')
+	if (permission !== 'granted') {
+		throw new Error('Oznámení nejsou v prohlížeči povolená.')
+	}
 
 	const registration = await activeRegistration()
 	const existing = await registration.pushManager.getSubscription()
-	if (existing !== null) return existing
+	if (existing !== null) {
+		return existing
+	}
 
 	return registration.pushManager.subscribe({
 		userVisibleOnly: true,
@@ -55,7 +65,9 @@ export async function createPushSubscription(publicKey: string): Promise<PushSub
 export function pushSubscriptionInput(subscription: PushSubscription): PushSubscriptionInput {
 	const p256dh = subscription.getKey('p256dh')
 	const auth = subscription.getKey('auth')
-	if (p256dh === null || auth === null) throw new Error('Prohlížeč neposkytl klíče oznámení.')
+	if (p256dh === null || auth === null) {
+		throw new Error('Prohlížeč neposkytl klíče oznámení.')
+	}
 
 	return {
 		endpoint: subscription.endpoint,
@@ -76,7 +88,9 @@ export function pushSubscriptionInput(subscription: PushSubscription): PushSubsc
 function deviceId(): string {
 	const key = 'pina-device'
 	const stored = localStorage.getItem(key)
-	if (stored !== null && /^[a-f0-9]{32}$/.test(stored)) return stored
+	if (stored !== null && /^[a-f0-9]{32}$/.test(stored)) {
+		return stored
+	}
 
 	const created = [...crypto.getRandomValues(new Uint8Array(16))]
 		.map((byte) => byte.toString(16).padStart(2, '0'))

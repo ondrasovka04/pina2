@@ -76,15 +76,20 @@ beforeEach(() => {
 	state.closed = false
 	get.mockReset()
 	get.mockImplementation(async (path: string) => {
-		if (path.endsWith('/balances')) return balances
-		if (path === '/teams/4') return { settings: { travelEnabled: false } }
-		if (path.includes('/payment-qr'))
+		if (path.endsWith('/balances')) {
+			return balances
+		}
+		if (path === '/teams/4') {
+			return { settings: { travelEnabled: false } }
+		}
+		if (path.includes('/payment-qr')) {
 			return {
 				amountCzk: 100,
 				spayd: null,
 				bankAccount: null,
 				period: { name: 'Celá sezóna' },
 			}
+		}
 		return { items: [] }
 	})
 })

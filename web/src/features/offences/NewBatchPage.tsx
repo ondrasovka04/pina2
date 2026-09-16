@@ -96,7 +96,9 @@ export function NewBatchPage() {
 	const suggestion = useMemo(() => {
 		const detail = eventDetail.data
 
-		if (detail === undefined || detail.event.id !== selectedEventId) return emptyDraft
+		if (detail === undefined || detail.event.id !== selectedEventId) {
+			return emptyDraft
+		}
 
 		return suggestFromAttendance(detail.participants, activeTypes, detail.event)
 	}, [eventDetail.data, selectedEventId, activeTypes])
@@ -129,7 +131,9 @@ export function NewBatchPage() {
 
 	// beforeunload — jediný způsob na odchod, hláška je od prohlížeče
 	useEffect(() => {
-		if (!hasDraft) return
+		if (!hasDraft) {
+			return
+		}
 
 		const warn = (event: BeforeUnloadEvent) => event.preventDefault()
 		window.addEventListener('beforeunload', warn)
@@ -160,9 +164,15 @@ export function NewBatchPage() {
 		)
 	}
 
-	if (balances.isPending || types.isPending) return <LoadingState />
-	if (balances.error !== null) return <ErrorState error={balances.error} onRetry={() => void balances.refetch()} />
-	if (types.error !== null) return <ErrorState error={types.error} onRetry={() => void types.refetch()} />
+	if (balances.isPending || types.isPending) {
+		return <LoadingState />
+	}
+	if (balances.error !== null) {
+		return <ErrorState error={balances.error} onRetry={() => void balances.refetch()} />
+	}
+	if (types.error !== null) {
+		return <ErrorState error={types.error} onRetry={() => void types.refetch()} />
+	}
 
 	function reset() {
 		setDraft(emptyDraft)
@@ -184,10 +194,14 @@ export function NewBatchPage() {
 		setEventId(next)
 		setSuggestionUsed(false)
 
-		if (next === null) return
+		if (next === null) {
+			return
+		}
 
 		const chosen = pastEvents.find((event) => event.id === next)
-		if (chosen !== undefined) setOccurredOn(chosen.startsAt.slice(0, 10))
+		if (chosen !== undefined) {
+			setOccurredOn(chosen.startsAt.slice(0, 10))
+		}
 	}
 
 	async function submit() {

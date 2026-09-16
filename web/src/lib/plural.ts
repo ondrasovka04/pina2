@@ -1,6 +1,10 @@
 export function plural(count: number, one: string, few: string, many: string): string {
-	if (count === 1) return `${count} ${one}`
-	if (count >= 2 && count <= 4) return `${count} ${few}`
+	if (count === 1) {
+		return `${count} ${one}`
+	}
+	if (count >= 2 && count <= 4) {
+		return `${count} ${few}`
+	}
 
 	return `${count} ${many}`
 }

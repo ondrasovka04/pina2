@@ -15,7 +15,9 @@ export function useTheme(): ThemeControl {
 	useEffect(() => {
 		applyTheme(preference)
 
-		if (preference !== 'system') return
+		if (preference !== 'system') {
+			return
+		}
 
 		const media = window.matchMedia('(prefers-color-scheme: dark)')
 		const onChange = () => applyTheme('system')

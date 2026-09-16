@@ -10,7 +10,9 @@ export function AppInstallCard() {
 	const standalone = isStandalone()
 
 	// Na počítači push funguje i bez instalace, karta by radila zbytečně.
-	if (!isHandheld()) return null
+	if (!isHandheld()) {
+		return null
+	}
 
 	if (standalone) {
 		return (
@@ -22,7 +24,9 @@ export function AppInstallCard() {
 	}
 
 	async function install() {
-		if (prompt === null) return
+		if (prompt === null) {
+			return
+		}
 		await prompt.prompt()
 		await prompt.userChoice
 		clearInstallPrompt()

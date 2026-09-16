@@ -14,7 +14,9 @@ export function useScrollTopOnChange(key: unknown): void {
 	const previous = useRef(key)
 
 	useEffect(() => {
-		if (previous.current === key) return
+		if (previous.current === key) {
+			return
+		}
 
 		previous.current = key
 		window.scrollTo({ top: 0 })

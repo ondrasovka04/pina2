@@ -13,7 +13,9 @@ export function PaymentVoidDialog({ open, onConfirm, onCancel }: PaymentVoidDial
 	const [reason, setReason] = useState('')
 
 	useEffect(() => {
-		if (open) setReason('')
+		if (open) {
+			setReason('')
+		}
 	}, [open])
 
 	const normalized = reason.trim()

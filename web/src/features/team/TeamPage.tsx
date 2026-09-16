@@ -56,8 +56,12 @@ export function TeamPage() {
 		)
 	}
 
-	if (members.isPending) return <LoadingState />
-	if (members.error !== null) return <ErrorState error={members.error} onRetry={() => void members.refetch()} />
+	if (members.isPending) {
+		return <LoadingState />
+	}
+	if (members.error !== null) {
+		return <ErrorState error={members.error} onRetry={() => void members.refetch()} />
+	}
 
 	const all = sortMembers(members.data ?? [])
 	const activeCount = all.filter((member) => member.status !== 'left').length

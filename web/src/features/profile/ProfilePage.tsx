@@ -121,6 +121,9 @@ function MembershipRow({
 	debt: TeamDebt | null
 	loading: boolean
 }) {
+	const balanceCzk = debt?.balanceCzk ?? null
+	const seasonName = debt?.seasonName ?? null
+
 	return (
 		<div className="flex items-center justify-between gap-3 px-4 py-3 first:rounded-t-2xl last:rounded-b-2xl">
 			<div className="min-w-0">
@@ -134,21 +137,21 @@ function MembershipRow({
 			</div>
 
 			<div className="shrink-0 text-right">
-				{debt?.balanceCzk == null ? (
+				{balanceCzk === null ? (
 					/*
 					 * Dvě různé situace vypadaly stejně: družstvo nemá rozjetou
 					 * sezónu × sezóna běží, ale já na její soupisce nejsem.
 					 * „Bez sezóny" v druhém případě lhalo.
 					 */
 					<p className="text-ink-faint text-sm">
-						{loading ? '…' : debt?.seasonName == null ? 'bez sezóny' : 'nejste na soupisce'}
+						{loading ? '…' : seasonName === null ? 'bez sezóny' : 'nejste na soupisce'}
 					</p>
 				) : (
 					<>
 						<p className="text-lg font-semibold">
-							<Money czk={debt.balanceCzk} tone="balance" />
+							<Money czk={balanceCzk} tone="balance" />
 						</p>
-						<p className="text-ink-faint text-xs">{debt.seasonName}</p>
+						<p className="text-ink-faint text-xs">{seasonName}</p>
 					</>
 				)}
 			</div>

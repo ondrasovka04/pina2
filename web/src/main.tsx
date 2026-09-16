@@ -6,7 +6,9 @@ import { App } from './app/App'
 import './styles.css'
 
 const root = document.getElementById('root')
-if (root === null) throw new Error('Chybí kořenový element #root')
+if (root === null) {
+	throw new Error('Chybí kořenový element #root')
+}
 
 createRoot(root).render(
 	<StrictMode>

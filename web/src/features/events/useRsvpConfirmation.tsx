@@ -10,7 +10,9 @@ export function useRsvpConfirmation<T>(event: TeamEvent, save: (value: T) => voi
 	const [pending, setPending] = useState<{ value: T } | null>(null)
 
 	function requestSave(value: T) {
-		if (!canAnswer(event)) return
+		if (!canAnswer(event)) {
+			return
+		}
 		if (deadlineState(event) === 'passed') {
 			setPending({ value })
 		} else {
@@ -28,10 +30,14 @@ export function useRsvpConfirmation<T>(event: TeamEvent, save: (value: T) => voi
 						description="Termín pro zápis už uplynul. Změna se označí jako pozdní a může znamenat příplatek podle sazebníku družstva. Chceš ji přesto uložit?"
 						confirmLabel="Ano, uložit změnu"
 						onConfirm={() => {
-							if (pending === null) return
+							if (pending === null) {
+								return
+							}
 							const { value } = pending
 							setPending(null)
-							if (canAnswer(event)) save(value)
+							if (canAnswer(event)) {
+								save(value)
+							}
 						}}
 						onCancel={() => setPending(null)}
 					/>,

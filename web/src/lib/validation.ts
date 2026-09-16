@@ -6,8 +6,12 @@ const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 export function emailError(value: string): string | undefined {
 	const email = value.trim()
 
-	if (email === '') return 'Vyplňte e-mail.'
-	if (!EMAIL_SHAPE.test(email)) return 'E-mail nemá platný tvar. Zkontrolujte zavináč a doménu, třeba „jan@seznam.cz".'
+	if (email === '') {
+		return 'Vyplňte e-mail.'
+	}
+	if (!EMAIL_SHAPE.test(email)) {
+		return 'E-mail nemá platný tvar. Zkontrolujte zavináč a doménu, třeba „jan@seznam.cz".'
+	}
 
 	return undefined
 }

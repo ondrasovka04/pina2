@@ -27,7 +27,9 @@ const TeamContext = createContext<TeamValue | null>(null)
 
 export function useTeam(): TeamValue {
 	const value = use(TeamContext)
-	if (value === null) throw new Error('useTeam musí být uvnitř <TeamProvider>')
+	if (value === null) {
+		throw new Error('useTeam musí být uvnitř <TeamProvider>')
+	}
 
 	return value
 }
@@ -59,7 +61,9 @@ export function TeamProvider({ children }: { children: ReactNode }) {
 	// Uložený tým nemusí existovat — padáme na první nearchivovaný
 	const team = useMemo(() => {
 		const preferred = teams.find((item) => item.id === preferredTeamId)
-		if (preferred !== undefined) return preferred
+		if (preferred !== undefined) {
+			return preferred
+		}
 
 		return teams.find((item) => !item.archived) ?? teams[0] ?? null
 	}, [teams, preferredTeamId])
@@ -87,7 +91,9 @@ export function TeamProvider({ children }: { children: ReactNode }) {
 
 	const selectSeason = useCallback(
 		(seasonId: number) => {
-			if (team === null) return
+			if (team === null) {
+				return
+			}
 
 			setSeasonByTeam((current) => ({ ...current, [team.id]: seasonId }))
 		},

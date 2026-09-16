@@ -9,7 +9,9 @@ export function TeamLogo({ src, className }: { src: string | null; className?: s
 
 	useEffect(() => setFailed(false), [src])
 
-	if (src === null || failed) return <ClubMark className={cn(className)} />
+	if (src === null || failed) {
+		return <ClubMark className={cn(className)} />
+	}
 
 	// Znak se vepisuje, neosekává: logo na šířku nesmí přijít o kraje. Volající
 	// proto zadává jen výšku (`h-8`) a šířka dojede podle poměru stran.

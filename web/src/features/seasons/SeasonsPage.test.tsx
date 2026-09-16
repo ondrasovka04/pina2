@@ -98,9 +98,15 @@ describe('SeasonsPage — soupiska', () => {
 		put.mockReset()
 
 		get.mockImplementation((path: string) => {
-			if (path.includes('/seasons') && path.includes('/teams')) return Promise.resolve({ seasons: [season] })
-			if (path.includes('/roster')) return Promise.resolve({ roster })
-			if (path.includes('/members')) return Promise.resolve({ members })
+			if (path.includes('/seasons') && path.includes('/teams')) {
+				return Promise.resolve({ seasons: [season] })
+			}
+			if (path.includes('/roster')) {
+				return Promise.resolve({ roster })
+			}
+			if (path.includes('/members')) {
+				return Promise.resolve({ members })
+			}
 
 			return Promise.resolve({})
 		})

@@ -55,8 +55,12 @@ export function EditEventPage() {
 		)
 	}
 
-	if (query.isPending) return <LoadingState />
-	if (query.error !== null) return <ErrorState error={query.error} onRetry={() => void query.refetch()} />
+	if (query.isPending) {
+		return <LoadingState />
+	}
+	if (query.error !== null) {
+		return <ErrorState error={query.error} onRetry={() => void query.refetch()} />
+	}
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -96,7 +100,9 @@ function pad(value: number): string {
 /** Server posílá „2026-09-15 19:00:00", `<input type="datetime-local">` chce „2026-09-15T19:00". */
 function toInputDateTime(value: string): string {
 	const date = parseDateTime(value)
-	if (Number.isNaN(date.getTime())) return ''
+	if (Number.isNaN(date.getTime())) {
+		return ''
+	}
 
 	return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
@@ -108,7 +114,9 @@ function diffMinutes(from: string, to: string): number {
 
 /** Stejný okamžik bez ohledu na formát (mezera/„T", se sekundami/bez). */
 function sameInstant(a: string | null, b: string | null): boolean {
-	if (a === null || b === null) return a === b
+	if (a === null || b === null) {
+		return a === b
+	}
 
 	return parseDateTime(a).getTime() === parseDateTime(b).getTime()
 }
@@ -169,17 +177,39 @@ function EditForm({ event, eventId, seasonId, teamId, clubId }: EditFormProps) {
 		// PATCH je částečný — posílá se jen to, co se opravdu liší od načtené akce.
 		const changes: Partial<EventInput> = {}
 
-		if (type !== event.type) changes.type = type
-		if (nextTitle !== event.title) changes.title = nextTitle
-		if (!sameInstant(startsAt, event.startsAt)) changes.startsAt = startsAt
-		if (!sameInstant(nextEndsAt, event.endsAt)) changes.endsAt = nextEndsAt
-		if (!sameInstant(nextMeetAt, event.meetAt)) changes.meetAt = nextMeetAt
-		if (locationId !== originalLocationId) changes.locationId = locationId
-		if (nextOpponent !== event.opponent) changes.opponent = nextOpponent
-		if (nextDistanceKm !== event.distanceKm) changes.distanceKm = nextDistanceKm
-		if (nextTravelLinkEventId !== originalTravelLinkEventId) changes.travelLinkEventId = nextTravelLinkEventId
-		if (nextNote !== event.note) changes.note = nextNote
-		if (!sameInstant(nextRsvpDeadlineAt, event.rsvpDeadlineCustom)) changes.rsvpDeadlineAt = nextRsvpDeadlineAt
+		if (type !== event.type) {
+			changes.type = type
+		}
+		if (nextTitle !== event.title) {
+			changes.title = nextTitle
+		}
+		if (!sameInstant(startsAt, event.startsAt)) {
+			changes.startsAt = startsAt
+		}
+		if (!sameInstant(nextEndsAt, event.endsAt)) {
+			changes.endsAt = nextEndsAt
+		}
+		if (!sameInstant(nextMeetAt, event.meetAt)) {
+			changes.meetAt = nextMeetAt
+		}
+		if (locationId !== originalLocationId) {
+			changes.locationId = locationId
+		}
+		if (nextOpponent !== event.opponent) {
+			changes.opponent = nextOpponent
+		}
+		if (nextDistanceKm !== event.distanceKm) {
+			changes.distanceKm = nextDistanceKm
+		}
+		if (nextTravelLinkEventId !== originalTravelLinkEventId) {
+			changes.travelLinkEventId = nextTravelLinkEventId
+		}
+		if (nextNote !== event.note) {
+			changes.note = nextNote
+		}
+		if (!sameInstant(nextRsvpDeadlineAt, event.rsvpDeadlineCustom)) {
+			changes.rsvpDeadlineAt = nextRsvpDeadlineAt
+		}
 
 		if (Object.keys(changes).length > 0) {
 			await update.mutateAsync(changes)
@@ -343,7 +373,9 @@ function LocationCard({
 	const [address, setAddress] = useState('')
 
 	async function add() {
-		if (clubId === null || name.trim() === '') return
+		if (clubId === null || name.trim() === '') {
+			return
+		}
 
 		const created = await create.mutateAsync({
 			name: name.trim(),
@@ -423,7 +455,9 @@ function NoteField({ value, onChange }: { value: string; onChange: (value: strin
 
 /** Hláška ze serveru je konkrétnější než cokoli, co bychom vymysleli tady. */
 function ErrorLine({ error }: { error: unknown }) {
-	if (error === null || error === undefined) return null
+	if (error === null || error === undefined) {
+		return null
+	}
 
 	return (
 		<p role="alert" className="bg-debt-500/15 text-debt rounded-xl px-3 py-2 text-sm">

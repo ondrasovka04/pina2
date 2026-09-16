@@ -129,7 +129,9 @@ export function useSaveNotificationPreferences() {
 			return { previous }
 		},
 		onError: (_error, _preferences, context) => {
-			if (context?.previous !== undefined) apply(context.previous.preferences)
+			if (context?.previous !== undefined) {
+				apply(context.previous.preferences)
+			}
 		},
 		onSuccess: ({ preferences }) => apply(preferences),
 	})
@@ -191,7 +193,9 @@ export function usePayments(seasonId: number | null, membershipId?: number) {
 		queryKey: queryKeys.payments(seasonId ?? 0, membershipId),
 		queryFn: async ({ signal }) => {
 			const params = new URLSearchParams({ includeVoided: '1' })
-			if (membershipId !== undefined) params.set('membershipId', String(membershipId))
+			if (membershipId !== undefined) {
+				params.set('membershipId', String(membershipId))
+			}
 
 			return (await api.get<{ items: Payment[] }>(`/seasons/${seasonId}/payments?${params}`, signal)).items
 		},
@@ -237,7 +241,9 @@ export function useTravelClaims(seasonId: number | null, membershipId?: number) 
 		queryKey: queryKeys.travelClaims(seasonId ?? 0, membershipId),
 		queryFn: async ({ signal }) => {
 			const params = new URLSearchParams({ includeVoided: '1' })
-			if (membershipId !== undefined) params.set('membershipId', String(membershipId))
+			if (membershipId !== undefined) {
+				params.set('membershipId', String(membershipId))
+			}
 
 			return (await api.get<{ items: TravelClaim[] }>(`/seasons/${seasonId}/travel-claims?${params}`, signal)).items
 		},
@@ -632,7 +638,10 @@ export function useMyDebts(teams: TeamSummary[]): { debts: TeamDebt[]; isPending
 			enabled: team.currentSeason !== null,
 		})),
 		combine: (results) => ({
-			isPending: results.some((result, index) => teams[index]?.currentSeason != null && result.isPending),
+			isPending: results.some((result, index) => {
+				const season = teams[index]?.currentSeason ?? null
+				return season !== null && result.isPending
+			}),
 			debts: teams.map((team, index) => {
 				const mine = results[index]?.data?.members.find((member) => member.membershipId === team.membershipId)
 
@@ -846,7 +855,9 @@ export function useSaveRsvp(eventId: number, seasonId: number | null) {
 		mutationFn: (input: RsvpInput) => api.put<EventDetail>(`/events/${eventId}/rsvp`, input),
 		onSuccess: (detail) => {
 			queryClient.setQueryData(queryKeys.event(eventId), detail)
-			if (seasonId !== null) void queryClient.invalidateQueries({ queryKey: queryKeys.events(seasonId) })
+			if (seasonId !== null) {
+				void queryClient.invalidateQueries({ queryKey: queryKeys.events(seasonId) })
+			}
 		},
 	})
 }
@@ -923,7 +934,9 @@ export function useUpdateEvent(eventId: number, seasonId: number | null) {
 		mutationFn: (changes: Partial<EventInput>) => api.patch<TeamEvent>(`/events/${eventId}`, changes),
 		onSuccess: () => {
 			void queryClient.invalidateQueries({ queryKey: queryKeys.event(eventId) })
-			if (seasonId !== null) void queryClient.invalidateQueries({ queryKey: queryKeys.events(seasonId) })
+			if (seasonId !== null) {
+				void queryClient.invalidateQueries({ queryKey: queryKeys.events(seasonId) })
+			}
 		},
 	})
 }
@@ -936,7 +949,9 @@ export function useCancelEvent(eventId: number, seasonId: number | null) {
 		mutationFn: (cancelled: boolean) => api.post<TeamEvent>(`/events/${eventId}/${cancelled ? 'cancel' : 'restore'}`),
 		onSuccess: () => {
 			void queryClient.invalidateQueries({ queryKey: queryKeys.event(eventId) })
-			if (seasonId !== null) void queryClient.invalidateQueries({ queryKey: queryKeys.events(seasonId) })
+			if (seasonId !== null) {
+				void queryClient.invalidateQueries({ queryKey: queryKeys.events(seasonId) })
+			}
 		},
 	})
 }
@@ -948,7 +963,9 @@ export function useDeleteEvent(seasonId: number | null) {
 	return useMutation({
 		mutationFn: (eventId: number) => api.delete(`/events/${eventId}`),
 		onSuccess: () => {
-			if (seasonId !== null) void queryClient.invalidateQueries({ queryKey: queryKeys.events(seasonId) })
+			if (seasonId !== null) {
+				void queryClient.invalidateQueries({ queryKey: queryKeys.events(seasonId) })
+			}
 		},
 	})
 }

@@ -39,7 +39,9 @@ function NavAvatar({ src, ringed, fallback }: { src: string; ringed: boolean; fa
 
 	useEffect(() => setFailed(false), [src])
 
-	if (failed) return fallback
+	if (failed) {
+		return fallback
+	}
 
 	return (
 		<img
@@ -55,8 +57,12 @@ export function AppLayout() {
 	const { team, can, usesAttendance, isLoading, isSeasonLoading, isSeasonClosed, error } = useTeam()
 	const user = useCurrentUser()
 
-	if (isLoading) return <LoadingState />
-	if (error !== null) return <ErrorState error={error} />
+	if (isLoading) {
+		return <LoadingState />
+	}
+	if (error !== null) {
+		return <ErrorState error={error} />
+	}
 
 	if (team === null) {
 		return (

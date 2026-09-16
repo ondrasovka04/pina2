@@ -11,7 +11,9 @@ export function sumsFor(
 	source: { halves: { first: BalanceSums; second: BalanceSums } | null },
 	period: PeriodKey,
 ): BalanceSums | null {
-	if (period === 'all' || source.halves === null) return null
+	if (period === 'all' || source.halves === null) {
+		return null
+	}
 
 	return period === 'first' ? source.halves.first : source.halves.second
 }
@@ -36,14 +38,18 @@ export function teamSums(data: BalanceList, period: PeriodKey): BalanceSums {
  * posílá jako skutečné krajní dny období, ne jako polootevřený interval.
  */
 export function inPeriod(date: string, period: BalancePeriod | undefined): boolean {
-	if (period === undefined || period.key === 'all') return true
+	if (period === undefined || period.key === 'all') {
+		return true
+	}
 
 	return date >= period.from && date <= period.to
 }
 
 /** Datované položky (platby, cesťáky) zúžené na vybrané období. */
 export function itemsInPeriod<T>(items: T[], dateOf: (item: T) => string, period: BalancePeriod | undefined): T[] {
-	if (period === undefined || period.key === 'all') return items
+	if (period === undefined || period.key === 'all') {
+		return items
+	}
 
 	return items.filter((item) => inPeriod(dateOf(item), period))
 }

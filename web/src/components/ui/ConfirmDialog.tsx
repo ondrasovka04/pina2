@@ -38,10 +38,14 @@ export function ConfirmDialog({
 
 	useEffect(() => {
 		const dialog = dialogRef.current
-		if (dialog === null) return
+		if (dialog === null) {
+			return
+		}
 
 		if (open) {
-			if (!dialog.open) dialog.showModal()
+			if (!dialog.open) {
+				dialog.showModal()
+			}
 		} else if (dialog.open) {
 			dialog.close()
 		}
@@ -59,7 +63,9 @@ export function ConfirmDialog({
 			}}
 			onClick={(event) => {
 				// Klik na podklad dorazí na <dialog> sám, na obsah na potomky.
-				if (event.target === dialogRef.current) onCancel()
+				if (event.target === dialogRef.current) {
+					onCancel()
+				}
 			}}
 			// m-auto: Tailwind Preflight sráží okraje, bez toho by dialog byl v rohu.
 			className="border-line bg-surface-1 text-ink m-auto max-w-96 rounded-2xl border p-5 shadow-xl backdrop:bg-black/50"

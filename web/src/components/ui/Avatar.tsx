@@ -6,7 +6,9 @@ import { cn } from '@/lib/cn'
 /** „Ondřej Kopáč" → „OK". Jedno slovo dá jedno písmeno, prázdné jméno pomlčku. */
 export function initials(name: string): string {
 	const words = name.trim().split(/\s+/).filter(Boolean)
-	if (words.length === 0) return '–'
+	if (words.length === 0) {
+		return '–'
+	}
 
 	const first = words[0] ?? ''
 	const last = words.length > 1 ? (words.at(-1) ?? '') : ''
@@ -57,7 +59,9 @@ export function Avatar({
 		</span>
 	)
 
-	if (!preview) return avatar
+	if (!preview) {
+		return avatar
+	}
 	if (src === null || failed) {
 		return <span className="inline-grid min-h-11 min-w-11 shrink-0 place-items-center">{avatar}</span>
 	}

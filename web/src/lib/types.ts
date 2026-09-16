@@ -757,7 +757,9 @@ const roleLevel: Record<Role, number> = { player: 1, treasurer: 2, admin: 3 }
 
 /** Hierarchie rolí: admin > pínař > hráč. */
 export function atLeast(role: Role | undefined, required: Role): boolean {
-	if (role === undefined) return false
+	if (role === undefined) {
+		return false
+	}
 
 	return roleLevel[role] >= roleLevel[required]
 }
