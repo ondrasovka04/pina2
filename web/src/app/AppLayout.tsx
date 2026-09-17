@@ -1,11 +1,12 @@
 import type { ComponentType, ReactNode, SVGProps } from 'react'
 import { useEffect, useState } from 'react'
-import { Link, NavLink, Outlet } from 'react-router'
+import { Link, NavLink, Outlet, useNavigate } from 'react-router'
 
 import { useCurrentUser } from '@/app/session'
 import { useTeam } from '@/app/team'
 import { TeamSwitcher } from '@/app/TeamSwitcher'
 import { TeamLogo } from '@/components/TeamLogo'
+import { Button } from '@/components/ui/Button'
 import { CalendarIcon, ListIcon, PlusIcon, UserIcon, WalletIcon } from '@/components/ui/icons'
 import { ErrorState, LoadingState } from '@/components/ui/States'
 import { cn } from '@/lib/cn'
@@ -54,17 +55,49 @@ function NavAvatar({ src, ringed, fallback }: { src: string; ringed: boolean; fa
 }
 
 export function AppLayout() {
-	const { team, can, usesAttendance, isLoading, isSeasonLoading, isSeasonClosed, error } = useTeam()
+	const { team, can, usesAttendance, isLoading, isSeasonLoading, isSeasonClosed, error, isSupporting, stopSupport } =
+		useTeam()
 	const user = useCurrentUser()
+	const navigate = useNavigate()
+	const supportBanner = !isSupporting ? null : (
+		<div className="border-accent/40 bg-accent/10 mx-auto flex w-full max-w-3xl flex-wrap items-center justify-between gap-2 rounded-xl border px-4 py-2 text-sm">
+			<p>
+				<span className="font-semibold">Režim podpory</span>
+				{team === null ? '' : ` · ${team.name}`} · práva admina
+			</p>
+			<Button
+				variant="ghost"
+				size="sm"
+				onClick={() => {
+					stopSupport()
+					void navigate('/sprava')
+				}}
+			>
+				Ukončit podporu
+			</Button>
+		</div>
+	)
 
 	if (isLoading) {
 		return <LoadingState />
 	}
 	if (error !== null) {
-		return <ErrorState error={error} />
+		return (
+			<>
+				{supportBanner}
+				<ErrorState error={error} />
+			</>
+		)
 	}
 
 	if (team === null) {
+		if (user.platformAdmin) {
+			return (
+				<main className="mx-auto w-full max-w-3xl px-4 py-4">
+					<Outlet />
+				</main>
+			)
+		}
 		return (
 			<main className="grid min-h-dvh place-items-center px-6 text-center">
 				<div>
@@ -105,6 +138,7 @@ export function AppLayout() {
 							<NavLink
 								key={item.to}
 								to={item.to}
+								onClick={item.avatar === true && isSupporting ? stopSupport : undefined}
 								className={({ isActive }) =>
 									cn(
 										'rounded-lg px-3 py-2 text-sm transition-colors',
@@ -128,7 +162,8 @@ export function AppLayout() {
 
 			{/* Rám zůstává při přepnutí týmu — mění se jen obsah */}
 			<main className="mx-auto w-full max-w-3xl flex-1 px-4 pt-4 pb-28 md:pb-8">
-				{isSeasonLoading ? <LoadingState /> : <Outlet />}
+				{supportBanner}
+				<div className={isSupporting ? 'mt-4' : undefined}>{isSeasonLoading ? <LoadingState /> : <Outlet />}</div>
 			</main>
 
 			<nav
@@ -141,6 +176,7 @@ export function AppLayout() {
 						<li key={item.to} className="flex-1">
 							<NavLink
 								to={item.to}
+								onClick={item.avatar === true && isSupporting ? stopSupport : undefined}
 								className={({ isActive }) =>
 									cn(
 										'flex flex-col items-center gap-0.5 py-2 text-[0.6875rem] transition-colors',

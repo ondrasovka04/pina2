@@ -135,13 +135,19 @@ final class TeamScopeTest extends DatabaseTestCase
         }
     }
 
-    public function testPlatformAdminReachesEverything(): void
+    public function testPlatformAdminNeedsExplicitSupportForForeignTeam(): void
     {
         $admin = new Identity(1, 'spravce@pinaprosek.eu', 'Správce', true, []);
 
+        try {
+            $this->scope->season($admin, $this->benatkySeason, Role::Admin);
+            self::fail('Samotná platformní role nesmí otevřít cizí tým.');
+        } catch (ApiException $error) {
+            self::assertSame(404, $error->status);
+        }
         self::assertSame(
             $this->benatkyTeam,
-            $this->scope->season($admin, $this->benatkySeason, Role::Admin),
+            $this->scope->season($admin->withSupportTeam($this->benatkyTeam), $this->benatkySeason, Role::Admin),
         );
     }
 

@@ -17,26 +17,23 @@ final class Identity
         public readonly string $displayName,
         public readonly bool $isPlatformAdmin,
         private readonly array $rolesByTeam,
+        public readonly ?int $supportTeamId = null,
     ) {
+    }
+
+    public function supportsTeam(int $teamId): bool
+    {
+        return $this->isPlatformAdmin && $this->supportTeamId === $teamId;
+    }
+
+    public function withSupportTeam(int $teamId): self
+    {
+        return new self($this->userId, $this->email, $this->displayName, $this->isPlatformAdmin, $this->rolesByTeam, $teamId);
     }
 
     public function roleInTeam(int $teamId): ?Role
     {
         return $this->rolesByTeam[$teamId] ?? null;
-    }
-
-    public function hasRoleInTeam(int $teamId, Role $required): bool
-    {
-        if ($this->isPlatformAdmin) {
-            return true;
-        }
-
-        return $this->roleInTeam($teamId)?->allows($required) ?? false;
-    }
-
-    public function isMemberOf(int $teamId): bool
-    {
-        return $this->isPlatformAdmin || isset($this->rolesByTeam[$teamId]);
     }
 
     /** @return array<string,mixed> pro payload tokenu a odpověď /me */

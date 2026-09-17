@@ -1522,6 +1522,10 @@ final class EventService
     /** Role se čte z databáze, ne z tokenu — odebrané oprávnění platí hned. */
     private function managesTeam(Identity $identity, int $teamId, Role $required = Role::Treasurer): bool
     {
+        if ($identity->supportsTeam($teamId)) {
+            return true;
+        }
+
         $role = $this->db->value(
             "SELECT role FROM membership WHERE team_id = ? AND user_id = ? AND status <> 'left'",
             [$teamId, $identity->userId],

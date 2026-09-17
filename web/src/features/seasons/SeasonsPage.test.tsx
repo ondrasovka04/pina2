@@ -113,6 +113,15 @@ describe('SeasonsPage — soupiska', () => {
 		put.mockResolvedValue({ roster })
 	})
 
+	it('nabídne založení první sezóny i v prázdném družstvu', async () => {
+		get.mockImplementation((path: string) =>
+			Promise.resolve(path.endsWith('/seasons') ? { seasons: [] } : { members: [] }),
+		)
+		renderPage()
+		await screen.findByText('Družstvo zatím nemá žádnou sezónu')
+		expect(screen.getByRole('button', { name: 'Nová sezóna' })).toHaveAttribute('href', '/sezony/nova')
+	})
+
 	it('zaškrtnutí uloží soupisku rovnou, bez tlačítka', async () => {
 		const user = userEvent.setup()
 		renderPage()

@@ -49,15 +49,14 @@ export interface InvitationPreview {
 	hasPassword: boolean
 }
 
-/** Položka z `/me/teams` — tým očima přihlášeného, včetně jeho role. */
+/** Tým očima přihlášeného; podpora může mít práva bez členství. */
 export interface TeamSummary {
 	id: number
 	name: string
-	color: string | null
 	logoUrl: string | null
 	clubId: number
 	clubName: string
-	membershipId: number
+	membershipId: number | null
 	role: Role
 	archived: boolean
 	attendanceEnabled: boolean
@@ -264,7 +263,6 @@ export interface TeamSettings {
 export interface TeamDetail {
 	id: number
 	name: string
-	color: string | null
 	logoUrl: string | null
 	archivedAt: string | null
 	clubId: number
@@ -421,7 +419,7 @@ export interface BalanceList {
 	members: MemberBalance[]
 }
 
-export type PaymentMethod = 'cash' | 'transfer' | 'qr' | 'gateway'
+export type PaymentMethod = 'cash' | 'transfer' | 'qr'
 
 export interface Payment {
 	id: number

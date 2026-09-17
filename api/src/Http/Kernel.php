@@ -36,6 +36,13 @@ final class Kernel
                 }
 
                 $request->identity = $this->tokens->verify($token);
+                $supportTeam       = $request->header('x-support-team');
+                if ($supportTeam !== null) {
+                    if (!ctype_digit($supportTeam) || (int) $supportTeam <= 0) {
+                        throw ApiException::validation('Neplatné družstvo pro režim podpory.');
+                    }
+                    $request->identity = $this->tokens->forSupport($request->identity, (int) $supportTeam);
+                }
             }
 
             $response = ($route['handler'])($request);
@@ -86,7 +93,7 @@ final class Kernel
         return [
             'Access-Control-Allow-Origin'      => Config::get('APP_URL'),
             'Access-Control-Allow-Credentials' => 'true',
-            'Access-Control-Allow-Headers'     => 'Content-Type, Authorization',
+            'Access-Control-Allow-Headers'     => 'Content-Type, Authorization, X-Support-Team',
             'Access-Control-Allow-Methods'     => 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
             'Vary'                             => 'Origin',
         ];

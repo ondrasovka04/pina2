@@ -33,7 +33,6 @@ const settings = {
 const team = {
 	id: 4,
 	name: 'Muži',
-	color: null,
 	archivedAt: null,
 	clubId: 1,
 	clubName: 'SK Prosek',

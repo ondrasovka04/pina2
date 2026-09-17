@@ -15,7 +15,7 @@ use Pina\Support\Database;
 /** Platby, cestovní náhrady a platební QR nad jedním finančním kontem hráče. */
 final class FinanceService
 {
-    private const PAYMENT_METHODS = ['cash', 'transfer', 'qr', 'gateway'];
+    private const PAYMENT_METHODS = ['cash', 'transfer', 'qr'];
 
     private readonly FinancialAccess $access;
     private readonly AttendanceModule $attendance;

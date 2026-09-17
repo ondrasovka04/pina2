@@ -36,6 +36,7 @@ use Pina\Service\EventService;
 use Pina\Service\FinanceService;
 use Pina\Service\ImageService;
 use Pina\Service\LocationService;
+use Pina\Service\MaintenanceService;
 use Pina\Service\NotificationService;
 use Pina\Service\OffenceService;
 use Pina\Service\OffenceTypeService;
@@ -88,7 +89,7 @@ final class App
         $calendarCtrl  = new CalendarFeedController(
             new CalendarFeedService($this->db, $this->scope, new IcsCalendar(), $attendance),
         );
-        $notificationCtrl = new NotificationController($notifications, Config::get('CRON_TOKEN', ''));
+        $notificationCtrl = new NotificationController($notifications, Config::get('CRON_TOKEN', ''), new MaintenanceService($this->db));
         $imageCtrl        = new ImageController(new ImageService($this->db, $this->scope, $this->rootPath));
 
         // Veřejné (auth: false)
@@ -140,6 +141,7 @@ final class App
         $auditCtrl  = new AuditLogController($auditLog);
 
         $router->get('/api/v1/admin/clubs', $teamCtrl->platformOverview(...));
+        $router->get('/api/v1/admin/teams/{team}/support', $teamCtrl->support(...));
         $router->post('/api/v1/clubs', $teamCtrl->createClub(...));
         $router->post('/api/v1/clubs/{club}/teams', $teamCtrl->createTeam(...));
 

@@ -31,7 +31,6 @@ CREATE TABLE team (
   id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   club_id     BIGINT UNSIGNED NOT NULL,
   name        VARCHAR(120) NOT NULL,
-  color       VARCHAR(7) NULL,
   logo_url    VARCHAR(255) NULL COMMENT 'nahrany znak druzstva; bez nej se kresli znak klubu',
   archived_at DATETIME NULL,
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -251,7 +250,7 @@ CREATE TABLE offence_type (
   -- absenci rozlisuje odpoved hrace predem: kdo rekl "neprijdu", je omluveny,
   -- kdo se neozval, neni. Pozdni zapis vychazi ze snapshotu RSVP; pozdni prichod
   -- se odvodit neda -- cas prichodu nikdo nezaznamenava -- a zustava rucni.
-  auto_rule   ENUM('none','excused_absence','unexcused_absence','late_arrival','late_rsvp') NOT NULL DEFAULT 'none',
+  auto_rule   ENUM('none','excused_absence','unexcused_absence','late_rsvp') NOT NULL DEFAULT 'none',
 
   -- U ktereho druhu akce pravidlo plati. Vsechna druzstva maji jinou sazbu za
   -- trenink a za zapas (junioři 25/100, muzi 35/100, Benatky 50/1000), takze
@@ -396,7 +395,7 @@ CREATE TABLE payment (
   membership_id       BIGINT UNSIGNED NOT NULL,
   amount_czk          INT NOT NULL,
   paid_on             DATE NOT NULL,
-  method              ENUM('cash','transfer','qr','gateway') NOT NULL DEFAULT 'cash',
+  method              ENUM('cash','transfer','qr') NOT NULL DEFAULT 'cash',
   variable_symbol     VARCHAR(10) NULL,
   bank_transaction_id BIGINT UNSIGNED NULL,
   note                VARCHAR(255) NULL,
@@ -515,13 +514,11 @@ CREATE TABLE notification (
   title      VARCHAR(120) NOT NULL,
   body       VARCHAR(500) NOT NULL,
   link       VARCHAR(255) NULL,
-  payload    JSON NULL,
   dedupe_key VARCHAR(191) NOT NULL,
-  read_at    DATETIME NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_notification_dedupe (user_id, type, dedupe_key),
-  KEY ix_notification_user (user_id, read_at, created_at),
+  KEY ix_notification_user (user_id, created_at),
   CONSTRAINT fk_notification_user FOREIGN KEY (user_id) REFERENCES `user` (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_czech_ci;
 
@@ -531,7 +528,6 @@ CREATE TABLE notification_queue (
   id                   BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   notification_id      BIGINT UNSIGNED NOT NULL,
   push_subscription_id BIGINT UNSIGNED NOT NULL,
-  channel              ENUM('push') NOT NULL DEFAULT 'push',
   status               ENUM('pending','processing','sent','failed') NOT NULL DEFAULT 'pending',
   attempts             TINYINT UNSIGNED NOT NULL DEFAULT 0,
   last_error           VARCHAR(255) NULL,

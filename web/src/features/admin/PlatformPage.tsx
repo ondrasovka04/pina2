@@ -1,22 +1,20 @@
 import type { SubmitEvent } from 'react'
 import { useState } from 'react'
+import { useNavigate } from 'react-router'
 
 import { useCurrentUser } from '@/app/session'
+import { useTeam } from '@/app/team'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Field } from '@/components/ui/Field'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States'
-import { TeamRescue } from '@/features/admin/TeamRescue'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { plural } from '@/lib/plural'
 import { useCreateClub, useCreateTeam, usePlatformClubs } from '@/lib/queries'
 import type { PlatformClub, PlatformTeam } from '@/lib/types'
 
-/**
- * Provozní konzole — jen oprávnění pro admina bez admina a vydávání odkázů.
- * Ostatní peníze a konfiguraci spravuje admin klubu.
- */
+/** Provozní konzole a vstup do podpory vybraného družstva bez členství. */
 export function PlatformPage() {
 	const me = useCurrentUser()
 	const { data, isPending, error, refetch } = usePlatformClubs(me.platformAdmin)
@@ -44,7 +42,7 @@ export function PlatformPage() {
 			<div>
 				<h1 className="text-lg font-semibold">Správa platformy</h1>
 				<p className="text-ink-muted mt-1 text-sm">
-					{plural(clubs.length, 'klub', 'kluby', 'klubů')} · dluhy cizích klubů se tu nezobrazují
+					{plural(clubs.length, 'klub', 'kluby', 'klubů')} · družstvo můžete otevřít jako admin bez přidání mezi členy
 				</p>
 			</div>
 
@@ -77,7 +75,23 @@ function ClubCard({ club }: { club: PlatformClub }) {
 }
 
 function TeamRow({ team }: { team: PlatformTeam }) {
-	const [open, setOpen] = useState(false)
+	const [opening, setOpening] = useState(false)
+	const [error, setError] = useState<string | null>(null)
+	const { startSupport } = useTeam()
+	const navigate = useNavigate()
+
+	async function openSupport() {
+		setOpening(true)
+		setError(null)
+		try {
+			await startSupport(team.id)
+			void navigate('/druzstvo')
+		} catch (cause) {
+			setError(cause instanceof ApiError ? cause.message : 'Družstvo se nepodařilo otevřít.')
+		} finally {
+			setOpening(false)
+		}
+	}
 
 	// Družstvo bez admina se samo nespraví: roli uděluje admin téhož družstva.
 	const stranded = team.adminCount === 0
@@ -85,12 +99,7 @@ function TeamRow({ team }: { team: PlatformTeam }) {
 
 	return (
 		<div>
-			<button
-				type="button"
-				onClick={() => setOpen((value) => !value)}
-				aria-expanded={open}
-				className="flex min-h-14 w-full flex-wrap items-center justify-between gap-x-3 gap-y-1 px-4 py-2 text-left"
-			>
+			<div className="flex min-h-14 w-full flex-wrap items-center justify-between gap-x-3 gap-y-1 px-4 py-2 text-left">
 				<span className="min-w-0">
 					<span className="flex flex-wrap items-center gap-2">
 						<span className="truncate font-medium">{team.name}</span>
@@ -105,10 +114,24 @@ function TeamRow({ team }: { team: PlatformTeam }) {
 						{team.currentSeason ?? 'bez sezóny'}
 					</span>
 				</span>
-				<span className="text-ink-muted shrink-0 text-sm">{open ? 'Skrýt' : 'Spravovat'}</span>
-			</button>
+			</div>
 
-			{open ? <TeamRescue teamId={team.id} teamName={team.name} /> : null}
+			<div className="px-4 pb-3">
+				<Button
+					variant="ghost"
+					size="sm"
+					loading={opening}
+					onClick={() => void openSupport()}
+					aria-label={`Otevřít ${team.name} jako admin`}
+				>
+					Otevřít jako admin
+				</Button>
+				{error === null ? null : (
+					<p role="alert" className="text-debt mt-2 text-sm">
+						{error}
+					</p>
+				)}
+			</div>
 		</div>
 	)
 }
@@ -144,23 +167,29 @@ function NewTeamForm({ clubId, clubName }: { clubId: number; clubName: string })
 	}
 
 	return (
-		<form onSubmit={submit} noValidate className="border-line/60 flex flex-wrap items-end gap-2 border-t px-4 py-3">
-			<div className="min-w-48 flex-1">
-				<Field
-					label="Nové družstvo"
-					value={name}
-					onChange={(event) => {
-						setName(event.target.value)
-						setError(null)
-					}}
-					placeholder={`Družstvo v klubu ${clubName}`}
-					error={error ?? undefined}
-					hint="Zakladatel se stává jeho adminem — tedy vy, dokud roli nepředáte."
-				/>
-			</div>
-			<Button type="submit" size="sm" loading={create.isPending} disabled={name.trim() === ''}>
-				Založit
-			</Button>
+		<form onSubmit={submit} noValidate className="border-line/60 border-t px-4 py-3">
+			<Field
+				label="Nové družstvo"
+				value={name}
+				onChange={(event) => {
+					setName(event.target.value)
+					setError(null)
+				}}
+				placeholder={`Družstvo v klubu ${clubName}`}
+				error={error ?? undefined}
+				hint="Zakladatel se stává jeho adminem — tedy vy, dokud roli nepředáte."
+				action={
+					<Button
+						type="submit"
+						size="sm"
+						className="shrink-0 whitespace-nowrap"
+						loading={create.isPending}
+						disabled={name.trim() === ''}
+					>
+						Založit
+					</Button>
+				}
+			/>
 		</form>
 	)
 }
@@ -184,23 +213,29 @@ function NewClubCard() {
 
 	return (
 		<Card className="px-4 py-3">
-			<form onSubmit={submit} noValidate className="flex flex-wrap items-end gap-2">
-				<div className="min-w-48 flex-1">
-					<Field
-						label="Nový klub"
-						value={name}
-						onChange={(event) => {
-							setName(event.target.value)
-							setError(null)
-						}}
-						placeholder="VK Kbely"
-						error={error ?? undefined}
-						hint="Klub vzniká prázdný. Hned potom mu založte první družstvo."
-					/>
-				</div>
-				<Button type="submit" size="sm" loading={create.isPending} disabled={name.trim() === ''}>
-					Založit klub
-				</Button>
+			<form onSubmit={submit} noValidate>
+				<Field
+					label="Nový klub"
+					value={name}
+					onChange={(event) => {
+						setName(event.target.value)
+						setError(null)
+					}}
+					placeholder="VK Kbely"
+					error={error ?? undefined}
+					hint="Klub vzniká prázdný. Hned potom mu založte první družstvo."
+					action={
+						<Button
+							type="submit"
+							size="sm"
+							className="shrink-0 whitespace-nowrap"
+							loading={create.isPending}
+							disabled={name.trim() === ''}
+						>
+							Založit klub
+						</Button>
+					}
+				/>
 			</form>
 		</Card>
 	)

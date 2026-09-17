@@ -32,7 +32,6 @@ const methodLabels: Record<Payment['method'], string> = {
 	cash: 'Hotovost',
 	transfer: 'Bankovní převod',
 	qr: 'QR platba',
-	gateway: 'Platební brána',
 }
 
 /**

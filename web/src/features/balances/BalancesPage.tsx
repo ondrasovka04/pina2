@@ -62,18 +62,20 @@ export function BalancesPage() {
 		<div className="flex flex-col gap-4">
 			<Card className="overflow-hidden">
 				<div className="flex items-baseline justify-between gap-4 px-4 py-4">
-					<div>
-						<p className="text-ink-muted text-sm">Můj dluh</p>
-						<p className="mt-1 text-3xl font-semibold">
-							<Money czk={me === undefined ? 0 : memberBalance(me, period)} tone="balance" />
-						</p>
-						{myRank === null || data.visibility === 'own' ? null : (
-							<p className="text-ink-faint mt-1 text-xs">
-								{myRank}. z {members.length}
+					{myMembershipId === null ? null : (
+						<div>
+							<p className="text-ink-muted text-sm">Můj dluh</p>
+							<p className="mt-1 text-3xl font-semibold">
+								<Money czk={me === undefined ? 0 : memberBalance(me, period)} tone="balance" />
 							</p>
-						)}
-					</div>
-					<div className="text-right">
+							{myRank === null || data.visibility === 'own' ? null : (
+								<p className="text-ink-faint mt-1 text-xs">
+									{myRank}. z {members.length}
+								</p>
+							)}
+						</div>
+					)}
+					<div className={myMembershipId === null ? undefined : 'text-right'}>
 						<p className="text-ink-muted text-sm">Zbývá vyrovnat</p>
 						<p className="tabular mt-1 text-lg font-medium">{formatCzk(totals.balanceCzk)}</p>
 						<p className="text-ink-faint mt-1 text-xs">Zaplaceno {formatCzk(totals.paidCzk)}</p>

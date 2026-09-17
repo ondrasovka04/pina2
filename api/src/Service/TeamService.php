@@ -37,7 +37,6 @@ use Pina\Support\RsvpDeadline;
  * @phpstan-type TeamDetail array{
  *     id:int,
  *     name:string,
- *     color:string|null,
  *     logoUrl:string|null,
  *     archivedAt:string|null,
  *     clubId:int,
@@ -100,7 +99,6 @@ final class TeamService
      * @return list<array{
      *     id:int,
      *     name:string,
-     *     color:string|null,
      *     logoUrl:string|null,
      *     clubId:int,
      *     clubName:string,
@@ -115,7 +113,7 @@ final class TeamService
     public function myTeams(Identity $identity): array
     {
         $rows = $this->db->all(
-            "SELECT t.id, t.name, t.color, t.archived_at,
+            "SELECT t.id, t.name, t.archived_at,
                     t.logo_url,
                     c.id AS club_id, c.name AS club_name,
                     m.id AS membership_id, m.role,
@@ -135,7 +133,6 @@ final class TeamService
         return array_map(static fn (array $row): array => [
             'id'                => (int) $row['id'],
             'name'              => (string) $row['name'],
-            'color'             => $row['color'] === null ? null : (string) $row['color'],
             'logoUrl'           => $row['logo_url'] === null ? null : (string) $row['logo_url'],
             'clubId'            => (int) $row['club_id'],
             'clubName'          => (string) $row['club_name'],
@@ -151,6 +148,33 @@ final class TeamService
                 'name' => (string) $row['season_name'],
             ],
         ], $rows);
+    }
+
+    /**
+     * Kontext podpory bez vytváření členství nebo místa na soupisce.
+     *
+     * @return array{id:int,name:string,logoUrl:string|null,clubId:int,clubName:string,membershipId:int|null,role:string,archived:bool,attendanceEnabled:bool,travelEnabled:bool,currentSeason:array{id:int,name:string}|null}
+     */
+    public function supportTeam(Identity $identity, int $teamId): array
+    {
+        $this->tokens->forSupport($identity, $teamId);
+        $team       = $this->teamPayload($teamId);
+        $membership = $this->db->value("SELECT id FROM membership WHERE team_id = ? AND user_id = ? AND status <> 'left'", [$teamId, $identity->userId]);
+        $season     = $this->db->first('SELECT id, name FROM season WHERE team_id = ? AND is_current = 1', [$teamId]);
+
+        return [
+            'id'                => $team['id'],
+            'name'              => $team['name'],
+            'logoUrl'           => $team['logoUrl'],
+            'clubId'            => $team['clubId'],
+            'clubName'          => $team['clubName'],
+            'membershipId'      => $membership === null ? null : (int) $membership,
+            'role'              => Role::Admin->value,
+            'archived'          => $team['archivedAt'] !== null,
+            'attendanceEnabled' => $team['settings']['attendanceEnabled'],
+            'travelEnabled'     => $team['settings']['travelEnabled'],
+            'currentSeason'     => $season === null ? null : ['id' => (int) $season['id'], 'name' => (string) $season['name']],
+        ];
     }
 
     /**
@@ -265,9 +289,17 @@ final class TeamService
      *
      * @return TeamDetail
      */
-    public function createTeam(Identity $identity, int $clubId, string $name, ?string $color): array
+    public function createTeam(Identity $identity, int $clubId, string $name): array
     {
-        $this->scope->club($identity, $clubId, Role::Admin);
+        // Zakládání družstev patří provozní konzoli i bez členství. Výjimka
+        // je jen zde, nesmí odemykat běžnou agendu přes TeamScope::club.
+        if ($identity->isPlatformAdmin && $identity->supportTeamId === null) {
+            if ($this->db->value('SELECT id FROM club WHERE id = ?', [$clubId]) === null) {
+                throw ApiException::notFound();
+            }
+        } else {
+            $this->scope->club($identity, $clubId, Role::Admin);
+        }
 
         $name = trim($name);
 
@@ -288,10 +320,10 @@ final class TeamService
             );
         }
 
-        $teamId = $this->db->transaction(function () use ($clubId, $name, $color, $identity): int {
+        $teamId = $this->db->transaction(function () use ($clubId, $name, $identity): int {
             $this->db->run(
-                'INSERT INTO team (club_id, name, color) VALUES (?, ?, ?)',
-                [$clubId, $name, $color],
+                'INSERT INTO team (club_id, name) VALUES (?, ?)',
+                [$clubId, $name],
             );
             $teamId = $this->db->lastInsertId();
 
@@ -322,7 +354,7 @@ final class TeamService
     }
 
     /**
-     * @param  array{name?:string,color?:string|null} $changes
+     * @param  array{name?:string} $changes
      * @return TeamDetail
      */
     public function update(Identity $identity, int $teamId, array $changes): array
@@ -335,11 +367,6 @@ final class TeamService
         if (isset($changes['name'])) {
             $sets[]   = 'name = ?';
             $params[] = $changes['name'];
-        }
-
-        if (array_key_exists('color', $changes)) {
-            $sets[]   = 'color = ?';
-            $params[] = $changes['color'];
         }
 
         if ($sets === []) {
@@ -1030,7 +1057,7 @@ final class TeamService
     private function teamPayload(int $teamId): array
     {
         $team = $this->db->first(
-            'SELECT t.id, t.name, t.color, t.logo_url, t.archived_at,
+            'SELECT t.id, t.name, t.logo_url, t.archived_at,
                     c.id AS club_id, c.name AS club_name,
                     (SELECT COUNT(*) FROM membership m WHERE m.team_id = t.id AND m.status <> \'left\') AS member_count
                FROM team t
@@ -1046,7 +1073,6 @@ final class TeamService
         return [
             'id'          => (int) $team['id'],
             'name'        => (string) $team['name'],
-            'color'       => $team['color'] === null ? null : (string) $team['color'],
             'logoUrl'     => $team['logo_url'] === null ? null : (string) $team['logo_url'],
             'archivedAt'  => $team['archived_at'] === null ? null : (string) $team['archived_at'],
             'clubId'      => (int) $team['club_id'],
@@ -1099,6 +1125,10 @@ final class TeamService
 
     private function canSeePhones(Identity $identity, int $teamId): bool
     {
+        if ($identity->supportsTeam($teamId)) {
+            return true;
+        }
+
         // Provozní správce ani admin jiného družstva tím nezíská cizí kontakty.
         return $this->db->value(
             "SELECT role FROM membership WHERE user_id = ? AND team_id = ? AND status = 'active'",

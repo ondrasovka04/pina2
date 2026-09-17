@@ -22,6 +22,10 @@ final class FinancialAccess
      */
     public function restrictedToMembership(Identity $identity, int $teamId): ?int
     {
+        if ($identity->supportsTeam($teamId)) {
+            return null;
+        }
+
         $row = $this->db->first(
             'SELECT m.id, m.role, COALESCE(ts.balances_visible_to_players, 1) AS balances_visible
                FROM membership m

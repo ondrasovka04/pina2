@@ -12,7 +12,7 @@ import {
 
 import { AppLayout } from '@/app/AppLayout'
 import { PwaUpdatePrompt } from '@/app/PwaUpdatePrompt'
-import { SessionProvider, useSession } from '@/app/session'
+import { SessionProvider, useCurrentUser, useSession } from '@/app/session'
 import { homePath, TeamProvider, useTeam } from '@/app/team'
 import { ClubMark } from '@/components/ClubMark'
 import { PlatformPage } from '@/features/admin/PlatformPage'
@@ -144,7 +144,11 @@ function Protected() {
 }
 
 function HomeRedirect() {
-	const { usesAttendance } = useTeam()
+	const { usesAttendance, team, isLoading } = useTeam()
+	const user = useCurrentUser()
+	if (!isLoading && team === null && user.platformAdmin) {
+		return <Navigate to="/sprava" replace />
+	}
 
 	return <Navigate to={homePath(usesAttendance)} replace />
 }

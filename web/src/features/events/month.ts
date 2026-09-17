@@ -93,17 +93,6 @@ export function monthGrid(month: string, events: TeamEvent[], today: Date = new 
 	return weeks
 }
 
-/** Měsíce, ve kterých nějaká akce je, vzestupně a bez duplicit. */
-export function monthsWithEvents(events: TeamEvent[]): string[] {
-	const months = new Set<string>()
-
-	for (const event of events) {
-		months.add(event.startsAt.slice(0, 7))
-	}
-
-	return [...months].toSorted()
-}
-
 /** „září 2026" */
 export function monthTitle(month: string): string {
 	const { year, monthIndex } = parseMonth(month)

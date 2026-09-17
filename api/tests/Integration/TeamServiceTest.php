@@ -75,11 +75,17 @@ final class TeamServiceTest extends DatabaseTestCase
         $this->db->run('UPDATE `user` SET phone = ? WHERE id = ?', ['+420777123456', $this->player->userId]);
         $identity = new Identity($this->admin->userId, 'admin@prosek.cz', 'Admin', true, []);
         $this->db->run("UPDATE membership SET status = 'left' WHERE user_id = ?", [$identity->userId]);
-        self::assertSame([null, null], array_column($this->service->members($identity, $this->prosekTeam), 'phone'));
-        $this->db->run('DELETE FROM membership WHERE user_id = ?', [$identity->userId]);
-        self::assertSame([null], array_column($this->service->members($identity, $this->prosekTeam), 'phone'));
-        $updated = $this->service->updateMembership($identity, $this->playerMembership, ['jerseyNumber' => 12]);
-        self::assertNull($updated['phone']);
+        foreach ([
+            fn () => $this->service->members($identity, $this->prosekTeam),
+            fn () => $this->service->updateMembership($identity, $this->playerMembership, ['jerseyNumber' => 12]),
+        ] as $operation) {
+            try {
+                $operation();
+                self::fail('Bez členství nebo podpory nesmí správce přistupovat k členům.');
+            } catch (ApiException $error) {
+                self::assertSame(404, $error->status);
+            }
+        }
     }
 
     public function testAdminOfAnotherTeamCannotReadPhoneNumbers(): void
@@ -161,12 +167,10 @@ final class TeamServiceTest extends DatabaseTestCase
     public function testAdminRenamesTeam(): void
     {
         $detail = $this->service->update($this->admin, $this->prosekTeam, [
-            'name'  => 'Prosek A',
-            'color' => '#00aa55',
+            'name' => 'Prosek A',
         ]);
 
         self::assertSame('Prosek A', $detail['name']);
-        self::assertSame('#00aa55', $detail['color']);
     }
 
     public function testPlayerCannotRenameTeam(): void
@@ -438,7 +442,7 @@ final class TeamServiceTest extends DatabaseTestCase
     public function testFounderOfTeamBecomesItsAdmin(): void
     {
         // Zakladatel je admin nového týmu.
-        $team = $this->service->createTeam($this->admin, $this->prosekClub, 'Prosek - junioři', '#062372');
+        $team = $this->service->createTeam($this->admin, $this->prosekClub, 'Prosek - junioři');
 
         self::assertSame('Prosek - junioři', $team['name']);
         self::assertSame($this->prosekClub, $team['clubId']);
@@ -462,7 +466,7 @@ final class TeamServiceTest extends DatabaseTestCase
             [$this->admin->userId],
         );
 
-        $this->service->createTeam($this->admin, $this->prosekClub, 'Prosek - kadeti', null);
+        $this->service->createTeam($this->admin, $this->prosekClub, 'Prosek - kadeti');
 
         // Razítko se posune — stará tokeny padnou.
         self::assertNotSame(
@@ -474,7 +478,7 @@ final class TeamServiceTest extends DatabaseTestCase
     public function testPlayerCannotFoundTeamInHisClub(): void
     {
         try {
-            $this->service->createTeam($this->player, $this->prosekClub, 'Prosek - béčko', null);
+            $this->service->createTeam($this->player, $this->prosekClub, 'Prosek - béčko');
             self::fail('hráč nesmí zakládat družstva');
         } catch (ApiException $e) {
             self::assertSame(404, $e->status);
@@ -484,7 +488,7 @@ final class TeamServiceTest extends DatabaseTestCase
     public function testAdminCannotFoundTeamInForeignClub(): void
     {
         try {
-            $this->service->createTeam($this->admin, $this->benatkyClub, 'Benátky - béčko', null);
+            $this->service->createTeam($this->admin, $this->benatkyClub, 'Benátky - béčko');
             self::fail('admin Prosku nesmí zakládat družstva v Benátkách');
         } catch (ApiException $e) {
             self::assertSame(404, $e->status);
@@ -499,7 +503,7 @@ final class TeamServiceTest extends DatabaseTestCase
     public function testDuplicateTeamNameInClubIsRejected(): void
     {
         try {
-            $this->service->createTeam($this->admin, $this->prosekClub, 'Prosek - muži', null);
+            $this->service->createTeam($this->admin, $this->prosekClub, 'Prosek - muži');
             self::fail('dvě družstva téhož jména by v klubu nešla rozlišit');
         } catch (ApiException $e) {
             self::assertSame(409, $e->status);

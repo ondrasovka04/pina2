@@ -47,23 +47,9 @@ final class RoleTest extends TestCase
             rolesByTeam: [1 => Role::Player, 2 => Role::Treasurer],
         );
 
-        self::assertFalse($identity->hasRoleInTeam(1, Role::Treasurer), 'u mužů zapisovat nesmí');
-        self::assertTrue($identity->hasRoleInTeam(2, Role::Treasurer), 'u juniorů zapisovat smí');
-        self::assertFalse($identity->isMemberOf(3), 'do cizího týmu nepatří');
-    }
-
-    public function testPlatformAdminReachesEveryTeam(): void
-    {
-        $identity = new Identity(
-            userId: 1,
-            email: 'spravce@example.com',
-            displayName: 'Správce',
-            isPlatformAdmin: true,
-            rolesByTeam: [],
-        );
-
-        self::assertTrue($identity->hasRoleInTeam(99, Role::Admin));
-        self::assertTrue($identity->isMemberOf(99));
+        self::assertSame(Role::Player, $identity->roleInTeam(1));
+        self::assertSame(Role::Treasurer, $identity->roleInTeam(2));
+        self::assertNull($identity->roleInTeam(3));
     }
 
     public function testTokenPayloadRoundTrip(): void
@@ -91,6 +77,5 @@ final class RoleTest extends TestCase
         ]);
 
         self::assertNull($identity->roleInTeam(1));
-        self::assertFalse($identity->isMemberOf(1));
     }
 }

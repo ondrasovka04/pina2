@@ -1,7 +1,9 @@
+import { useQueryClient } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
-import { createContext, use, useCallback, useMemo, useState } from 'react'
+import { createContext, use, useCallback, useEffect, useMemo, useState } from 'react'
 
-import { useSeasons, useTeams } from '@/lib/queries'
+import { setSupportTeamId as setApiSupportTeamId } from '@/lib/api'
+import { supportTeamQuery, useSeasons, useSupportTeam, useTeams } from '@/lib/queries'
 import type { Role, Season, TeamSummary } from '@/lib/types'
 import { atLeast } from '@/lib/types'
 
@@ -18,6 +20,9 @@ interface TeamValue {
 	can: (required: Role) => boolean
 	selectTeam: (teamId: number) => void
 	selectSeason: (seasonId: number) => void
+	isSupporting: boolean
+	startSupport: (teamId: number) => Promise<void>
+	stopSupport: () => void
 	isLoading: boolean
 	isSeasonLoading: boolean
 	error: Error | null
@@ -53,6 +58,9 @@ function storedTeamId(): number | null {
 }
 
 export function TeamProvider({ children }: { children: ReactNode }) {
+	const queryClient = useQueryClient()
+	const [supportTeamId, setSupportTeamId] = useState<number | null>(null)
+	const supportQuery = useSupportTeam(supportTeamId)
 	const teamsQuery = useTeams()
 	const [preferredTeamId, setPreferredTeamId] = useState<number | null>(storedTeamId)
 
@@ -60,13 +68,40 @@ export function TeamProvider({ children }: { children: ReactNode }) {
 
 	// Uložený tým nemusí existovat — padáme na první nearchivovaný
 	const team = useMemo(() => {
+		if (supportTeamId !== null) {
+			return supportQuery.data ?? null
+		}
 		const preferred = teams.find((item) => item.id === preferredTeamId)
 		if (preferred !== undefined) {
 			return preferred
 		}
 
 		return teams.find((item) => !item.archived) ?? teams[0] ?? null
-	}, [teams, preferredTeamId])
+	}, [teams, preferredTeamId, supportTeamId, supportQuery.data])
+
+	useEffect(() => () => setApiSupportTeamId(null), [])
+
+	const stopSupport = useCallback(() => {
+		if (supportTeamId === null) {
+			return
+		}
+		setApiSupportTeamId(null)
+		setSupportTeamId(null)
+		void queryClient.cancelQueries()
+		queryClient.clear()
+	}, [queryClient, supportTeamId])
+
+	const startSupport = useCallback(
+		async (teamId: number) => {
+			const selected = await queryClient.fetchQuery(supportTeamQuery(teamId))
+			await queryClient.cancelQueries()
+			queryClient.clear()
+			setApiSupportTeamId(teamId)
+			queryClient.setQueryData(supportTeamQuery(teamId).queryKey, selected)
+			setSupportTeamId(teamId)
+		},
+		[queryClient],
+	)
 
 	const seasonsQuery = useSeasons(team?.id ?? null)
 	const seasons = useMemo(() => seasonsQuery.data ?? [], [seasonsQuery.data])
@@ -80,14 +115,18 @@ export function TeamProvider({ children }: { children: ReactNode }) {
 		return chosen ?? seasons.find((item) => item.isCurrent) ?? seasons[0] ?? null
 	}, [seasons, seasonByTeam, team])
 
-	const selectTeam = useCallback((teamId: number) => {
-		setPreferredTeamId(teamId)
-		try {
-			localStorage.setItem(STORAGE_KEY, String(teamId))
-		} catch {
-			// Neuložilo se — nevadí, výběr platí do konce relace.
-		}
-	}, [])
+	const selectTeam = useCallback(
+		(teamId: number) => {
+			stopSupport()
+			setPreferredTeamId(teamId)
+			try {
+				localStorage.setItem(STORAGE_KEY, String(teamId))
+			} catch {
+				// Neuložilo se — nevadí, výběr platí do konce relace.
+			}
+		},
+		[stopSupport],
+	)
 
 	const selectSeason = useCallback(
 		(seasonId: number) => {
@@ -115,9 +154,12 @@ export function TeamProvider({ children }: { children: ReactNode }) {
 			can: (required: Role) => atLeast(role ?? undefined, required),
 			selectTeam,
 			selectSeason,
-			isLoading: teamsQuery.isLoading,
+			isSupporting: supportTeamId !== null,
+			startSupport,
+			stopSupport,
+			isLoading: teamsQuery.isLoading || supportQuery.isLoading,
 			isSeasonLoading: seasonsQuery.isLoading,
-			error: teamsQuery.error,
+			error: supportQuery.error ?? teamsQuery.error,
 		}),
 		[
 			teams,
@@ -127,6 +169,11 @@ export function TeamProvider({ children }: { children: ReactNode }) {
 			role,
 			selectTeam,
 			selectSeason,
+			supportTeamId,
+			startSupport,
+			stopSupport,
+			supportQuery.isLoading,
+			supportQuery.error,
 			teamsQuery.isLoading,
 			teamsQuery.error,
 			seasonsQuery.isLoading,

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { TeamEvent } from '@/lib/types'
 
-import { monthGrid, monthsWithEvents, monthTitle, shiftMonth } from './month'
+import { monthGrid, monthTitle, shiftMonth } from './month'
 
 function event(overrides: Partial<TeamEvent> = {}): TeamEvent {
 	return {
@@ -122,22 +122,6 @@ describe('monthGrid', () => {
 		const allDays = weeks.flatMap((week) => week.days)
 
 		expect(allDays.some((day) => day.isToday)).toBe(false)
-	})
-})
-
-describe('monthsWithEvents', () => {
-	it('vrátí měsíce vzestupně a bez duplicit', () => {
-		const events = [
-			event({ id: 1, startsAt: '2026-10-01 19:00:00' }),
-			event({ id: 2, startsAt: '2026-09-01 19:00:00' }),
-			event({ id: 3, startsAt: '2026-09-20 19:00:00' }),
-		]
-
-		expect(monthsWithEvents(events)).toEqual(['2026-09', '2026-10'])
-	})
-
-	it('na prázdný vstup vrátí prázdné pole', () => {
-		expect(monthsWithEvents([])).toEqual([])
 	})
 })
 

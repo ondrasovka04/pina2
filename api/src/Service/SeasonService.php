@@ -95,6 +95,10 @@ final class SeasonService
      */
     private function managesTeam(Identity $identity, int $teamId): bool
     {
+        if ($identity->supportsTeam($teamId)) {
+            return true;
+        }
+
         $role = $this->db->value(
             "SELECT role FROM membership WHERE team_id = ? AND user_id = ? AND status <> 'left'",
             [$teamId, $identity->userId],

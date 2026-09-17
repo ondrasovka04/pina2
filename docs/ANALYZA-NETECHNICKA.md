@@ -1,7 +1,10 @@
-# Pína 2.0 — Co by aplikace měla umět
+# Pína 2.0 — Funkce a rozhodnutí
 
-**Dokument pro diskuzi o funkcích. Bez technických detailů.**
-Datum: 14. 8. 2026
+**Přehled funkcí a rozhodnutí týmu. Bez technických detailů.**
+Původní návrh: 14. 8. 2026 · Aktualizace: 17. 9. 2026
+
+Aplikace je nasazená na https://pinaprosek.eu. Bankovní párování zatím není
+rozhodnuté. Export plateb, platební brána ani přehled oznámení nejsou v plánu.
 
 ---
 
@@ -18,18 +21,10 @@ Aplikaci jsem napsal v roce 2023 jako ročníkový projekt. Fungovala, používa
 několik týmů — ale byla ošklivá, uměla jenom prohřešky a mobilní verze mezitím
 přestala existovat (přišel jsem o účet ve vývojářském portálu Googlu).
 
-**Teď to píšu celé znovu od nuly** — nový vzhled, nové funkce a hlavně: kromě
-prohřešků bude aplikace umět i **docházku, nominace na zápasy, cesťáky a evidenci
-plateb**. Poběží v prohlížeči a půjde si ji přidat na plochu telefonu jako běžnou
-aplikaci — bez stahování z obchodu.
-
-**Všechna data se přenesou.** Aplikace za tři a půl roku nasbírala přes 6 000 zápisů
-ve čtyřech týmech a šesti sezónách — historie zůstane zachovaná včetně správných
-cen, které se mezi sezónami měnily. Jediné, co se nepřenáší, jsou hesla: každý
-dostane pozvánku a nastaví si nové.
-
-**Dokument je po prvním kole připomínek z týmu** (16. 8. 2026) — co se na jejich
-základě změnilo, shrnuje kapitola 8. Otevřené otázky jsou v kapitole 9.
+Nová aplikace už funguje v prohlížeči a dá se přidat na plochu telefonu.
+K prohřeškům přibyly **docházka, nominace, cesťáky a evidence plateb**.
+Historie staré aplikace byla převedena; stará hesla se nepřenášela.
+Další úpravy vycházejí ze zpětné vazby týmů při používání.
 
 ---
 
@@ -109,15 +104,16 @@ prohlížeč, pínař o práci nepřijde. A celá dávka se dá jedním klepnut�
 ### Oznámení hráčům
 Po odeslání dostane každý dotčený hráč zprávu do telefonu:
 
-> **Pína — trénink 16. 9.**
-> Byly ti zapsány 3 prohřešky za 60 Kč. Celkem dlužíš 340 Kč.
+> **Nový zápis do píny**
+> V píně máš nový zápis.
 
-Klepnutím se otevře rozpis, za co to bylo. Důležité: **jedna zpráva za celou dávku**,
+Částky ani jména se na zamčené obrazovce neukazují; rozpis je v aplikaci.
+Důležité: **jedna zpráva za celou dávku**,
 ne pět zpráv během deseti vteřin — to je nejrychlejší způsob, jak lidi přimět
-notifikace vypnout. Když pínař dávku stornuje, přijde i oprava.
+notifikace vypnout. Storno je vidět v přehledu zápisů.
 
-Kdo nechce notifikace do telefonu, dostane e-mail; kdo nechce ani to, uvidí vše
-v aplikaci v seznamu oznámení. Každý si sám nastaví, co chce dostávat.
+Každý si zapíná push oznámení podle svého. E-mailová náhrada ani samostatný
+seznam oznámení nejsou součástí aplikace. Zápisy zůstávají dostupné v přehledech.
 
 **Novinky proti staré verzi:**
 - **Zápis se dá stornovat**, ne jen smazat — je vidět, že existoval a kdo ho zrušil.
@@ -195,29 +191,29 @@ kvůli natrženému kotníku.
 
 | | Hráč | Pínař | Admin |
 |---|:--:|:--:|:--:|
-| Dluhy ostatních | ✓ | ✓ | ✓ |
+| Dluhy ostatních | podle nastavení týmu | ✓ | ✓ |
 | Vlastní docházka | ✓ | ✓ | ✓ |
-| Docházka ostatních | — | ✓ | ✓ |
-| Procenta účasti a žebříčky | — | — | ✓ |
+| Docházka ostatních | podle nastavení týmu | ✓ | ✓ |
+| Procenta účasti a žebříčky | vlastní; ostatní podle nastavení | ✓ | ✓ |
 
-Dluhy jsou veřejné, protože jsou legrace. Docházka ne — je to citlivější věc
-a hráči by z ní neměli dělat závody.
+Výchozí nastavení zpřístupňuje dluhy spoluhráčů a skrývá jejich výslednou
+docházku. Admin může obě volby změnit. Odpovědi na budoucí akce jsou vidět
+kvůli domluvě účasti a odvozů.
 
 ---
 
 ## 5. Peníze
 
 ### Co aplikace umí v základu
-- Spočítá, **kdo kolik dluží** (prohřešky mínus zaplaceno).
+- Spočítá, **kdo kolik dluží** z prohřešků, bonusů, plateb a cesťáků.
 - Pínař označí přijatou platbu (hotovost nebo převod).
 - Ukáže, **kolik je v kase** a kolik ještě chybí vybrat.
-- Pošle upomínku dlužníkům.
 
-### Cesťáky a půlroční zúčtování
+### Cesťáky a členění na pololetí
 Zjistilo se, že tým mužů si proplácení cest eviduje tak, že si do sazebníku založí
 položku „Cesťák 1.pol Vénis" se zápornou částkou. Aplikace to totiž neuměla.
 
-Nově to bude pořádně:
+Současná pravidla:
 
 - U zápasu venku hráč zaklikne, že **jede autem** (a kolik má volných míst —
   poslouží to zároveň k domluvě odvozů).
@@ -227,10 +223,10 @@ Nově to bude pořádně:
   je věc dohody v autě, ne aplikace.
 - Platí to **jen pro zápasy**, u tréninků žádný nárok nevzniká.
 
-Na konci období — typicky **po půlce sezóny**, jak to děláte teď — **pínař uzavře
-zúčtování**: sečtou se prohřešky, bonusy, cesťáky i zaplacené částky a vyjde jediné
-číslo. Kdo je v mínusu, doplácí; komu tým dluží za odvozy, tomu se to proplatí.
-Uzavřené období se pak už nemění, i kdyby se později upravil sazebník.
+Přehled lze rozdělit na **pololetí podle data v sezóně**. Nejde o uzávěrku:
+pozdější zápisy lze doplnit a nic se kvůli pololetí nezamyká. Platba patří
+do pololetí, kdy přišla, a QR vyzývá k celému zbývajícímu dluhu sezóny.
+Celou sezónu může uzavřít admin; tím se další zápisy zamknou.
 
 Z píny se tím stává **obousměrná pokladna** — dosud uměla jen vybírat.
 
@@ -242,21 +238,18 @@ U svého dluhu si hráč zobrazí **QR kód**, naskenuje ho v bankovní aplikaci
 a částka i variabilní symbol se předvyplní. Zaplatí na dvě klepnutí, nic se
 nepřepisuje ručně. Nestojí to nic a nevyžaduje to žádnou smlouvu.
 
-### Automatické párování plateb (až později, není součástí plánu)
+### Automatické párování plateb (nerozhodnuto)
 Napojení na banku, aby aplikace sama viděla příchozí platby a označila je jako
 uhrazené. Pínař by pak neřešil nic — jen občas ručně přiřadil platbu bez
 variabilního symbolu.
 
-**Tohle vědomě odkládám na později.** Bez toho je platební koloběh kompletní:
-hráč zaplatí přes QR, pínař platbu odklikne. Automatické párování jen ušetří
-to jedno klepnutí. Chtěl bych z něj udělat **diplomovou práci**, a to je o důvod
-víc, proč s ním nespěchat — až se k tomu dostanu, poběží aplikace s reálnými daty.
+O realizaci ani termínu není rozhodnuto. Bez párování je platební koloběh kompletní:
+hráč zaplatí přes QR a pínař přijatou platbu zapíše. Databázové podklady pro případné
+párování zatím zůstávají.
 
-### Platební brána?
-Zvažoval jsem platbu kartou přímo v aplikaci. Technicky je to hotové řešení, ale:
-u píny 20–50 Kč jsou poplatky brány proporčně vysoké, vyžaduje to smlouvu
-a ověření a přibude účetnictví. **QR platba plus napojení na banku dělá to samé
-za nula korun.** Brána zůstává jako možnost do budoucna.
+### Platební brána
+Platby kartou nejsou v aktuálním rozsahu. Aplikace používá QR a ručně potvrzené
+platby; rezervy pro platební bránu byly z kódu a schématu odstraněny.
 
 **Výdaje z kasy** (co se za peníze nakoupilo) aplikace evidovat nebude — na to není
 týmová pína byznys. Jedinou výjimkou jsou cesťáky, které se proplácejí hráčům
@@ -264,17 +257,18 @@ a jsou tedy součástí zúčtování.
 
 ---
 
-## 6. Jak se to bude používat
+## 6. Jak se aplikace používá
 
 - **V prohlížeči na počítači i na telefonu.** Žádné stahování z obchodu.
 - Na telefonu si aplikaci **přidáš na plochu** a chová se pak jako běžná aplikace —
-  vlastní ikona, na celou obrazovku, funguje i při slabém signálu.
-- **Upozornění na telefon**: zapsané prohřešky (jedna souhrnná zpráva za akci),
-  nová nominace, připomínka akce den předem a dvě hodiny předem, potvrzení přijaté
-  platby, měsíční upomínka dluhu. Každý si může vybrat, co chce dostávat.
+  vlastní ikona a celá obrazovka. Pro načítání dat a zápisy je potřeba připojení.
+- **Upozornění na telefon**: zapsané prohřešky (jedna zpráva za dávku) a připomínka
+  nezodpovězené akce. Každou kategorii si hráč zapíná sám.
 - **Pozvánky e-mailem**: admin zadá e-mail, hráči přijde odkaz, nastaví si heslo, hotovo.
 - Aplikaci může používat **víc klubů najednou**, každý vidí jen svoje data.
-- Bude to česky, s ohledem na to, že se používá v šatně na mobilu jednou rukou.
+- Aplikace je česky a přizpůsobená ovládání na mobilu.
+- **Režim podpory** umožňuje správci aplikace otevřít družstvo s právy admina,
+  aniž by se přidal mezi jeho hráče. Účet je společný, členství a role jsou po družstvech.
 
 ---
 
@@ -288,13 +282,13 @@ a jsou tedy součástí zúčtování.
 | Prohřešky | ano | ano, plus **souhrn před odesláním**, storno celé dávky, zamrazená cena, vazba na akci |
 | Docházka | — | **odvozená z toho, co si hráči naklikali; opravují se jen výjimky** |
 | Nominace | — | **na zápasy, s odpověďmi hráčů** |
-| Statistiky účasti | — | **procenta a žebříčky — vidí je jen admin** |
+| Statistiky účasti | — | **pínař a admin; hráči podle nastavení týmu** |
 | Cesťáky | řešeno záporným prohřeškem pro každého hráče | **sazba za km, „jedu autem", automatický výpočet** |
-| Zúčtování | ručně mimo aplikaci | **půlroční uzávěrka: prohřešky − bonusy − cesťáky − platby** |
-| Peníze | jen součet dluhu | QR platba, evidence úhrad, upomínky, později napojení na banku |
-| Upozornění | pop-up v aplikaci | push do telefonu + e-mail, agregované, s vlastním nastavením |
+| Zúčtování | ručně mimo aplikaci | **průběžný zůstatek a členění na pololetí bez uzávěrky** |
+| Peníze | jen součet dluhu | QR platba a ručně potvrzené úhrady |
+| Upozornění | pop-up v aplikaci | push do telefonu, agregované, s vlastním nastavením |
 | Bezpečnost | slabá (viz technická analýza) | přepsáno od základu |
-| Historie dat | — | **všechna stará data se přenesou** (6 000+ zápisů, 6 sezón, 4 týmy) |
+| Historie dat | — | **historie převedena** (6 000+ zápisů, 6 sezón, 4 týmy) |
 
 ---
 
@@ -306,8 +300,8 @@ Kolo připomínek proběhlo 16. 8. 2026 a promítlo se do návrhu takto:
 |---|---|
 | „Zaklikávat po každém tréninku bude strašný oser" | Docházka se bere z toho, co si hráči naklikali předem; opravují se jen výjimky |
 | „Absence je absence" | Omluvená/neomluvená se nerozlišuje, zvlášť je jen zranění a dlouhodobá nemoc |
-| „Docházku vidět jen svoji, 100 %!" | Hráč vidí jen sebe, procenta a žebříčky vidí pouze admin |
-| „Dluhy ostatních klidně, to je prdel" | Zůstávají viditelné všem |
+| „Docházku vidět jen svoji, 100 %!" | Výchozí stav: hráč vidí sebe, celý tým pínař a admin; lze upravit nastavením |
+| „Dluhy ostatních klidně, to je prdel" | Výchozí stav je viditelnost všem, admin ji může omezit |
 | „Nominace na tréninky je zbytečná" | Nominuje se jen na zápasy |
 | „Role admin a trenér jsou vicemene totožné" | Zůstávají tři role, žádná se nepřidává |
 | „Kategorie prohřešků jsou jen zpřehlednění" | Volitelné, ne povinné |
@@ -316,8 +310,8 @@ Kolo připomínek proběhlo 16. 8. 2026 a promítlo se do návrhu takto:
 | „Nešlo by něco s cesťáky? Zakliknout, že mám auto?" | Nová funkce — viz kapitola 5, včetně sazby za kilometr |
 | „Týdenní přehled není důležitý, rýpání nevadí" | Oznámení chodí hned, souhrn se neřeší |
 
-Otevřené k ověření v provozu: půlroční zúčtování jako volitelná funkce týmu
-a to, jestli se ke zkoušení přidá MFF nebo Modřany.
+Pozdější rozhodnutí: pololetí slouží pouze k členění. Přehled oznámení ani
+export plateb tým nepotřebuje. Bankovní párování zatím nemá rozhodnutý termín ani rozsah.
 
 ## 9. Na co ještě potřebuju názor
 
@@ -328,7 +322,7 @@ Cesťáky jsou dořešené, pravidla vypadají takto:
 | Kilometry | vzdálenost od domácí haly k hale soupeře, počítá se cesta tam i zpět |
 | Kdo dostane náhradu | **jen řidič**; spolujezdci nic |
 | Kdy vzniká | **pouze u zápasů**, ne u tréninků |
-| Kdo uzavírá zúčtování | **pínař** |
+| Kdo uzavírá sezónu | **admin**; pololetí se neuzavírá |
 | Bonusy | zůstávají v jednom seznamu s pokutami, jen barevně odlišené |
 
 Tým si nastaví svou **domácí halu** a **sazbu za kilometr**, zbytek už aplikace
@@ -339,18 +333,13 @@ předvyplněnou vzdálenost ručně upravit, když jede oklikou pro spoluhráče
 
 ---
 
-## 10. Co v první verzi vědomě nebude
+## 10. Co není v aktuálním rozsahu
 
-Aby se to vůbec dodělalo, nechávám stranou:
-- platby kartou přes platební bránu,
-- statistiky ze zápasů (body, úspěšnost podání) — to je jiná aplikace,
-- chat a diskuze v týmu — na to má každý tým WhatsApp a nemá cenu s tím soupeřit,
-- veřejný profil klubu, výsledkový servis,
-- statistiky ze zápasů (body, úspěšnost podání),
+- Platby kartou přes platební bránu.
+- Přehled oznámení v aplikaci a export plateb.
+- Statistiky ze zápasů (body, úspěšnost podání).
+- Chat a diskuze v týmu.
+- Veřejný profil klubu a výsledkový servis.
 
-- napojení na banku a automatické párování plateb (samostatná věc na později).
-
-Pořadí prací: nejdřív **přihlášení a správa týmu**, pak **prohřešky** (aby se
-mohla vypnout stará aplikace), pak **docházka a nominace**, pak **peníze a QR**
-a nakonec **upozornění na telefon**. Tím je aplikace hotová. Napojení na banku
-je až následný přírůstek, na kterém nic z toho nestojí.
+Bankovní párování je nerozhodnutá možnost do budoucna, na které ostatní funkce
+nezávisí. Hlavní rozsah aplikace je dokončený; další změny vycházejí z používání.

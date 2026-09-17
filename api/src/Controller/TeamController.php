@@ -27,6 +27,11 @@ final class TeamController
         return Response::ok(['clubs' => $this->teams->platformOverview($request->identity())]);
     }
 
+    public function support(Request $request): Response
+    {
+        return Response::ok($this->teams->supportTeam($request->identity(), $request->routeId('team')));
+    }
+
     public function createClub(Request $request): Response
     {
         return Response::created([
@@ -40,7 +45,6 @@ final class TeamController
             $request->identity(),
             $request->routeId('club'),
             $request->string('name'),
-            array_key_exists('color', $request->body) ? $this->hexColor($request) : null,
         ));
     }
 
@@ -51,15 +55,11 @@ final class TeamController
 
     public function update(Request $request): Response
     {
-        /** @var array{name?:string,color?:string|null} $changes */
+        /** @var array{name?:string} $changes */
         $changes = [];
 
         if (array_key_exists('name', $request->body)) {
             $changes['name'] = $request->string('name');
-        }
-
-        if (array_key_exists('color', $request->body)) {
-            $changes['color'] = $this->hexColor($request);
         }
 
         return Response::ok($this->teams->update($request->identity(), $request->routeId('team'), $changes));
@@ -180,22 +180,6 @@ final class TeamController
         ]);
 
         return Response::ok($settings);
-    }
-
-    /** Barva se ukládá jako #rrggbb; prázdná hodnota barvu zruší. */
-    private function hexColor(Request $request): ?string
-    {
-        $value = $request->optionalString('color');
-
-        if ($value === null) {
-            return null;
-        }
-
-        if (preg_match('/^#[0-9a-fA-F]{6}$/', $value) !== 1) {
-            throw ApiException::validation('Barva musí být ve tvaru #rrggbb.', ['field' => 'color']);
-        }
-
-        return mb_strtolower($value);
     }
 
     private function role(Request $request, string $key, Role $default): Role

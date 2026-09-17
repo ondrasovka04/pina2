@@ -7,7 +7,9 @@ namespace Pina\Tests\Integration;
 use Pina\Auth\Identity;
 use Pina\Auth\Role;
 use Pina\Auth\TeamScope;
+use Pina\Controller\OffenceTypeController;
 use Pina\Http\ApiException;
+use Pina\Http\Request;
 use Pina\Service\OffenceTypeService;
 
 /** Oprávnění, archivace a přenesení sazebníku mezi sezónami. */
@@ -65,6 +67,30 @@ final class OffenceTypeServiceTest extends DatabaseTestCase
          * } $input
          */
         return $this->service->create($this->admin, $seasonId ?? $this->season, $input)['id'];
+    }
+
+    public function testUnsupportedArrivalRuleCannotBeCreatedOrUpdated(): void
+    {
+        $id         = $this->create();
+        $controller = new OffenceTypeController($this->service);
+        foreach (['store', 'update'] as $action) {
+            $request = new Request('POST', '/', [], [
+                'name'      => 'Pozdní příchod',
+                'amountCzk' => 20,
+                'autoRule'  => 'late_arrival',
+            ], [], '127.0.0.1');
+            $request->identity    = $this->admin;
+            $request->routeParams = ['season' => (string) $this->season, 'id' => (string) $id];
+            try {
+                $controller->$action($request);
+                self::fail('Nepodporované pravidlo musí být odmítnuto.');
+            } catch (ApiException $e) {
+                self::assertSame(400, $e->status);
+                self::assertSame('autoRule', $e->details['field']);
+            }
+        }
+        self::assertSame(1, $this->db->value('SELECT COUNT(*) FROM offence_type'));
+        self::assertSame('none', $this->db->value('SELECT auto_rule FROM offence_type WHERE id = ?', [$id]));
     }
 
     public function testListIsSortedBySortOrderAndHidesArchived(): void

@@ -71,10 +71,17 @@ Změny databáze provádějte dočasným PHP skriptem chráněným heslem: nahra
 spusťte přes HTTPS pomocí `curl`, ověřte výsledek a skript ihned smažte.
 Připojení k databázi načítejte z existující konfigurace aplikace.
 
-Při aktualizaci zachovejte `.env` a `data/app/storage/`. Obrázky v
-`storage/images/` se zálohují samostatně, databázová záloha je neobsahuje.
+Při aktualizaci zachovejte `.env` a `data/app/storage/`. Hosting zálohuje databázi
+do `/data/sqlbackup/` na FTP. Ověřeno 17. 9. 2026: `pinaprosek.gz`, `.gz.1`
+a `.gz.2` obsahují tři denní verze. Obrázky v `storage/images/` databázová záloha
+neobsahuje; jejich zálohování hostingem zatím nebylo ověřeno.
 Adresář musí být zapisovatelný pro PHP; obrázky vyžadují GD s JPEG a WebP.
 
 Oznámení obsluhuje úloha hostingu každých 15 minut:
 `GET /api/v1/cron/notifications/send?token=…`. Používá `CRON_TOKEN`
 a nastavení VAPID z produkční konfigurace.
+
+Stejná úloha po odesílání promaže neplatné tokeny a dokončená oznámení
+s rezervou **365 dní**, nejvýš 500 řádků z každé tabulky za běh. Počty vrací
+v poli `cleanup`; aktivní relace, čekající zprávy a historie peněz zůstávají.
+Pravidla jsou v [technické dokumentaci](docs/ANALYZA-TECHNICKA.md#49-automatický-úklid-provozních-dat).

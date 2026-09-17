@@ -14,7 +14,7 @@ use Pina\Support\Database;
 use Pina\Support\RsvpDeadline;
 use Throwable;
 
-/** Uživatelské volby, in-app záznamy a odolná fronta Web Push. */
+/** Uživatelské volby, deduplikace a odolná fronta Web Push. */
 final class NotificationService
 {
     public const EVENT_REMINDER = 'event_reminder';
@@ -443,9 +443,9 @@ final class NotificationService
         $notificationId = $this->db->lastInsertId();
         if ($this->preferenceEnabled($userId, $type)) {
             $this->db->run(
-                "INSERT IGNORE INTO notification_queue (notification_id, push_subscription_id, channel)
-                 SELECT ?, ps.id, 'push' FROM push_subscription ps
-                  WHERE ps.user_id = ? AND ps.failed_at IS NULL",
+                'INSERT IGNORE INTO notification_queue (notification_id, push_subscription_id)
+                 SELECT ?, ps.id FROM push_subscription ps
+                  WHERE ps.user_id = ? AND ps.failed_at IS NULL',
                 [$notificationId, $userId],
             );
         }

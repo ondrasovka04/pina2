@@ -34,10 +34,10 @@ final class OffenceTypeService
     /**
      * Co aplikace navrhne sama z docházky. Omluvenou a neomluvenou absenci
      * rozlišuje odpověď hráče předem — kdo řekl „nepřijdu", je omluvený.
-     * `late_arrival` zůstává jen pro úplnost: čas příchodu nikdo nezapisuje.
+     * Pozdní příchod se zapisuje ručně: čas příchodu nikdo nezaznamenává.
      * `late_rsvp` naopak vychází ze snapshotu času odpovědi u akce.
      */
-    public const AUTO_RULES = ['none', 'excused_absence', 'unexcused_absence', 'late_arrival', 'late_rsvp'];
+    public const AUTO_RULES = ['none', 'excused_absence', 'unexcused_absence', 'late_rsvp'];
 
     /**
      * U kterého druhu akce pravidlo platí. Každé družstvo má jinou sazbu za

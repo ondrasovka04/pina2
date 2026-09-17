@@ -30,10 +30,10 @@ dokumentace, commit messages. Anglicky zůstávají jen identifikátory v kódu
 docker compose up -d                                        # MySQL + PHP na :8080
 cd web && npm run dev                                       # frontend na :5173
 
-docker compose run --rm php ./vendor/bin/phpunit            # 341 testů
+docker compose run --rm php ./vendor/bin/phpunit
 docker compose run --rm php ./vendor/bin/phpstan analyse --memory-limit=512M
 docker compose run --rm php ./vendor/bin/php-cs-fixer fix --dry-run --diff
-cd web && npm run typecheck && npm run lint && npm test      # 236 testů
+cd web && npm run typecheck && npm run lint && npm test
 ```
 
 Před dokončením úkolu, který sáhl na kód, musí projít testy i statická analýza
@@ -70,6 +70,14 @@ té části, které se změna týká.
    majitel hráč, ho ten příznak pínařem nedělá a cizí dluhy se do provozní
    konzole nevydávají.
 
+   **Výjimkou je výslovně otevřený režim podpory** z `/sprava`: správce
+   platformy v něm dostane plná práva admina vybraného družstva, včetně peněz,
+   telefonů a provozní stopy. Nevzniká mu členství ani místo na soupisce.
+   `X-Support-Team` se ověřuje na serveru proti aktuální platformní roli;
+   požadavky zůstávají omezené na vybrané družstvo. Běžné pojistky (uzavřená
+   sezóna, poslední admin, vypnutá docházka) platí dál. Autor změn je skutečný
+   účet správce, nikoli člen družstva, za kterého by se vydával.
+
 ## Slovník
 
 Aplikace mluví jazykem týmu, ne jazykem databáze. Když se rozhodujete, jak něco
@@ -99,7 +107,9 @@ a čísla se dělí na pololetí podle data u sezóny. Hotová je i **F5**: inst
 PWA, Web Push se dvěma osobními volbami a odběr kalendáře přes `webcal://`.
 Nad rámec fází mají hráči i kluby **obrázky** — normalizované PNG na disku
 v `api/storage/images/`, ne v databázi.
-**F6** (párování plateb z banky) teprve bude.
+**F6** (párování plateb z banky) není rozhodnuté ani naplánované. Databázové
+podklady zatím zůstávají. Přehled oznámení v aplikaci, export plateb a platební
+brána nejsou v aktuálním rozsahu.
 
 **Docházku a kalendář lze vypnout pro celé družstvo.** Výchozí stav je zapnuto,
 a to i pro družstvo bez řádku v `team_settings`. Vypnutí skryje akce, účast,

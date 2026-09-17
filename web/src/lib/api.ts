@@ -25,10 +25,18 @@ export class ApiError extends Error {
 }
 
 let accessToken: string | null = null
+let activeSupportTeamId: number | null = null
+
+export function setSupportTeamId(teamId: number | null): void {
+	activeSupportTeamId = teamId
+}
 let onUnauthenticated: (() => void) | null = null
 
 export function setAccessToken(token: string | null): void {
 	accessToken = token
+	if (token === null) {
+		activeSupportTeamId = null
+	}
 }
 
 export function setUnauthenticatedHandler(handler: () => void): void {
@@ -40,6 +48,7 @@ interface RequestOptions {
 	body?: unknown
 	signal?: AbortSignal
 	skipRefresh?: boolean
+	supportTeamId?: number | null
 }
 
 // Jedinou aktualizaci tokenu — ostatní čekají na stejný výsledek
@@ -71,9 +80,12 @@ async function refreshAccessToken(): Promise<boolean> {
 }
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-	const { method = 'GET', body, signal, skipRefresh = false } = options
+	const { method = 'GET', body, signal, skipRefresh = false, supportTeamId = activeSupportTeamId } = options
 
 	const headers: Record<string, string> = {}
+	if (supportTeamId !== null) {
+		headers['X-Support-Team'] = String(supportTeamId)
+	}
 	if (accessToken !== null) {
 		headers['Authorization'] = `Bearer ${accessToken}`
 	}
@@ -94,10 +106,10 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 	// Vypršelý token: obnovit a zopakovat. Jen jednou, jinak hrozí smyčka.
 	if (response.status === 401 && !skipRefresh) {
 		if (await refreshAccessToken()) {
-			return apiRequest<T>(path, { ...options, skipRefresh: true })
+			return apiRequest<T>(path, { ...options, skipRefresh: true, supportTeamId })
 		}
 
-		accessToken = null
+		setAccessToken(null)
 		onUnauthenticated?.()
 	}
 

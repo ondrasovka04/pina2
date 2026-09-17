@@ -50,15 +50,6 @@ export function SeasonsPage() {
 		return <ErrorState error={error} onRetry={() => void refetch()} />
 	}
 
-	if (seasons.length === 0) {
-		return (
-			<EmptyState
-				title="Družstvo zatím nemá žádnou sezónu"
-				description="První sezónu založíte průvodcem „Nová sezóna”."
-			/>
-		)
-	}
-
 	return (
 		<div className="flex flex-col gap-4">
 			<div className="flex items-center justify-between gap-3">
@@ -73,6 +64,13 @@ export function SeasonsPage() {
 					</Link>
 				) : null}
 			</div>
+
+			{seasons.length === 0 ? (
+				<EmptyState
+					title="Družstvo zatím nemá žádnou sezónu"
+					description="První sezónu založíte průvodcem „Nová sezóna”."
+				/>
+			) : null}
 
 			{seasons.map((season) => (
 				<SeasonCard

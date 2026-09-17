@@ -1,14 +1,21 @@
 # Pína 2.0 — Technická analýza
 
 **Autor:** Ondřej Kopáč
-**Datum:** 14. 8. 2026
+**Původní návrh:** 14. 8. 2026
+**Aktualizace:** 17. 9. 2026
 **Předchozí verze:** ročníkový projekt 2023 (Expo/React Native + PHP API + MySQL)
 
 ---
 
+Aplikace je nasazená na https://pinaprosek.eu. Kapitoly o staré verzi a migraci
+popisují historii projektu. Pro současný provoz platí [README](../README.md),
+pro úplné schéma [001_init.sql](../api/db/migrations/001_init.sql).
+Bankovní párování není rozhodnuté; export plateb, schránka oznámení a platební
+brána nejsou v aktuálním rozsahu.
+
 ## 1. Výchozí stav
 
-### 1.1 Co dnes existuje
+### 1.1 Stav staré verze před přepisem
 
 | Vrstva | Technologie | Stav |
 |---|---|---|
@@ -72,7 +79,7 @@ Tohle je seznam důvodů, proč se stará aplikace **přepisuje a neportuje**:
 ┌─────────────────────────────────────────────────────────┐
 │  Prohlížeč / PWA na mobilu (instalovatelná na plochu)   │
 │  React 19 + TypeScript + Vite                           │
-│  TanStack Query · React Router · Tailwind · shadcn/ui   │
+│  TanStack Query · React Router · Tailwind · vlastní UI   │
 └───────────────────────┬─────────────────────────────────┘
                         │ HTTPS, JSON
                         │ Authorization: Bearer <access JWT>
@@ -86,18 +93,18 @@ Tohle je seznam důvodů, proč se stará aplikace **přepisuje a neportuje**:
 │     Router → Middleware (auth, role, rate limit)         │
 │            → Controller (validace vstupu)                │
 │            → Service (byznys logika)  ← zde jsou pravidla│
-│            → Repository (PDO, prepared statements)       │
+│            → Support\Database (PDO, prepared statements)       │
 └───────────────────────┬─────────────────────────────────┘
                         │ PDO / MySQL
 ┌───────────────────────▼─────────────────────────────────┐
 │  MySQL 8 (Zoner) — nové schéma, InnoDB, utf8mb4          │
 └──────────────────────────────────────────────────────────┘
 
-Externí služby (volitelné, fáze 2+):
-  · SMTP (Zoner) → pozvánky, reset hesla, upomínky
+Externí služby:
+  · SMTP (Zoner) → pozvánky a reset hesla
   · Web Push (VAPID) → notifikace na mobil
-  · Fio banka REST API → import transakcí, párování plateb
-  · Nominatim / Google Maps → geokódování adres, navigace
+  · Fio banka REST API → jen návrh, realizace není rozhodnutá
+  · Mapy → odkazy na navigaci podle místa konání
 ```
 
 Klíčová změna proti verzi 2023: **server je jediný zdroj pravdy o oprávněních**.
@@ -112,16 +119,15 @@ Frontend UI se podle role jen překresluje, ale rozhodnutí "smíš to?" padá v
 | Volba | Proč |
 |---|---|
 | **React 19 + TypeScript** | Znalost z předchozí verze, typy odstraní celou třídu chyb, které byly v JS verzi |
-| **Vite 6** | Build do statických souborů → přesně to, co Czechia hosting umí obsloužit. Rychlý dev server. |
-| **React Router 7** (data router) | Standardní routing SPA, podpora chráněných rout |
+| **Vite 8** | Build do statických souborů → přesně to, co Czechia hosting umí obsloužit. Rychlý dev server. |
+| **React Router 8** | Standardní routing SPA, podpora chráněných rout |
 | **TanStack Query v5** | Cache serverového stavu, refetch, optimistické updaty. Nahradí ruční `fetch` + `useState` z RN verze. |
-| **Tailwind CSS v4 + shadcn/ui** | Designový systém, konzistentní komponenty, dark mode zdarma. Hlavní páka pro "aby to bylo hezký". |
-| **React Hook Form + Zod** | Validace formulářů; **stejná Zod schémata popisují i tvar API odpovědí** → runtime kontrola dat ze serveru |
+| **Tailwind CSS v4 + vlastní komponenty** | Konzistentní UI a světlý/tmavý režim. |
+| **Formuláře v Reactu** | Vlastní stav a validace, server ověřuje vstupy nezávisle. Typy odpovědí jsou v `web/src/lib/types.ts`; runtime validace přes Zod není implementovaná. |
 | **vite-plugin-pwa** | Instalace na plochu telefonu, offline shell, Web Push. Nahradí zrušenou Android aplikaci. |
-| **Recharts** | Grafy (koláče podílu prohřešků, vývoj docházky) — nahradí `react-native-chart-kit` |
-| **date-fns + date-fns-tz** | Práce s termíny a opakováním; časová zóna `Europe/Prague` |
+| **Date + Intl** | Datum a formátování na klientovi; PHP používá `DateTimeImmutable` a `Europe/Prague`. |
 | **Vitest + Testing Library + MSW** | Unit a integrační testy komponent proti mockovanému API |
-| **Playwright** | E2E smoke testy hlavních scénářů (login → zápis prohřešku → přehled) |
+| **Ověření v prohlížeči** | Ruční kontrola a příležitostné scénáře přes Playwright; trvalá E2E sada v repozitáři není. |
 
 Proč ne Next.js: hosting neumí Node. Statická SPA je jediná varianta, která na
 Czechii poběží bez kompromisu.
@@ -139,10 +145,10 @@ a omezoval UI. PWA pokryje "aplikace na mobilu" bez Play Console a bez 25 USD po
 | **firebase/php-jwt** | Podpis a ověření access tokenů |
 | **PHPMailer** | Už na serveru je, umí SMTP Zoneru |
 | **minishlink/web-push** | Web Push notifikace z PHP (VAPID) |
-| **respect/validation** nebo vlastní validátor | Validace vstupů na hranici API |
+| **Vlastní validace v Request a controllerech** | Validace vstupů na hranici API |
 | **PHPUnit 11** | Testy service vrstvy (byznys pravidla) a repository vrstvy proti testovací DB |
 | **PHP-CS-Fixer + PHPStan (level 8)** | Statická analýza — PHP bez typové kontroly je hlavní zdroj chyb ve staré verzi |
-| **phinx** nebo vlastní migrační skripty | Verzované změny schématu; nutné, protože schéma se bude vyvíjet |
+| **Vlastní migrační skripty** | Verzované změny schématu; nutné, protože schéma se bude vyvíjet |
 
 **Composer na hostingu bez SSH:** `composer install --no-dev --optimize-autoloader`
 se pustí lokálně (nebo v CI) a složka `vendor/` se nahraje přes FTP jako součást
@@ -185,7 +191,7 @@ invitation / password_reset / refresh_token / audit_log   (infrastruktura)
 
 ### 4.2 Organizace a lidé
 
-**`club`** — tenant. Jeden klub = jedna izolovaná datová doména.
+**`club`** — seskupení družstev. Členství, role i peníze jsou oddělené po družstvech.
 ```sql
 id            BIGINT PK AUTO_INCREMENT
 name          VARCHAR(120) NOT NULL          -- "SK Prosek Praha"
@@ -198,7 +204,7 @@ nepotřeboval a sloupec by se jen nikdy neplnil.
 
 **`team`** — družstvo v klubu (muži, junioři, kadeti). Klub jich má víc.
 ```sql
-id, club_id FK, name VARCHAR(120), color VARCHAR(7),
+id, club_id FK, name VARCHAR(120),
 logo_url VARCHAR(255) NULL,                  -- nahraný znak; bez něj se kreslí klubový
 archived_at DATETIME NULL
 ```
@@ -209,10 +215,10 @@ id            BIGINT PK
 email         VARCHAR(190) UNIQUE NOT NULL
 display_name  VARCHAR(120) NOT NULL
 password_hash VARCHAR(255) NULL              -- NULL = pozvaný účet, heslo si nastaví sám
-phone         VARCHAR(30) NULL
+phone         VARCHAR(13) NULL              -- +420 a devět číslic
 avatar_url    VARCHAR(255) NULL
 is_platform_admin BOOLEAN DEFAULT FALSE      -- nahrazuje "id = 1"
-email_verified_at, created_at, last_login_at DATETIME NULL
+tokens_valid_from, created_at DATETIME
 ```
 
 **`membership`** — členství uživatele v týmu **a jeho role v tomto týmu**.
@@ -221,7 +227,7 @@ Tohle je jádro nového modelu rolí.
 id, user_id FK, team_id FK
 role          ENUM('admin','treasurer','player') NOT NULL   -- admin / pínař / hráč
 jersey_number SMALLINT NULL
-status        ENUM('active','suspended','left') DEFAULT 'active'
+status        ENUM('active','left') DEFAULT 'active'
 joined_at, left_at
 UNIQUE (user_id, team_id)
 ```
@@ -255,64 +261,22 @@ má vlastní sazebník v každé sezóně, nezávisle na ostatních družstvech 
 ```sql
 id, season_id FK, name VARCHAR(120), amount_czk INT NOT NULL,
 sort_order INT, category ENUM('discipline','performance','fun','attendance') NULL,
-auto_rule ENUM('none','unexcused_absence','late_arrival') DEFAULT 'none',
+auto_rule ENUM('none','excused_absence','unexcused_absence','late_rsvp') DEFAULT 'none',
+auto_event_type ENUM('any','training','match','other') DEFAULT 'any',
 archived_at DATETIME NULL
 ```
 `auto_rule` — nový koncept: prohřešek, který systém navrhne sám z docházky
 (neomluvená absence → automaticky navržený zápis, který pínař jen potvrdí).
 
-**Průvodce „nová sezóna z předchozí".** Data ukazují 262 položek sazebníku, ale jen 171
-unikátních kombinací tým+název — každou sezónu se všechno zakládá ručně znovu. Na konci
-sezóny proto průvodce nabídne převzetí všeho kromě zápisů:
+**Průvodce novou sezónou** umožňuje převzít vybrané položky sazebníku včetně
+úpravy cen a vybrat hráče na soupisku. Zápisy, docházka ani platby se nepřenášejí.
+Série se zakládají znovu; místa jsou sdílená v klubu, takže kopírování nepotřebují.
+Nepokračující hráči zůstávají v `membership` kvůli historii, ale nejsou na nové soupisce.
 
-| Co se přenáší | Jak |
-|---|---|
-| Sazebník prohřešků | zaškrtávací pole u položek + hromadná úprava cen |
-| Soupiska hráčů | **zaškrtávací pole: kdo pokračuje**, kdo v týmu končí |
-| Opakované tréninky (série) | převzít s posunutými daty platnosti |
-| Místa | sdílená přes klub, kopírovat netřeba |
-| **Zápisy prohřešků, docházka, platby** | **nepřenášejí se** — nová sezóna začíná na nule |
-
-Nepokračující hráči zůstávají v `membership` (kvůli historii), jen nedostanou
-`roster_entry` v nové sezóně.
-
-```
-POST /api/v1/teams/{team}/seasons/from/{sourceSeasonId}
-     { name, starts_on, ends_on, copy: { offence_types: [...], members: [...], series: bool } }
-```
-
-Implementovat s F2, kdy už budou hotové všechny kopírované části.
-
-**`offence_batch`** — jedna zapisovací seance („prohřešky za trénink 16. 9.").
-Existuje proto, aby šlo zobrazit souhrn před odesláním, poslat **jedno** oznámení
-místo pěti a stornovat celou dávku najednou.
-```sql
-id BIGINT PK, season_id FK, event_id BIGINT NULL FK,
-occurred_on DATE NOT NULL,
-title VARCHAR(120) NULL,             -- "Turnaj Kbely" (když není navázáno na akci)
-note VARCHAR(255) NULL,
-client_uuid CHAR(36) UNIQUE NOT NULL,-- idempotence: dvojklik nezaloží dvě dávky
-created_by BIGINT FK user, created_at DATETIME,
-voided_at DATETIME NULL, voided_by BIGINT NULL FK
-```
-
-**`offence_record`** — konkrétní zápis. **Klíčová oprava:** ukládá se snapshot částky.
-```sql
-id BIGINT PK
-season_id FK, membership_id FK, offence_type_id FK
-batch_id      BIGINT NULL FK        -- dávka, ve které vznikl
-amount_czk    INT NOT NULL          -- ← snapshot ceny v okamžiku zápisu
-occurred_on   DATE NOT NULL         -- ke kterému dni se váže
-event_id      BIGINT NULL FK        -- volitelná vazba na trénink/zápas
-note          VARCHAR(255) NULL
-created_by    BIGINT FK user        -- kdo zapsal (audit)
-created_at    DATETIME
-voided_at     DATETIME NULL         -- storno místo DELETE
-voided_by     BIGINT NULL FK
-INDEX (season_id, membership_id), INDEX (season_id, occurred_on)
-```
-Mazání se nahrazuje **stornem** (`voided_at`) — pro pínaře je důležité vidět,
-že zápis existoval a kdo ho zrušil.
+Průvodce nejprve založí sezónu přes `POST /teams/{team}/seasons`, potom kopíruje
+sazebník přes `POST /seasons/{season}/offence-types/copy-from/{source}` a uloží
+soupisku přes `PUT /seasons/{season}/roster`. Když převzetí selže, vzniklá sezóna
+zůstane zachovaná a uživatel dostane informaci, co se nepovedlo dokončit.
 
 ### 4.5 Docházka (nová oblast)
 
@@ -508,7 +472,7 @@ aplikace dosud uměla jen vybírat, nově i proplácet.
 ```sql
 id, season_id FK, membership_id FK,
 amount_czk INT NOT NULL, paid_on DATE NOT NULL,
-method ENUM('cash','transfer','qr','gateway') NOT NULL,
+method ENUM('cash','transfer','qr') NOT NULL,
 variable_symbol VARCHAR(10) NULL,
 bank_transaction_id BIGINT NULL FK,          -- vyplněno při automatickém párování
 confirmed_by BIGINT FK user, note VARCHAR(255) NULL, created_at
@@ -535,33 +499,71 @@ modulo 11). Hráč platí pořád stejný VS, párování je pak jednoznačné.
 ### 4.8 Infrastrukturní tabulky
 
 ```
-refresh_token   (id, user_id, token_hash, expires_at, revoked_at, user_agent, ip)
-invitation      (id, team_id, email, role, token_hash, expires_at, accepted_at, invited_by)
-password_reset  (id, user_id, token_hash, expires_at, used_at)
-login_attempt   (id, email, ip, succeeded, created_at)          -- rate limiting
+refresh_token   (id, user_id, token_hash, expires_at, revoked_at, created_at)
+invitation      (id, team_id, email, role, token_hash, expires_at, accepted_at, invited_by, created_at)
+password_reset  (id, user_id, token_hash, expires_at, used_at, created_at)
+login_attempt   (id, email, ip, created_at)          -- rate limiting
 calendar_feed   (id, user_id, team_id, season_id, token_hash, created_at, last_used_at, revoked_at)
-audit_log       (id, club_id, team_id, actor_user_id, action, entity, entity_id, payload JSON, created_at)
+audit_log       (id, team_id, actor_user_id, action, entity, entity_id, payload JSON, created_at)
 push_subscription (id, user_id, device_id, endpoint, endpoint_hash, p256dh, auth, content_encoding, created_at, last_seen_at, failed_at)
 notification_pref (user_id, channel, event_type, enabled)
-notification      (id, user_id, type, title, body, link, payload JSON, dedupe_key, read_at, created_at)
-notification_queue(id, notification_id, push_subscription_id, channel, status, attempts, last_error, send_after, locked_at)
+notification      (id, user_id, type, title, body, link, dedupe_key, created_at)
+notification_queue(id, notification_id, push_subscription_id, status, attempts, last_error, send_after, locked_at, sent_at)
 ```
 
 `notification` je jedna zpráva pro jednoho člověka a `dedupe_key` v ní hlídá, že
 stejná událost nedorazí dvakrát; `notification_queue` je odesílací fronta
 s opakováním — selhání push serveru nesmí shodit zápis prohřešků.
 
-Původně měla být `notification` i **schránka v aplikaci**, ze které se zprávy
-čtou zpětně. Ta ve F5 nevznikla: obrazovka bez čtecího endpointu nemá co
-ukazovat, a přišlo by na ni jen to, co člověk už dostal na displej. Sloupce
-`read_at` a `payload` proto zůstávají prázdné jako výjimka z pravidla „žádné
-sloupce na potom" — čekají na tu obrazovku, ne na doplnění chybějícího chování.
-Úplný výčet povolených výjimek je v `api/AGENTS.md`.
+Přehled oznámení v aplikaci není plánovaný. `notification` slouží doručování
+push a deduplikaci; `read_at` a `payload` byly odstraněny. Fronta má pouze push,
+proto nepotřebuje vlastní sloupec `channel`. Ponechanou rezervou je jen
+`bank_transaction` a vazba z platby — o bankovním párování není rozhodnuto.
 
 `audit_log` zachycuje citlivé změny peněz, oprávnění, sazebníku a sezón.
 Váže se na družstvo, zapisuje se ve stejné transakci jako změna a čte ho jen
 admin daného družstva. Payload drží identifikátory a snapshoty hodnot, ne
 kopie osobních údajů ani tokeny.
+
+### 4.9 Automatický úklid provozních dat
+
+`MaintenanceService::cleanup` se spouští po odesílání ve stávající chráněné úloze
+`GET /api/v1/cron/notifications/send?token=…`, každých 15 minut. Nevyžaduje vlastní
+plánovač, zapnuté push ani změnu schématu. Běží také během nočního klidu, kdy se
+oznámení neposílají. Kontrola `CRON_TOKEN` předchází odesílání i mazání.
+
+Rezerva je **365 dní**, definovaná v `MaintenanceService::RETENTION_DAYS`.
+Stáří se porovnává striktně s hranicí v časové zóně `Europe/Prague`; záznam přesně
+na hranici ještě zůstává. Rozhoduje konec platnosti a níže uvedené podmínky,
+nikoli jen datum vytvoření tokenu.
+
+| Záznam | Podmínky smazání |
+|---|---|
+| `refresh_token` | `expires_at` je starší než 365 dní; `revoked_at` je prázdné nebo také starší. |
+| `password_reset` | `expires_at` je starší než 365 dní; případné `used_at` rovněž. |
+| `invitation` | `expires_at` je starší než 365 dní; případné `accepted_at` rovněž. Účet ani členství se nemažou. |
+| `calendar_feed` | `revoked_at` je starší než 365 dní. Platný, i dlouho nevyužitý odběr zůstává. |
+| `notification_queue` | Jen `sent` se starým `sent_at`, nebo `failed` bez `sent_at`; `send_after` i datum zprávy jsou starší než 365 dní, `locked_at` je prázdné. |
+| `notification` | Vytvořena před více než 365 dny a nemá už žádné doručení ve frontě, ani pro jiné zařízení. |
+
+U neúspěšného doručení schéma nemá datum dokončení, proto je jeho časovým vodítkem
+`send_after` (poslední plánovaný pokus) spolu se stářím zprávy. Čerstvé úspěšné
+doručení staré zprávy se díky `sent_at` uchová další rok. Čekající a právě
+zpracovávané zprávy se nemažou. Nejdřív se uklízí dokončená doručení, až potom
+zprávy bez fronty — mazání zprávy nesmí kaskádou zrušit čekající doručení.
+Smazáním zprávy končí také uchování jejího deduplikačního klíče.
+
+Každý běh odstraní nejvýš **500 řádků z každé ze šesti tabulek**. Další dávka
+počká na příští cron; opakované spuštění je bezpečné. Jednotlivé příkazy jsou
+samostatné, takže případný nedokončený běh příště pokračuje zbývajícími záznamy.
+Odpověď má `Cache-Control: no-store` a pole `cleanup` s počty
+`refreshTokens`, `passwordResets`, `invitations`, `calendarFeeds`,
+`notificationDeliveries` a `notifications`. Neobsahuje tokeny ani osobní údaje.
+
+Úklid nemaže účty, členství, soupisky, finanční historii, audit, platné push odběry
+ani osobní preference. `login_attempt` má nadále samostatnou 24hodinovou retenci
+v `RateLimiter`; roční rezerva se na něj nevztahuje. Čtení a použití tokenů se
+nemění, včetně detekce znovupoužití zneplatněných refresh tokenů během jejich retence.
 
 ---
 
@@ -699,9 +701,6 @@ GET    /api/v1/offence-batches/{id}            -- detail dávky (rozpis pro hrá
 POST   /api/v1/offence-batches/{id}/void       -- storno celé dávky
 POST   /api/v1/offences/{id}/void              -- storno jednoho zápisu
 
-GET    /api/v1/notifications                   -- in-app seznam, nevznikl (viz 4.8)
-POST   /api/v1/notifications/{id}/read          -- nevznikl
-
 GET    /api/v1/seasons/{s}/events?from=&to=    -- kalendář
 GET    /api/v1/calendar/{token}.ics             -- veřejný odběr, token je oprávnění
 GET    /api/v1/me/calendar-feeds                -- vlastní aktivní odběry
@@ -718,15 +717,12 @@ GET    /api/v1/seasons/{s}/attendance          -- procenta účasti
 GET    /api/v1/seasons/{s}/balances            -- kdo kolik dluží
 POST   /api/v1/seasons/{s}/payments
 GET    /api/v1/memberships/{id}/payment-qr     -- SPAYD řetězec pro QR
-GET    /api/v1/clubs/{c}/bank-transactions     -- nevznikl, F6 (párování plateb)
-POST   /api/v1/bank-transactions/{id}/match    -- nevznikl, F6
 
 GET    /api/v1/me/notifications/settings
 PUT    /api/v1/me/notifications/preferences
 POST   /api/v1/push/subscribe
 POST   /api/v1/push/unsubscribe
 GET    /api/v1/cron/notifications/send?token=...
-GET    /api/v1/seasons/{s}/export?format=csv|xlsx  -- nevznikl
 ```
 
 **Jednotný tvar chyby** (starý systém vracel 400 na všechno):
@@ -739,34 +735,31 @@ Kódy: `400` validace, `401` chybí/expirovaný token, `403` nedostatečná role
 `404` neexistuje nebo nemáš přístup (nerozlišovat — jinak API prozrazuje cizí id),
 `409` konflikt, `422` sémantická chyba, `429` rate limit.
 
-**Sdílené typy:** PHP typy → OpenAPI 3.1 spec → generované TS typy pro frontend
-(`openapi-typescript`). Jeden zdroj pravdy o tvaru API napříč dvěma jazyky —
-tohle je hlavní protiopatření proti nevýhodě "dva jazyky" u zvoleného stacku.
+**Typy API:** PHP tvary popisují anotace pro PHPStan, TypeScript má odpovídající
+rozhraní v `web/src/lib/types.ts`. OpenAPI ani generování typů není implementováno.
+Změny payloadů musí upravit obě strany a příslušné testy.
 
 ---
 
 ## 7. Klíčová doménová logika
 
 ### 7.1 Generování opakovaných akcí
-Série drží `RRULE`. Všechny termíny se materializují **najednou při vytvoření série**,
+Série drží týdenní pravidlo opakování. Všechny termíny se materializují **najednou při vytvoření série**,
 až do `season.ends_on` (řádově desítky řádků — viz 4.5). Nepotřebuje to plánovanou úlohu.
 
-Při změně série:
-- **minulé termíny se nikdy nepřepisují** (nesou docházku, tedy historii),
-- budoucí se přegenerují,
-- výjimkou jsou instance s příznakem `overridden` (ručně upravený čas/místo) nebo
-  s už existujícími odpověďmi hráčů — ty zůstanou beze změny a admin dostane
-  upozornění, kterých termínů se změna nedotkla.
+Při změně série rozsah `following` oddělí sérii od zvoleného data dál,
+`all` upraví i minulé termíny. Akce na stejném datu se upraví a zachovají odpovědi;
+změněná data termínů vedou ke smazání a založení akcí. Ručně upravené termíny
+(`overridden`) se přeskočí. Podrobná pravidla jsou v `api/AGENTS.md`.
 
-Cron je potřeba jinde — push připomínky před akcí (hodinově), import z banky a záloha
-DB (denně), upomínky dluhů (měsíčně). Na Zoneru přes cron v administraci hostingu,
-při jeho absenci přes GitHub Actions `schedule`, které zavolá chráněný endpoint API.
+Cron hostingu každých 15 minut obsluhuje push frontu a připomínky nezodpovězených
+akcí. Import banky, upomínky dluhů ani vlastní zálohovací úloha implementované nejsou.
 
 ### 7.2 Automatické prohřešky z docházky
-Když pínař uzavře docházku akce, service projde `event_participant` a pro každého
-s `attendance = 'unexcused'` a existujícím `offence_type.auto_rule = 'unexcused_absence'`
-**navrhne** zápis. Návrh se pínaři zobrazí k potvrzení — nikdy se nezapisuje
-automaticky bez člověka. (Peníze + automat bez kontroly = konflikt v týmu.)
+Pínař si u akce načte návrhy podle výsledné docházky, odpovědi hráče a nastavení
+sazebníku (`auto_rule` + `auto_event_type`). Návrhy pokrývají omluvenou a neomluvenou
+absenci i pozdní odpověď (`rsvp_late`). Pozdní příchod z nich odvodit nelze.
+Zápis vždy potvrzuje člověk, docházka se samostatně neuzavírá.
 
 ### 7.3 Dávkový zápis prohřešků: souhrn před odesláním a oznámení
 
@@ -827,13 +820,13 @@ Backend složí SPAYD řetězec (standard ČBA, čitelný všemi českými banka
 ```
 SPD*1.0*ACC:CZ6508000000192000145399*AM:250.00*CC:CZK*X-VS:10420037*MSG:Pina podzim 2026
 ```
-Frontend ho vykreslí do QR (knihovna `qr-code-styling`). Hráč naskenuje v bankovní
+Frontend ho vykreslí do QR (knihovna `qrcode`). Hráč naskenuje v bankovní
 aplikaci, částka i VS jsou předvyplněné. Pínař pak platbu odklikne.
 **Náklady: 0 Kč. Bez smlouvy, bez KYC, bez API.**
 
 ### 7.5 Automatické párování plateb (follow-up, mimo hlavní rozsah)
 
-> **Rozsah:** tohle je **samostatný modul odložený na F6** a nic dřívějšího na něm nestojí.
+> **Rozsah:** tohle je **návrh samostatného modulu bez rozhodnutí o realizaci** a nic dřívějšího na něm nestojí.
 > Platební cyklus je kompletní už po F4 — dluh se spočítá, hráč zaplatí přes QR,
 > pínař úhradu odklikne. Párování jen odstraňuje ten poslední ruční krok.
 >
@@ -918,7 +911,7 @@ např. „Červená karta" 50 → 150 Kč mezi 23/24 a 24/25). Migrace uzavřen�
 | `Uzivatel` | `user` | **`heslo` se nepřenáší** — `password_hash = NULL`, každý dostane pozvánku |
 | `Uzivatel.admin` (id týmu) | `membership.role = 'admin'` | |
 | `Uzivatel.id = 1` | `user.is_platform_admin = TRUE` | |
-| `UzivatelTym` | `membership` (role `player`) | `pozastaven=1` → `status='suspended'` |
+| `UzivatelTym` | `membership` (role `player`) | `pozastaven=1` → `status='left'` |
 | `Sezona` | `season` | textový PK → nové `id`, název do `name`; sezóny do 25/26 se rovnou uzavřou (`closed_at`) |
 | `UzivatelSezona` | `roster_entry` | |
 | `ProhreskySeznam` | `offence_type` | `poradi` → `sort_order`, `castka` → `amount_czk` |
@@ -990,13 +983,15 @@ src/
   features/
     auth/       login, pozvánka, reset hesla
     offences/   sazebník, zápis, přehledy, storno
-    events/     kalendář, detail akce, série, místa
-    attendance/ nominace, RSVP, zápis docházky, statistiky
-    payments/   dluhy, QR, potvrzení, párování
-    team/       členové, role, sezóny, nastavení klubu
-  components/ui shadcn komponenty
+    events/     kalendář, detail akce, série, místa, nominace, RSVP a docházka
+    balances/   dluhy, QR, potvrzení plateb a cesťáky
+    team/       členové, role, nastavení družstva
+    seasons/    sezóny a soupiska
+    profile/    profil a osobní preference
+    admin/      přehled klubů a družstev pro správce
+  components/ui vlastní komponenty
   lib/          api klient (fetch wrapper + refresh), auth kontext, formátování
-  types/        generováno z OpenAPI
+  lib/types.ts  ručně udržované typy API
 ```
 
 ### 9.2 Design
@@ -1064,9 +1059,8 @@ už 12/2026.
 **Omezení, která formují návrh:**
 
 1. **`disable_functions`** blokuje `exec`, `shell_exec`, `proc_open`, `system`, `popen`, `dl`.
-   → **`mysqldump` z PHP volat nelze.** Zálohu musí dělat vlastní PHP dumper
-   (iterace tabulek přes PDO, streamovaný zápis do souboru), případně zálohovací
-   službu Zoneru. Ruší to původní plán „serverový skript zavolá mysqldump".
+   → **`mysqldump` z PHP volat nelze.** Databázi zálohuje hosting do
+   `/data/sqlbackup/` (ověřeno 17. 9. 2026, viz 10.2). Vlastní PHP dumper není implementovaný.
 2. **`max_execution_time = 30 s`, `max_input_time = 30 s`, `memory_limit = 128 M`.**
    → migrace 6 116 řádků, generování událostí ze série i záloha musí být **dávkované**
    a odolné vůči přerušení (kurzor / offset, idempotentní kroky). Žádná operace
@@ -1074,8 +1068,7 @@ už 12/2026.
 3. **`open_basedir = /www/sites/8/site92718`**, přičemž web root je
    `/www/sites/8/site92718/public_html`.
    → **složka nad web rootem je pro PHP přístupná** — `.env`, `vendor/` i `storage/`
-   mohou být fyzicky mimo web, ne jen chráněné `.htaccess` pravidlem. (Ověřit, zda
-   tam dosáhne i FTP účet.)
+   leží mimo web v `data/app/`; přístup přes FTP je ověřený nasazením.
 4. **`log_errors = Off`, `error_log` nenastaven** → chyby se nikam nezapisují.
    Aplikace si musí logovat sama (vlastní handler / Monolog do `storage/logs`).
 5. **`phar.readonly = On`** → composer se pouští lokálně, `vendor/` se nahrává přes FTP
@@ -1100,54 +1093,40 @@ už 12/2026.
    `MAIL_ENABLED=true` a ověřit doručitelnost na mail-tester.com.
 8. `max_input_vars = 1000` — netýká se nás, dávkový zápis jde jako JSON body, ne form fields.
 
-### 10.2 Prostředí
-- lokální vývoj: Docker (PHP 8.3 + Apache + MySQL 8) nebo XAMPP, `vite dev` s proxy na `/api`,
-- produkce: Czechia hosting, doména `pinaprosek.eu`, SSL od Zoneru.
+### 10.2 Současný provoz
 
-**Struktura na serveru** — díky `open_basedir` sahajícímu nad web root (viz 10.1)
-jde citlivý obsah umístit mimo dosah webu:
-```
-/www/sites/8/site92718/
-  app/                         ← z webu NEDOSTUPNÉ
-    src/                       ← PHP zdrojáky
-    vendor/                    ← composer, nahráno z CI
-    .env                       ← DB credentials, JWT secret, SMTP
-    storage/logs/              ← aplikační log (log_errors je na serveru vypnutý)
-    storage/backups/           ← dumpy z PHP dumperu
-  public_html/                 ← web root
-    index.html, assets/        ← build SPA
-    .htaccess                  ← SPA fallback (vše na index.html kromě /api)
-    api/index.php + .htaccess  ← front controller, jediný PHP soubor ve webu
-  tmp/
-```
-**Konfigurace přes `.env`**, načítanou `vlucas/phpdotenv` — konec s credentials
-v 45 souborech. Kdyby FTP účet nad `public_html` nedosáhl, fallback je `.htaccess`
-pravidlo `<Files ".env"> Require all denied </Files>`.
+Aplikace běží na https://pinaprosek.eu, vývoj používá Docker s PHP 8.5 a MySQL 8
+plus Vite. Přesné příkazy a cesty nasazení jsou v [README](../README.md).
+PHP zdroje, závislosti, konfigurace a obrázky leží v `data/app/` nad `public_html/`.
+Frontend a vstupní skript API jsou v `public_html/`. Závislosti a build se připravují
+lokálně a nahrají přes FTP. Automatický deploy z GitHub Actions není zavedený.
 
-**Nový databázový uživatel:** stávající účet `pinaprosek` má heslo zapsané v 45 starých
-PHP souborech a prošlo řadou míst. Nová aplikace dostane vlastního DB uživatele
-s novým heslem; starý účet se po vypnutí staré verze zruší.
+**Migrace produkční DB:** dočasný PHP skript chráněný heslem, spuštění přes HTTPS
+pomocí `curl`, ověření výsledku a okamžité smazání skriptu. Trvalý veřejný migrační
+endpoint neexistuje. Úklid rezerv schématu zajišťuje `api/tools/CleanupUnusedSchema.php`;
+nejdřív se nasadí nové API, potom se po záloze DB spustí migrace.
 
-**CI/CD:** GitHub repo → GitHub Actions:
-1. `npm ci && npm run build` (frontend),
-2. `composer install --no-dev` (backend),
-3. testy + PHPStan + typecheck,
-4. deploy přes `SamKirkland/FTP-Deploy-Action` (jen změněné soubory).
+**Zálohy — ověřeno 17. 9. 2026:** administrace hostingu potvrzuje pravidelné
+zálohování databáze `pinaprosek`. Na FTP v `/data/sqlbackup/` jsou tři denní verze:
 
-Staging: podsložka `beta.pinaprosek.eu` nebo `/test` s vlastní DB.
+| Soubor | Datum poslední změny na FTP | Velikost |
+|---|---|---|
+| `pinaprosek.gz` | 17. 9. 2026 | 124 932 B |
+| `pinaprosek.gz.1` | 16. 9. 2026 | 122 788 B |
+| `pinaprosek.gz.2` | 15. 9. 2026 | 114 184 B |
 
-**Migrace schématu v produkci:** chráněný CLI endpoint `/api/migrate.php` s tokenem
-(Zoner nemá SSH), nebo ruční spuštění SQL v phpMyAdmin podle verzovaných skriptů.
+Nejnovější gzip byl načten pouze do paměti a bez chyby rozbalen: SQL má 1 013 761 B,
+35 tabulek, obsahuje tabulky i data současné aplikace a značku dokončení dumpu.
+Obnova do testovací DB nebyla provedena. Tři dostupné verze potvrzují denní zálohy,
+nikoli smluvní retenci nebo případné další kopie mimo FTP. Soubory `pina.gz*` ze
+9. 6. 2025 patří jiné databázi a nejsou aktuální zálohou `pinaprosek`.
 
-**Zálohy:** vzdálené připojení k MySQL není možné (port 3306 filtrovaný) a `mysqldump`
-z PHP volat nelze (`disable_functions`). Zálohu proto dělá **vlastní PHP dumper** —
-iterace tabulek přes PDO s kurzorem, streamovaný zápis do `app/storage/backups/`,
-dávkovaně kvůli limitu 30 s. Spouští ho cron Zoneru nebo chráněný endpoint volaný
-z GitHub Actions, které si dump zároveň stáhnou a odloží jako artefakt mimo hosting.
-Retence 30 dní. Stará aplikace zálohy neměla — u dat o penězích je to nutnost.
+Vlastní zálohovací úloha v aplikaci není; původní návrh PHP dumperu a 30denní retence
+nebyl realizovaný. Zálohování souborů, zejména `storage/images/`, zůstává neověřené
+— SQL archiv obrázky neobsahuje. Export plateb není požadovaný.
 
-**Monitoring:** logování chyb do souboru + volitelně Sentry (free tier),
-uptime check zdarma (UptimeRobot).
+**Monitoring:** aplikace zapisuje chyby do logu. Sentry ani samostatný monitoring
+dostupnosti nejsou v repozitáři nakonfigurované.
 
 ---
 
@@ -1163,7 +1142,7 @@ uptime check zdarma (UptimeRobot).
 | Bez rate limitu | limit na login, reset hesla a pozvánky |
 | Bez ochrany proti IDOR | scope middleware ověřující tenant u každého id v URL |
 | `DELETE` bez stopy | storno + `audit_log` |
-| Bez záloh | denní automatický dump |
+| Zálohy | denní SQL zálohy na FTP ověřeny; zbývá ověřit obnovu a zálohování obrázků |
 
 Navíc: bezpečnostní hlavičky (`Content-Security-Policy`, `X-Frame-Options`,
 `Referrer-Policy`, HSTS), validace všech vstupů na hranici API,
@@ -1184,7 +1163,7 @@ jsou dostupné komukoli, kdo je najde.
 | PHP repository | PHPUnit + testovací MySQL | dotazy, tenant izolace |
 | PHP statická analýza | PHPStan level 8 | typová správnost bez běhu |
 | React komponenty | Vitest + Testing Library + MSW | formuláře, stavy, role-based UI |
-| E2E | Playwright | login → nominace → RSVP → docházka → prohřešek → dluh → QR |
+| Kontrola v prohlížeči | ručně / příležitostně Playwright | hlavní uživatelské scénáře; bez trvalé E2E sady |
 | Migrace | vlastní kontrolní skript | shoda počtů a součtů se starou DB |
 
 Prioritně testovat: **peníze a autorizaci**. Chyba v procentu účasti je nepříjemná,
@@ -1192,54 +1171,36 @@ chyba v dluhu nebo v izolaci klubů je konec důvěry v aplikaci.
 
 ---
 
-## 13. Rizika a otevřené otázky
+## 13. Provozní omezení a otevřené otázky
 
-**Rizika**
-1. *Limity sdíleného hostingu* — **z velké části vyřešeno** (viz 10.1): PHP 8.2 → 8.4/8.5,
-   `sodium`, `intl`, `gmp`, `curl` i `redis` k dispozici. **Plánovač úloh na tarifu
-   je** a počtem úloh nevypadá omezený (ověřeno 17. 8. 2026), takže push připomínky
-   i měsíční upomínky mohou běžet jako samostatné úlohy a nemusí se mačkat do
-   jednoho volání. Zbývá ověřit: počet databází, zda běží redis/memcached server
-   (ne jen rozšíření), a zda FTP účet dosáhne nad `public_html` — nasazení ještě
-   neproběhlo, takže rozdělení souborů z kapitoly 10 je zatím plán, ne ověřený stav.
-2. *Bez SSH a bez vzdáleného MySQL* — **ověřeno:** port 3306 je zvenčí filtrovaný.
-   Deploy jde jen přes FTP, migrace schématu a zálohy musí běžet jako PHP skript
-   na serveru. Řešitelné, ale nutné s tím počítat od začátku (nelze si lokálně
-   pustit migraci proti produkci).
-3. *Dva jazyky* — riziko rozjetí typů mezi PHP a TS. → OpenAPI jako jediný zdroj pravdy.
-4. *Rozsah* — docházka + nominace + platby + multi-tenant je hodně na jednu iteraci.
-   → fázovat (kapitola 14), MVP nasadit dřív, než bude hotové všechno.
-5. *Fio API vyžaduje účet u Fio banky* — netýká se hlavního rozsahu (F6 je follow-up).
-   Pokud má klub jinou banku, použije se import výpisu (CSV/ABO), který umí každá banka.
+- Hosting nemá SSH ani vzdálený MySQL; nasazení a migrace používají postup z README.
+- PHP a TypeScript typy se udržují souběžně, kompatibilitu ověřují testy.
+- Denní DB zálohy jsou ověřené na FTP. Zbývá ověřit obnovu, garantovanou retenci
+  a zálohování obrázků; na FTP jsou viditelné tři denní verze databáze.
+- O napojení na banku není rozhodnuto. Případný poskytovatel a oprávnění k účtu
+  se budou řešit až s tímto rozhodnutím.
 
-**Otázky k rozhodnutí**
-- Jaký PHP tarif/verze na Zoneru přesně běží a kolik databází umožňuje?
-- Má tým bankovní účet, ke kterému bude přístup pro čtení? (Netřeba řešit teď — až u F6.
-  Číslo účtu pro QR platbu ale potřeba je, už u F4.)
-- Má "klub" mít víc družstev (muži A/B, ženy), nebo stačí model 1 klub = 1 tým?
-- Mají hráči vidět dluhy ostatních, nebo jen souhrn týmu?
-- Kdo smí zapisovat docházku — jen pínař, nebo i kapitán/trenér (další role)?
-- Zůstane `pinaprosek.eu` jako doména i pro víc klubů, nebo bude potřeba neutrální název?
+Klub může mít více družstev. Členství a oprávnění jsou po družstvech, viditelnost
+cizích dluhů a docházky řídí nastavení družstva. Správce aplikace může vstoupit
+z `/sprava` do režimu podpory s právy admina bez vytvoření členství nebo hráče.
+
+Správce má mimo podporu v běžném API jen svou skutečnou roli v družstvu.
+Provozní výjimky jsou výslovně omezené na přehled a zakládání klubů a družstev;
+opravy členů a rolí probíhají přes podporu a standardní obrazovku družstva.
 
 ---
 
-## 14. Fázový plán
+## 14. Stav původních fází
 
-| Fáze | Obsah | Výstup |
-|---|---|---|
-| **F0 — Ověření** ✓ | phpinfo ✓, archivační dump staré DB ✓, přepnutí na PHP 8.5.9 ✓, ověření běhu staré aplikace ✓ — zbývá: založení repa, CI skeleton, ověření cronu a dosahu FTP účtu | jistota, že stack na hostingu poběží |
-| **F1 — Základ** | nové schéma, migrace dat, auth (login/pozvánka/reset), role, izolace klubů, layout + design systém | přihlášení a správa týmu v produkci |
-| **F2 — Prohřešky** | sazebník, dávkový zápis se souhrnnou obrazovkou, přehledy, storno dávky i zápisu, statistiky, export, **in-app a e-mailové oznámení o zápisu** | funkční náhrada staré aplikace → **vypnutí staré verze** |
-| **F3 — Docházka** | místa + navigace, jednorázové akce, opakované série, RSVP, nominace na zápasy, oprava docházky, procenta účasti (jen admin) | hlavní nová funkce |
-| **F4 — Peníze** | dluhy, bonusy, ruční platby, QR (SPAYD), upomínky | uzavření finančního cyklu |
-| **F4b — Cesťáky a pololetí** | „beru auto" + volná místa, sazba za km, nároky na náhradu, členění na pololetí (bez uzávěrky) | nahradí dnešní obcházení přes záporné položky sazebníku |
-| **F5 — PWA, push a odběr kalendáře** | instalace na plochu, Web Push nad frontou, připomínky akcí, volby kategorií, `webcal://` odběr rozpisu | náhrada zrušené mobilní aplikace |
-| **F6 — Bankovní párování** *(follow-up)* | Fio API import, algoritmus párování, rekonciliace, fronta nespárovaných | téma pro diplomovou práci; **mimo hlavní rozsah**, nic na něm nestojí |
-| **F7 — Volitelné** | platební brána jako modul, veřejná registrace klubů, statistiky napříč sezónami | podle zájmu |
+| Fáze | Stav |
+|---|---|
+| F0 — Ověření hostingu | Dokončeno, aplikace je nasazená. |
+| F1 — Základ | Auth, role, kluby, družstva, členové a sezóny fungují. |
+| F2 — Prohřešky | Sazebník, dávky, přehledy, statistiky a storna fungují. Export ani schránka oznámení nejsou požadované. |
+| F3 — Docházka | Kalendář, série, odpovědi, nominace a opravy docházky fungují. |
+| F4 — Peníze | Zůstatky, ruční platby, QR a cesťáky fungují; pololetí člení data, neuzavírá je. |
+| F5 — PWA a oznámení | Instalace, Web Push pro zápisy a připomínky akcí, osobní volby a odběr kalendáře fungují. |
+| F6 — Bankovní párování | Nerozhodnuto, bez termínu. Databázové podklady zatím zůstávají. |
 
-**Hlavní rozsah končí F5.** Po něm je aplikace plnohodnotnou náhradou staré verze
-plus docházka, nominace a platby. F6 a F7 jsou nezávislé přírůstky, které se dají
-udělat kdykoli později (nebo vůbec).
-
-Doporučení: **F2 nasadit do produkce co nejdřív** a starou aplikaci vypnout —
-udržovat dvě verze zároveň je zbytečná zátěž a bezpečnostní riziko.
+Další práce vychází ze zpětné vazby při používání. Platební brána, export plateb
+ani přehled oznámení v aplikaci nejsou v aktuálním rozsahu.

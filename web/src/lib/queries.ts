@@ -49,6 +49,7 @@ import type {
 // Klíče na jednom místě — struktura kopíruje API cesty pro přesnou invalidaci
 export const queryKeys = {
 	teams: ['teams'] as const,
+	supportTeam: (teamId: number) => ['teams', teamId, 'support'] as const,
 	seasons: (teamId: number) => ['teams', teamId, 'seasons'] as const,
 	season: (seasonId: number) => ['seasons', seasonId] as const,
 	balances: (seasonId: number) => ['seasons', seasonId, 'balances'] as const,
@@ -326,6 +327,18 @@ export function usePlatformClubs(enabled: boolean) {
 	})
 }
 
+export function supportTeamQuery(teamId: number | null) {
+	return {
+		queryKey: queryKeys.supportTeam(teamId ?? 0),
+		queryFn: ({ signal }: { signal: AbortSignal }) => api.get<TeamSummary>(`/admin/teams/${teamId}/support`, signal),
+		enabled: teamId !== null,
+	}
+}
+
+export function useSupportTeam(teamId: number | null) {
+	return useQuery(supportTeamQuery(teamId))
+}
+
 export function useCreateClub() {
 	const queryClient = useQueryClient()
 
@@ -420,8 +433,7 @@ export function useCreateTeam(clubId: number) {
 	const queryClient = useQueryClient()
 
 	return useMutation({
-		mutationFn: ({ name, color }: { name: string; color?: string }) =>
-			api.post<TeamDetail>(`/clubs/${clubId}/teams`, color === undefined ? { name } : { name, color }),
+		mutationFn: ({ name }: { name: string }) => api.post<TeamDetail>(`/clubs/${clubId}/teams`, { name }),
 		onSuccess: () => {
 			void queryClient.invalidateQueries({ queryKey: queryKeys.teams })
 			void queryClient.invalidateQueries({ queryKey: ['admin', 'clubs'] })

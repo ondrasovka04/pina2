@@ -974,6 +974,8 @@ final class EventServiceTest extends DatabaseTestCase
             'travelLinkEventId' => $main['id'],
         ]);
 
+        // RSVP se ověřuje před začátkem; pevné datum z eventInput časem zestárne.
+        $this->db->run('UPDATE event SET starts_at = DATE_ADD(NOW(), INTERVAL 2 DAY) WHERE id IN (?, ?)', [$main['id'], $second['id']]);
         $this->service->saveRsvp($player, $second['id'], [
             'rsvp' => 'yes', 'note' => null, 'transport' => 'driver', 'carSeats' => 3,
         ]);

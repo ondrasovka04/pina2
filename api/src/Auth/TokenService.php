@@ -68,21 +68,36 @@ final class TokenService
         $userId   = (int) ($decoded['sub'] ?? 0);
         $issuedAt = (int) ($decoded['iat'] ?? 0);
 
-        $validFrom = $this->db->value(
-            'SELECT UNIX_TIMESTAMP(tokens_valid_from) FROM `user` WHERE id = ?',
+        $user = $this->db->first(
+            'SELECT UNIX_TIMESTAMP(tokens_valid_from) AS valid_from, is_platform_admin FROM `user` WHERE id = ?',
             [$userId],
         );
 
-        if ($validFrom === null) {
+        if ($user === null) {
             throw ApiException::unauthenticated();
         }
 
         // Token vydaný před zneplatnění razítka je neplatný, i když není expirovaný.
-        if ($issuedAt < (int) $validFrom) {
+        if ($issuedAt < (int) $user['valid_from']) {
             throw ApiException::unauthenticated('Vaše oprávnění se změnila, přihlaste se prosím znovu.');
         }
 
+        $decoded['platformAdmin'] = (bool) $user['is_platform_admin'];
+
         return Identity::fromTokenPayload($decoded);
+    }
+
+    public function forSupport(Identity $identity, int $teamId): Identity
+    {
+        if (!$identity->isPlatformAdmin || !(bool) $this->db->value('SELECT is_platform_admin FROM `user` WHERE id = ?', [$identity->userId])) {
+            throw ApiException::forbidden('Režim podpory patří správci platformy.');
+        }
+
+        if ($this->db->value('SELECT id FROM team WHERE id = ?', [$teamId]) === null) {
+            throw ApiException::notFound();
+        }
+
+        return $identity->withSupportTeam($teamId);
     }
 
     /**

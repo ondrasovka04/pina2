@@ -123,6 +123,10 @@ npm run typecheck && npm run lint && npm test && npm run format
   formuláře — kdo do formuláře dá výsledný, udělá z děděného termínu ruční.
 - **Role se liší podle týmu.** Tentýž člověk bývá u mužů hráč a u juniorů pínař;
   co smí, se ptejte přes `can()` z `useTeam()`, ne z globálního uživatele.
+  Výslovný režim podpory z `/sprava` vrací roli admina a u nečlena
+  `membershipId: null`. Vlastní družstva a členství se tím nemění. Při vstupu
+  i odchodu se ruší dotazy a maže cache, aby nepřežila data dostupná jen adminovi.
+  Podpora žije jen v paměti; obnovení stránky vrací běžný pohled.
 - **Vstupní bod musí pouštět stejnou roli jako stránka.** Když se rozšíří
   oprávnění, nestačí povolit obrazovku a API — musí se najít i tlačítko a odkaz,
   kterým se tam jde (`TeamSwitcher`, `CalendarPage`). Pínař jednou dostal právo

@@ -80,6 +80,23 @@ final class FinanceServiceTest extends DatabaseTestCase
         self::assertSame(1, (int) $this->db->value('SELECT COUNT(*) FROM payment'));
     }
 
+    public function testUnsupportedGatewayPaymentIsRejected(): void
+    {
+        try {
+            $this->service->createPayment($this->treasurer, $this->season, [
+                'membershipId' => $this->playerMembership,
+                'amountCzk'    => 50,
+                'paidOn'       => '2026-09-20',
+                'method'       => 'gateway',
+                'note'         => null,
+            ]);
+            self::fail('Platba přes nepodporovanou bránu nesmí vzniknout.');
+        } catch (ApiException $e) {
+            self::assertSame(400, $e->status);
+        }
+        self::assertSame(0, $this->db->value('SELECT COUNT(*) FROM payment'));
+    }
+
     public function testPlayerCannotConfirmPayment(): void
     {
         $this->expectException(ApiException::class);

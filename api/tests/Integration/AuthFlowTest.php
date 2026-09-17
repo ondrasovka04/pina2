@@ -300,6 +300,5 @@ final class AuthFlowTest extends DatabaseTestCase
         $identity = $this->tokens->verify($pair['accessToken']);
 
         self::assertSame(Role::Admin, $identity->roleInTeam($this->teamId));
-        self::assertTrue($identity->hasRoleInTeam($this->teamId, Role::Treasurer));
     }
 }

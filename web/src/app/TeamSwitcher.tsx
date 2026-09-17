@@ -10,7 +10,8 @@ import type { Season } from '@/lib/types'
 
 // Přepínač týmu a sezóny — select nestačí, potřebujeme přepínat obojí
 export function TeamSwitcher() {
-	const { teams, team, seasons, season, selectTeam, selectSeason, can, usesAttendance } = useTeam()
+	const { teams, team, seasons, season, selectTeam, selectSeason, can, usesAttendance, isSupporting, stopSupport } =
+		useTeam()
 	const { platformAdmin } = useCurrentUser()
 	const [open, setOpen] = useState(false)
 	const panelId = useId()
@@ -100,7 +101,7 @@ export function TeamSwitcher() {
 					id={panelId}
 					className="border-line bg-surface-1 absolute top-full left-0 z-30 mt-2 max-h-[70dvh] w-72 overflow-y-auto rounded-2xl border shadow-xl"
 				>
-					{teams.length > 1 ? (
+					{teams.length > 1 || (isSupporting && teams.length > 0) ? (
 						<Section title="Družstvo">
 							{teams.map((item) => (
 								<Option
@@ -184,7 +185,12 @@ export function TeamSwitcher() {
 							{platformAdmin ? (
 								<Link
 									to="/sprava"
-									onClick={() => setOpen(false)}
+									onClick={() => {
+										setOpen(false)
+										if (isSupporting) {
+											stopSupport()
+										}
+									}}
 									className="hover:bg-surface-2 text-ink-faint border-line/60 mt-1 flex min-h-11 items-center justify-center rounded-lg border-t px-2 pt-1 text-sm"
 								>
 									Správa platformy

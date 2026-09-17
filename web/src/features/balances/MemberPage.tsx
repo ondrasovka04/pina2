@@ -540,7 +540,6 @@ const paymentMethodLabels: Record<PaymentMethod, string> = {
 	cash: 'Hotovost',
 	transfer: 'Bankovní převod',
 	qr: 'QR platba',
-	gateway: 'Platební brána',
 }
 
 function toPaymentMethod(value: string): PaymentMethod {

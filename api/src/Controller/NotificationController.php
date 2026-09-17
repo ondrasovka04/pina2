@@ -7,6 +7,7 @@ namespace Pina\Controller;
 use Pina\Http\ApiException;
 use Pina\Http\Request;
 use Pina\Http\Response;
+use Pina\Service\MaintenanceService;
 use Pina\Service\NotificationService;
 
 final class NotificationController
@@ -14,6 +15,7 @@ final class NotificationController
     public function __construct(
         private readonly NotificationService $notifications,
         private readonly string $cronToken,
+        private readonly MaintenanceService $maintenance,
     ) {
     }
 
@@ -66,6 +68,7 @@ final class NotificationController
         return new Response(200, [
             'eventRemindersCreated' => $reminders,
             'delivery'              => $this->notifications->flush(limit: 50),
+            'cleanup'               => $this->maintenance->cleanup(),
         ], ['Cache-Control' => 'no-store']);
     }
 

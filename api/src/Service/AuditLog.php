@@ -70,19 +70,18 @@ final class AuditLog
     {
         $this->scope->team($identity, $teamId, Role::Admin);
 
-        // Platformní role nesmí obejít členství v konkrétním družstvu. Cizí
-        // družstvo se tváří jako neexistující, nižší role v jeho vlastním týmu
-        // dostane obvyklý zákaz.
+        // Samotná platformní role nestačí; výjimkou je ověřená podpora
+        // konkrétního družstva. Jinak platí skutečné členství a role.
         $role = $this->db->value(
             "SELECT role FROM membership WHERE team_id = ? AND user_id = ? AND status <> 'left'",
             [$teamId, $identity->userId],
         );
 
-        if ($role === null) {
+        if (!$identity->supportsTeam($teamId) && $role === null) {
             throw ApiException::notFound();
         }
 
-        if ($role !== Role::Admin->value) {
+        if (!$identity->supportsTeam($teamId) && $role !== Role::Admin->value) {
             throw ApiException::forbidden('Provozní stopu vidí jen admin družstva.');
         }
 

@@ -269,7 +269,7 @@ v `tests/Integration/DatabaseTestCase.php` a neobchází se.
 - **Účet pro QR patří družstvu.** `team_settings.bank_account`; každé družstvo má
   vlastní kasu, takže i vlastní účet. Do F5 ležel na klubu a editoval se
   v nastavení družstva — změna u mužů tím tiše přepsala účet juniorům i kadetům.
-  Migrace `002` ho každému družstvu zkopírovala, takže se nic neztratilo.
+  Při přechodu na účty družstev se každému družstvu zkopíroval, takže se nic neztratilo.
   Uložení nastavení je úplná náhrada: co klient nepošle, se smaže — stejně jako
   u ostatních polí. Formát hlídá `Support\CzechBankAccount` (číslo účtu i český
   IBAN), SPAYD potřebuje IBAN.
@@ -277,13 +277,11 @@ v `tests/Integration/DatabaseTestCase.php` a neobchází se.
   **Družstvo bez uloženého nastavení nemá v `team_settings` řádek**, ne prázdné
   hodnoty. Čte se přes `LEFT JOIN` a výchozí hodnoty jsou v kódu; kdo sáhne na
   tuhle tabulku migrací, musí počítat s tím, že `UPDATE` taková družstva minul.
-- **Prázdné tabulky ve schématu jsou schválně, ale jen tyhle.** `bank_transaction`
-  (+ `payment.bank_transaction_id`) čeká na F6 párování plateb z banky,
-  `notification.read_at` a `notification.payload` na schránku oznámení
-  v aplikaci (F5 dodala jen push, ne obrazovku pro čtení zpětně).
-  `payment.method = 'gateway'`
-  drží místo platební bráně. Nic jiného ve schématu ležet nemá — kdo přidá sloupec
-  „na potom", vyrobí past: PHPStan ani testy nepoznají, že se nikdy neplní.
+- **Jediná ponechaná rezerva je bankovní párování.** `bank_transaction`
+  a `payment.bank_transaction_id` zatím zůstávají; o realizaci není rozhodnuto.
+  Přehled oznámení v aplikaci ani platební brána nejsou v rozsahu. Nepřidávejte
+  pro ně prázdné sloupce ani hodnoty enumů. Push používá `notification` a frontu
+  po zařízeních, bez příznaku přečtení.
 
   Stejná past má druhou podobu: sloupec, který se **zapisuje, ale nikdo ho nečte**.
   Vypadá živě, a přitom je to jen osobní údaj bez účelu. Takhle zmizely
@@ -296,17 +294,29 @@ v `tests/Integration/DatabaseTestCase.php` a neobchází se.
   Peníze a oprávnění se vážou na `team_id`, ne na klub. JSON payload nesmí
   kopírovat jména, e-maily, telefony ani tokeny — ukládá ID a starou i novou
   hodnotu, lidské názvy se dohledávají při čtení. Stopa je jen pro skutečného
-  admina daného družstva; samotná platformní role ji neotevírá.
+  admina daného družstva nebo správce v ověřeném režimu podpory tohoto družstva;
+  samotná platformní role ji neotevírá.
 - **`login_attempt` drží jen nepovedené pokusy a jen 24 hodin.** Limiter počítá
   výhradně selhání, takže úspěšné přihlášení do žádného počtu nevstupuje — byl by
   z něj trvalý seznam „kdo se odkud a kdy přihlásil". Staré řádky maže sám
   `RateLimiter` při zápisu, plánovanou úlohu to nepotřebuje. Adresa se ukládá
   zabalená (`inet_pton`) a čte se **jen** kvůli limitu 20 selhání za 15 minut.
+- **Provozní úklid má rezervu 365 dní.** `MaintenanceService::cleanup` volá
+  ověřený cron oznámení po `flush`, i během nočního klidu a bez zapnutého push.
+  Refresh tokeny, reset hesla a pozvánky se mažou až rok po expiraci a případném
+  pozdějším zneplatnění/použití/přijetí. Kalendářové odběry až rok po zrušení;
+  samotné stáří ani neaktivita nejsou důvodem ke smazání platného odběru.
+  Staré zprávy lze smazat jen bez fronty. Doručení musí být `sent` se starým
+  `sent_at`, nebo `failed`; datum zprávy i `send_after` musí být starší než rok
+  a `locked_at` prázdné. `pending` ani `processing` se automaticky nemažou.
+  Limit je 500 řádků z každé tabulky za běh; žádná smyčka „dokud je co mazat“.
+  Výsledek cronu obsahuje jen počty v `cleanup`, ne tokeny ani osobní údaje.
+  Audit, peníze, účty, členství, platné push odběry a preference do úklidu nepatří.
 - **Kdo nevidí cizí dluhy, nevidí ani položky, ze kterých vznikají.**
   `team_settings.balances_visible_to_players` řeší `Service\FinancialAccess` na
   jednom místě a platí na zůstatky, zápisy, dávky, platby i cesťáky — jinak by
   se cizí částka dala přečíst z detailu dávky. Provozní správce bez členství
-  v družstvu se přes tyhle obrazovky do cizího klubu nedostane.
+  v družstvu musí pro plný přístup výslovně vstoupit do režimu podpory.
 - **Vypnutá docházka je zákaz nových zápisů, ne mazání historie.**
   `Service\AttendanceModule` vrací výchozí „zapnuto" přes `LEFT JOIN` a
   `COALESCE`, protože většina družstev nemá v `team_settings` žádný řádek.
@@ -352,8 +362,8 @@ v `tests/Integration/DatabaseTestCase.php` a neobchází se.
   otočení dodělat tady.
 - **Znak patří družstvu, ne klubu, a cesta k souboru se nesmí kopírovat.** Dvě
   družstva se stejnou cestou by si po první výměně znaku navzájem smazala soubor
-  — `deleteStoredFile` maže starý po každém uložení. Proto ho migrace `002`
-  schválně nedědí: kdo znak chce, nahraje si ho, a bez něj se kreslí klubový
+  — `deleteStoredFile` maže starý po každém uložení. Proto se při přechodu na znaky družstev
+  schválně nedědil: kdo znak chce, nahraje si ho, a bez něj se kreslí klubový
   `ClubMark`.
 - **Soubory leží mimo databázi a jejich adresa je oprávnění.** V tabulce je jen
   cesta, obsah v `api/storage/images/`. Endpoint je **veřejný** — `<img>` nemůže
@@ -373,4 +383,16 @@ Composer se pouští lokálně a `vendor/` se nahrává hotové.
 - **Telefon si vyplňuje hráč v profilu.** `user.phone` je nepovinný kontakt ve
   tvaru `+420` a devíti číslic. Čte jej vlastník v `/me` a skutečný aktivní admin
   daného družstva v seznamu členů. Hráč, pínař ani samotný provozní správce
-  cizí číslo nedostane. Telefon nepatří do auditu.
+  cizí číslo nedostane; správce je uvidí až v ověřeném režimu podpory daného
+  družstva. Telefon nepatří do auditu.
+
+### Úklid nepoužívaného schématu
+
+Nové databáze zakládejte z `db/migrations/001_init.sql`. Pro existující DB je
+`tools/cleanup_unused_schema.php` (CLI): bez parametrů ukáže SQL, `--apply` ho
+provede. Nejprve nahrajte nové API — staré čte `team.color` a zapisuje kanál fronty.
+Před spuštěním pořiďte zálohu DB. Kontroly proběhnou před prvním DDL; nalezená
+používaná data úklid zastaví. MySQL DDL není transakční, nástroj lze po technickém
+selhání spustit znovu. Opakované spuštění už dokončené změny přeskočí.
+Na hostingu zavolejte `CleanupUnusedSchema::run()` z dočasného zaheslovaného
+skriptu podle postupu v README a potom tento veřejný skript smažte.

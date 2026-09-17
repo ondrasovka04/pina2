@@ -121,7 +121,9 @@ final class TeamScope
 
         $teamId = (int) $row['team_id'];
 
-        if ($identity->isPlatformAdmin) {
+        $this->assertSupportTeam($identity, $teamId);
+
+        if ($identity->supportsTeam($teamId)) {
             return $teamId;
         }
 
@@ -142,7 +144,11 @@ final class TeamScope
     /** Klub: sdílená nastavení mezi družstvy. */
     public function club(Identity $identity, int $clubId, Role $required): void
     {
-        if ($identity->isPlatformAdmin) {
+        if ($identity->supportTeamId !== null) {
+            $supportClub = $this->db->value('SELECT club_id FROM team WHERE id = ?', [$identity->supportTeamId]);
+            if (!$identity->isPlatformAdmin || $supportClub === null || (int) $supportClub !== $clubId) {
+                throw ApiException::notFound();
+            }
             return;
         }
 
@@ -188,7 +194,9 @@ final class TeamScope
             throw ApiException::notFound();
         }
 
-        if ($identity->isPlatformAdmin) {
+        $this->assertSupportTeam($identity, (int) $row['team_id']);
+
+        if ($identity->supportsTeam((int) $row['team_id'])) {
             return $row;
         }
 
@@ -200,6 +208,13 @@ final class TeamScope
         $this->requireRole($row['my_role'], $required);
 
         return $row;
+    }
+
+    private function assertSupportTeam(Identity $identity, int $teamId): void
+    {
+        if ($identity->supportTeamId !== null && !$identity->supportsTeam($teamId)) {
+            throw ApiException::notFound();
+        }
     }
 
     private function requireRole(mixed $actualRole, Role $required): void
