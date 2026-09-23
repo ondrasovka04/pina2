@@ -27,6 +27,8 @@ final class IcsCalendarTest extends TestCase
         self::assertContains('DTSTART:20260915T170000Z', $lines);
         self::assertContains('DTEND:20260915T183000Z', $lines);
         self::assertContains('DTSTAMP:20260816T120000Z', $lines);
+        self::assertContains('LAST-MODIFIED:20260816T120000Z', $lines);
+        self::assertContains('SEQUENCE:0', $lines);
         self::assertContains('REFRESH-INTERVAL;VALUE=DURATION:PT1H', $lines);
         self::assertContains('X-WR-CALNAME:Prosek – muži – 26/27', $lines);
         self::assertSame('END:VCALENDAR', $lines[array_key_last($lines)]);
@@ -75,22 +77,23 @@ final class IcsCalendarTest extends TestCase
      * @return array{
      *     id:int,title:string,startsAt:string,endsAt:string|null,meetAt:string|null,
      *     locationName:string|null,locationAddress:string|null,opponent:string|null,
-     *     status:string,createdAt:string
+     *     status:string,updatedAt:string,calendarRevision:int
      * }
      */
     private function event(): array
     {
         return [
-            'id'              => 42,
-            'title'           => 'Trénink',
-            'startsAt'        => '2026-09-15 19:00:00',
-            'endsAt'          => null,
-            'meetAt'          => null,
-            'locationName'    => null,
-            'locationAddress' => null,
-            'opponent'        => null,
-            'status'          => 'planned',
-            'createdAt'       => '2026-08-16 14:00:00',
+            'id'               => 42,
+            'title'            => 'Trénink',
+            'startsAt'         => '2026-09-15 19:00:00',
+            'endsAt'           => null,
+            'meetAt'           => null,
+            'locationName'     => null,
+            'locationAddress'  => null,
+            'opponent'         => null,
+            'status'           => 'planned',
+            'updatedAt'        => '2026-08-16 14:00:00',
+            'calendarRevision' => 0,
         ];
     }
 

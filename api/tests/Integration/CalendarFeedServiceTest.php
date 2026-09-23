@@ -11,6 +11,7 @@ use Pina\Controller\CalendarFeedController;
 use Pina\Http\ApiException;
 use Pina\Http\Request;
 use Pina\Service\CalendarFeedService;
+use Pina\Service\EventService;
 use Pina\Support\IcsCalendar;
 
 final class CalendarFeedServiceTest extends DatabaseTestCase
@@ -105,6 +106,34 @@ final class CalendarFeedServiceTest extends DatabaseTestCase
         self::assertTrue($second['notModified']);
         self::assertSame($first['etag'], $second['etag']);
         self::assertSame($first['body'], $second['body']);
+    }
+
+    public function testEditedEventKeepsUidButChangesCalendarRevisionAndEtag(): void
+    {
+        $this->db->run(
+            "INSERT INTO event (season_id, type, title, starts_at, updated_at)
+             VALUES (?, 'training', 'Původní trénink', '2026-10-15 19:00:00', '2026-09-01 12:00:00')",
+            [$this->seasonId],
+        );
+        $eventId = $this->db->lastInsertId();
+        $issued  = $this->service->issue($this->identity(), $this->seasonId);
+        $before  = $this->service->document($issued['token'], null);
+
+        $this->db->run("UPDATE membership SET role = 'treasurer' WHERE id = ?", [$this->membershipId]);
+        $treasurer = new Identity($this->userId, 'hrac@prosek.cz', 'Hráč', false, [$this->teamId => Role::Treasurer]);
+        (new EventService($this->db, new TeamScope($this->db)))->update($treasurer, $eventId, ['title' => 'Nový trénink']);
+
+        $this->allowNextFetch($issued['id']);
+        $after = $this->service->document($issued['token'], $before['etag']);
+
+        self::assertFalse($after['notModified']);
+        self::assertNotSame($before['etag'], $after['etag']);
+        self::assertStringContainsString("UID:pina-event-$eventId@pinaprosek.eu", $after['body']);
+        self::assertStringContainsString('SEQUENCE:0', $before['body']);
+        self::assertStringContainsString('SEQUENCE:1', $after['body']);
+        self::assertStringContainsString('Nový trénink', $after['body']);
+        self::assertStringNotContainsString('Původní trénink', $after['body']);
+        self::assertStringNotContainsString('DTSTAMP:20260901T100000Z', $after['body']);
     }
 
     public function testPublicControllerReturnsCalendarAndThen304(): void

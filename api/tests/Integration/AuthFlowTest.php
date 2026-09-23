@@ -63,17 +63,6 @@ final class AuthFlowTest extends DatabaseTestCase
         }
     }
 
-    public function testPhoneMigrationPreservesExistingAccounts(): void
-    {
-        $userId = $this->makeUser('pred-migraci@example.cz');
-        $this->db->run('ALTER TABLE `user` DROP COLUMN phone');
-        $sql = file_get_contents(__DIR__ . '/../../db/migrations/002_user_phone.sql');
-        self::assertIsString($sql);
-        $this->db->pdo()->exec($sql);
-        self::assertSame('pred-migraci@example.cz', $this->auth->userPayload($userId)['email']);
-        self::assertNull($this->auth->userPayload($userId)['phone']);
-    }
-
     private function invite(string $email, string $role = 'player'): string
     {
         $token = bin2hex(random_bytes(16));

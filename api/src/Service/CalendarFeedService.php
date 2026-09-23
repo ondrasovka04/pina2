@@ -186,7 +186,8 @@ final class CalendarFeedService
     {
         $rows = $this->db->all(
             'SELECT e.id, e.title, e.starts_at, e.ends_at, e.meet_at, e.opponent,
-                    e.status, e.created_at, l.name AS location_name, l.address AS location_address
+                    e.status, e.updated_at, e.calendar_revision,
+                    l.name AS location_name, l.address AS location_address
                FROM event e
                LEFT JOIN location l ON l.id = e.location_id
               WHERE e.season_id = ?
@@ -195,16 +196,17 @@ final class CalendarFeedService
         );
 
         return array_map(static fn (array $row): array => [
-            'id'              => (int) $row['id'],
-            'title'           => (string) $row['title'],
-            'startsAt'        => (string) $row['starts_at'],
-            'endsAt'          => $row['ends_at'] === null ? null : (string) $row['ends_at'],
-            'meetAt'          => $row['meet_at'] === null ? null : (string) $row['meet_at'],
-            'locationName'    => $row['location_name'] === null ? null : (string) $row['location_name'],
-            'locationAddress' => $row['location_address'] === null ? null : (string) $row['location_address'],
-            'opponent'        => $row['opponent'] === null ? null : (string) $row['opponent'],
-            'status'          => (string) $row['status'],
-            'createdAt'       => (string) $row['created_at'],
+            'id'               => (int) $row['id'],
+            'title'            => (string) $row['title'],
+            'startsAt'         => (string) $row['starts_at'],
+            'endsAt'           => $row['ends_at'] === null ? null : (string) $row['ends_at'],
+            'meetAt'           => $row['meet_at'] === null ? null : (string) $row['meet_at'],
+            'locationName'     => $row['location_name'] === null ? null : (string) $row['location_name'],
+            'locationAddress'  => $row['location_address'] === null ? null : (string) $row['location_address'],
+            'opponent'         => $row['opponent'] === null ? null : (string) $row['opponent'],
+            'status'           => (string) $row['status'],
+            'updatedAt'        => (string) $row['updated_at'],
+            'calendarRevision' => (int) $row['calendar_revision'],
         ], $rows);
     }
 

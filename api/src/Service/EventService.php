@@ -352,7 +352,8 @@ final class EventService
             'UPDATE event
                 SET type = ?, title = ?, starts_at = ?, ends_at = ?, meet_at = ?, location_id = ?,
                     opponent = ?, note = ?, distance_km = ?, travel_link_event_id = ?, rsvp_deadline_at = ?,
-                    status = ?, overridden = CASE WHEN series_id IS NULL THEN 0 ELSE 1 END
+                    status = ?, overridden = CASE WHEN series_id IS NULL THEN 0 ELSE 1 END,
+                    calendar_revision = calendar_revision + 1
               WHERE id = ?',
             [
                 $type,
@@ -385,7 +386,7 @@ final class EventService
         $this->attendance->assertEnabled($teamId);
         $this->assertOpenSeason($eventId);
 
-        $this->db->run("UPDATE event SET status = 'cancelled' WHERE id = ?", [$eventId]);
+        $this->db->run("UPDATE event SET status = 'cancelled', calendar_revision = calendar_revision + 1 WHERE id = ?", [$eventId]);
 
         return $this->eventPayload($identity, $eventId);
     }
@@ -399,7 +400,7 @@ final class EventService
         $this->attendance->assertEnabled($teamId);
         $this->assertOpenSeason($eventId);
 
-        $this->db->run("UPDATE event SET status = 'planned' WHERE id = ?", [$eventId]);
+        $this->db->run("UPDATE event SET status = 'planned', calendar_revision = calendar_revision + 1 WHERE id = ?", [$eventId]);
 
         return $this->eventPayload($identity, $eventId);
     }
@@ -745,7 +746,7 @@ final class EventService
                         SET series_id = ?, type = ?, title = ?, starts_at = ?,
                             ends_at = DATE_ADD(?, INTERVAL ? MINUTE),
                             meet_at = CASE WHEN ? IS NULL THEN NULL ELSE DATE_SUB(?, INTERVAL ? MINUTE) END,
-                            location_id = ?
+                            location_id = ?, calendar_revision = calendar_revision + 1
                       WHERE id = ?',
                     [
                         $targetId,

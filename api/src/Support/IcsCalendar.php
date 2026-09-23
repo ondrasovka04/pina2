@@ -21,7 +21,8 @@ use DateTimeZone;
  *     locationAddress:string|null,
  *     opponent:string|null,
  *     status:string,
- *     createdAt:string
+ *     updatedAt:string,
+ *     calendarRevision:int
  * }
  */
 final class IcsCalendar
@@ -77,7 +78,9 @@ final class IcsCalendar
         $lines = [
             'BEGIN:VEVENT',
             $this->contentLine('UID', 'pina-event-' . $event['id'] . '@pinaprosek.eu'),
-            $this->contentLine('DTSTAMP', $this->formatUtc($event['createdAt'])),
+            $this->contentLine('DTSTAMP', $this->formatUtc($event['updatedAt'])),
+            $this->contentLine('LAST-MODIFIED', $this->formatUtc($event['updatedAt'])),
+            $this->contentLine('SEQUENCE', (string) $event['calendarRevision']),
             $this->contentLine('DTSTART', $this->formatUtc($event['startsAt'])),
             $this->contentLine('DTEND', $this->formatUtc($endsAt)),
             $this->contentLine('SUMMARY', $this->escapeText($teamName . ' – ' . $event['title'])),
