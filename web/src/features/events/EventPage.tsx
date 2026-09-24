@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { ArrowLeftIcon, CarIcon, CheckIcon, MapPinIcon, XIcon } from '@/components/ui/icons'
+import { Select } from '@/components/ui/Select'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States'
 import {
 	canAnswer,
@@ -47,7 +48,7 @@ import type {
 	TeamEvent,
 	Transport,
 } from '@/lib/types'
-import { attendanceLabels, nominationLabels } from '@/lib/types'
+import { attendanceLabels } from '@/lib/types'
 
 /** Detail akce. Docházka se po začátku nezapisuje, jen opravuje — proto jsou dvě karty „moje odpověď" podle toho, jestli akce běží, nebo už začala. */
 export function EventPage() {
@@ -627,10 +628,7 @@ function ParticipantList({
 				{summary === null ? null : <p className="text-ink-faint text-sm">{summary}</p>}
 			</div>
 
-			{/*
-			 * Nominaci sestavuje admin, ale číst ji má celý tým — bez tohohle řádku
-			 * by hráč poznal jen to, že u nikoho není štítek, a nevěděl proč.
-			 */}
+			{/* Souhrn vidí správci i během přípravy, hráči až po zveřejnění. Posty u jmen se ukazují až po zveřejnění. */}
 			{isMatch && nominationVisible ? (
 				<p className="text-ink-muted mt-1 text-sm">
 					Nominace: jede {onRosterList.length - substitutes} ze soupisky
@@ -656,7 +654,7 @@ function ParticipantList({
 							participant={participant}
 							started={started}
 							canSeeAttendance={canSeeAttendance}
-							isMatch={isMatch && nominationVisible}
+							showNominationPosition={isMatch && nominationPublished}
 							deadline={deadline}
 						/>
 					))}
@@ -673,7 +671,7 @@ function ParticipantList({
 								participant={participant}
 								started={started}
 								canSeeAttendance={canSeeAttendance}
-								isMatch={isMatch && nominationVisible}
+								showNominationPosition={isMatch && nominationPublished}
 								deadline={deadline}
 							/>
 						))}
@@ -706,13 +704,13 @@ function ParticipantRow({
 	participant,
 	started,
 	canSeeAttendance,
-	isMatch,
+	showNominationPosition,
 	deadline,
 }: {
 	participant: EventParticipant
 	started: boolean
 	canSeeAttendance: boolean
-	isMatch: boolean
+	showNominationPosition: boolean
 	deadline: DeadlineState
 }) {
 	const showAttendance = started && canSeeAttendance && participant.attendance !== null
@@ -732,14 +730,7 @@ function ParticipantRow({
 					<p className="text-ink-faint truncate text-xs">{participant.rsvpNote}</p>
 				)}
 			</div>
-
-			{/* Nominaci vidí celý tým. Vypisují se jen odchylky — nominovaný je výchozí stav, štítek by byl jen šum. */}
-			{isMatch && participant.nomination !== 'nominated' ? (
-				<span className="border-line text-ink-muted shrink-0 rounded-full border px-2 py-0.5 text-xs">
-					{nominationLabels[participant.nomination]}
-				</span>
-			) : null}
-			{isMatch && participant.nominationPosition !== null ? (
+			{showNominationPosition && participant.nominationPosition !== null ? (
 				<span className="border-line text-ink-muted shrink-0 rounded-full border px-2 py-0.5 text-xs">
 					Post {participant.nominationPosition}
 				</span>
@@ -1049,8 +1040,9 @@ function NominationSection({ eventId, participants, writable, published }: Nomin
 							)}
 						</p>
 
-						<select
+						<Select
 							aria-label={`Post hráče ${participant.name}`}
+							wrapperClassName="w-20 shrink-0"
 							value={participant.nominationPosition ?? ''}
 							disabled={!writable || pending !== null || saveNominations.isPending}
 							onChange={(event_) =>
@@ -1059,7 +1051,7 @@ function NominationSection({ eventId, participants, writable, published }: Nomin
 									nominationPositions.find((position) => position === event_.target.value) ?? null,
 								)
 							}
-							className="border-line bg-surface-2 text-ink min-h-11 rounded-xl border px-2 text-sm"
+							className="text-sm"
 						>
 							<option value="">–</option>
 							{nominationPositions.map((position) => (
@@ -1067,7 +1059,7 @@ function NominationSection({ eventId, participants, writable, published }: Nomin
 									{position}
 								</option>
 							))}
-						</select>
+						</Select>
 
 						<div className="border-line bg-surface-2 flex rounded-xl border p-1">
 							{nominationOptions.map((option) => (

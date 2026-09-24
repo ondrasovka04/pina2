@@ -571,13 +571,6 @@ export const attendanceLabels: Record<Attendance, string> = {
 export type Nomination = 'none' | 'nominated' | 'substitute'
 export type NominationPosition = 'S' | 'U' | 'B' | 'N' | 'L'
 
-export const nominationLabels: Record<Nomination, string> = {
-	nominated: 'Jede',
-	substitute: 'Náhradník',
-	// U tréninku se nominace neřeší; server tam vrací `none`.
-	none: '—',
-}
-
 /** Beru auto, nebo neberu. Nic mezi tím nemá v aplikaci žádný následek. */
 export type Transport = 'none' | 'driver'
 

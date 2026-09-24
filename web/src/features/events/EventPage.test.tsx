@@ -120,9 +120,9 @@ describe('EventPage', () => {
 		get.mockResolvedValue(detail())
 	})
 
-	it('hráči skryje rozpracovanou nominaci i štítky, po zveřejnění ji ukáže', async () => {
+	it('hráči ukáže post až po zveřejnění nominace, štítek náhradníka neukáže', async () => {
 		canManage = false
-		get.mockResolvedValue(detail({}, { nomination: 'none', nominationPosition: null }))
+		get.mockResolvedValue(detail({}, { nomination: 'substitute', nominationPosition: 'N' }))
 		const view = renderPage()
 		await screen.findByText('Nominace zatím není zveřejněná.')
 		expect(screen.queryByRole('heading', { name: 'Nominace' })).toBeNull()
@@ -132,8 +132,9 @@ describe('EventPage', () => {
 
 		get.mockResolvedValue(detail({ nominationPublished: true }, { nomination: 'substitute', nominationPosition: 'N' }))
 		renderPage()
-		expect(await screen.findByText('Náhradník')).toBeInTheDocument()
+		await screen.findByText(/Nominace: jede/)
 		expect(screen.getByText('Post N')).toBeInTheDocument()
+		expect(screen.queryByText('Náhradník')).toBeNull()
 	})
 
 	it('pínař může na řádku nominace vybrat post bez změny stavu účasti', async () => {
