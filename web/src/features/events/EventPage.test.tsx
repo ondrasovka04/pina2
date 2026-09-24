@@ -142,7 +142,10 @@ describe('EventPage', () => {
 		get.mockResolvedValue(detail({}, { nomination: 'nominated' }))
 		renderPage()
 
-		await user.selectOptions(await screen.findByRole('combobox', { name: 'Post hráče Ondra' }), 'S')
+		const position = await screen.findByRole('combobox', { name: 'Post hráče Ondra' })
+		expect(position).toHaveDisplayValue('–')
+		expect(screen.getByText('#7')).toBeInTheDocument()
+		await user.selectOptions(position, 'S')
 		await waitFor(() =>
 			expect(put).toHaveBeenCalledWith('/events/10/nominations', {
 				items: [{ membershipId: 2, nomination: 'nominated', position: 'S' }],

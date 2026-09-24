@@ -1042,7 +1042,12 @@ function NominationSection({ eventId, participants, writable, published }: Nomin
 							preview
 							size="sm"
 						/>
-						<p className="min-w-0 flex-1 truncate text-sm font-medium">{participant.name}</p>
+						<p className="min-w-0 flex-1 truncate text-sm font-medium">
+							{participant.name}
+							{participant.jerseyNumber === null ? null : (
+								<span className="text-ink-faint ml-2 font-normal">#{participant.jerseyNumber}</span>
+							)}
+						</p>
 
 						<select
 							aria-label={`Post hráče ${participant.name}`}
@@ -1056,7 +1061,7 @@ function NominationSection({ eventId, participants, writable, published }: Nomin
 							}
 							className="border-line bg-surface-2 text-ink min-h-11 rounded-xl border px-2 text-sm"
 						>
-							<option value="">Post –</option>
+							<option value="">–</option>
 							{nominationPositions.map((position) => (
 								<option key={position} value={position}>
 									{position}
