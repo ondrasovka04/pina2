@@ -126,7 +126,7 @@ final class App
 
         $this->teamRoutes($router, $auditLog);
         $this->offenceRoutes($router, $notifications, $auditLog);
-        $this->eventRoutes($router, $attendance);
+        $this->eventRoutes($router, $attendance, $notifications);
         $this->financeRoutes($router, $auditLog, $attendance);
 
         return $router;
@@ -195,9 +195,9 @@ final class App
     }
 
     /** Kalendář, docházka a místa konání. */
-    private function eventRoutes(Router $router, AttendanceModule $attendance): void
+    private function eventRoutes(Router $router, AttendanceModule $attendance, NotificationService $notifications): void
     {
-        $eventCtrl    = new EventController(new EventService($this->db, $this->scope, $attendance));
+        $eventCtrl    = new EventController(new EventService($this->db, $this->scope, $attendance, $notifications));
         $locationCtrl = new LocationController(new LocationService($this->db, $this->scope));
 
         $router->get('/api/v1/seasons/{season}/events', $eventCtrl->index(...));
@@ -214,6 +214,7 @@ final class App
         $router->put('/api/v1/events/{id}/rsvp', $eventCtrl->saveRsvp(...));
         $router->put('/api/v1/events/{id}/attendance', $eventCtrl->saveAttendance(...));
         $router->put('/api/v1/events/{id}/nominations', $eventCtrl->saveNominations(...));
+        $router->post('/api/v1/events/{id}/nominations/publish', $eventCtrl->publishNominations(...));
         $router->patch('/api/v1/event-series/{id}', $eventCtrl->updateSeries(...));
         $router->delete('/api/v1/event-series/{id}', $eventCtrl->deleteSeries(...));
 

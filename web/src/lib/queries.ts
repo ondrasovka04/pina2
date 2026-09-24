@@ -24,6 +24,7 @@ import type {
 	PushSubscriptionInput,
 	MemberStatus,
 	Nomination,
+	NominationPosition,
 	OffenceCategory,
 	OffenceType,
 	PlatformClub,
@@ -906,8 +907,20 @@ export function useSaveNominations(eventId: number) {
 	const queryClient = useQueryClient()
 
 	return useMutation({
-		mutationFn: (items: Array<{ membershipId: number; nomination: Nomination }>) =>
-			api.put<EventDetail>(`/events/${eventId}/nominations`, { items }),
+		mutationFn: (
+			items: Array<{ membershipId: number; nomination: Nomination; position?: NominationPosition | null }>,
+		) => api.put<EventDetail>(`/events/${eventId}/nominations`, { items }),
+		onSuccess: (detail) => {
+			queryClient.setQueryData(queryKeys.event(eventId), detail)
+		},
+	})
+}
+
+export function usePublishNominations(eventId: number) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: () => api.post<EventDetail>(`/events/${eventId}/nominations/publish`, {}),
 		onSuccess: (detail) => {
 			queryClient.setQueryData(queryKeys.event(eventId), detail)
 		},

@@ -47,7 +47,7 @@ final class NotificationController
     public function preferences(Request $request): Response
     {
         $values = [];
-        foreach (['eventReminder', 'offenceBatch'] as $key) {
+        foreach (['eventReminder', 'eventChanged', 'offenceBatch'] as $key) {
             if (!array_key_exists($key, $request->body) || !is_bool($request->body[$key])) {
                 throw ApiException::validation('Všechny volby musí být ano, nebo ne.', ['field' => $key]);
             }

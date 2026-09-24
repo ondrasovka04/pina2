@@ -104,7 +104,7 @@ opakované akce) i **F4 peníze** jsou hotové na backendu i frontendu: zůstate
 prohřešky, bonusy, platby a cesťáky, pínař platby i ruční cesťáky zapisuje a stornuje,
 cesťáky se načítají z odehraných venkovních zápasů, hráč platí QR ve formátu SPAYD
 a čísla se dělí na pololetí podle data u sezóny. Hotová je i **F5**: instalovatelná
-PWA, Web Push se dvěma osobními volbami a odběr kalendáře přes `webcal://`.
+PWA, Web Push se třemi osobními volbami a odběr kalendáře přes `webcal://`.
 Nad rámec fází mají hráči i kluby **obrázky** — normalizované PNG na disku
 v `api/storage/images/`, ne v databázi.
 **F6** (párování plateb z banky) není rozhodnuté ani naplánované. Databázové

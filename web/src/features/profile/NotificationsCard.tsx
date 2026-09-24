@@ -25,6 +25,7 @@ const options: Array<{ key: keyof NotificationPreferences; label: string; descri
 		label: 'Nezodpovězená akce',
 		description: 'Než vyprší termín zápisu, pokud chybí odpověď.',
 	},
+	{ key: 'eventChanged', label: 'Změna akce', description: 'Když se změní nebo zruší akce, na kterou jdeš.' },
 	{ key: 'offenceBatch', label: 'Nový zápis do píny', description: 'Jeden souhrn za celou dávku.' },
 ]
 
@@ -50,7 +51,7 @@ export function NotificationsCard() {
 	const { teams } = useTeam()
 	const visibleOptions = teams.some((team) => team.attendanceEnabled)
 		? options
-		: options.filter((option) => option.key !== 'eventReminder')
+		: options.filter((option) => option.key !== 'eventReminder' && option.key !== 'eventChanged')
 	const settings = useNotificationSettings()
 	const subscribe = useSubscribePush()
 	const unsubscribe = useUnsubscribePush()

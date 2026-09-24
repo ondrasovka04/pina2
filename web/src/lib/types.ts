@@ -182,6 +182,7 @@ export interface CalendarFeed {
 
 export interface NotificationPreferences {
 	eventReminder: boolean
+	eventChanged: boolean
 	offenceBatch: boolean
 }
 
@@ -566,9 +567,9 @@ export const attendanceLabels: Record<Attendance, string> = {
 	injured: 'Zraněný',
 }
 
-/** Nominace na zápas. Dokud nikdo nesestavil, server vrací všem `nominated` (jede celá soupiska). Po prvním
- * uložení `none` znamená „nejede", ne „ještě se neřešilo". */
+/** Nominace na zápas. Na soupisce je výchozí stav „jede“; `none` se vrací u tréninku nebo při skrytém návrhu. */
 export type Nomination = 'none' | 'nominated' | 'substitute'
+export type NominationPosition = 'S' | 'U' | 'B' | 'N' | 'L'
 
 export const nominationLabels: Record<Nomination, string> = {
 	nominated: 'Jede',
@@ -611,6 +612,7 @@ export interface MyParticipation {
 	rsvpAt: string | null
 	rsvpLate: boolean
 	nomination: Nomination
+	nominationPosition: NominationPosition | null
 	transport: Transport
 	carSeats: number | null
 	attendance: Attendance | null
@@ -634,6 +636,7 @@ export interface TeamEvent {
 	rsvpDeadlineAt: string | null
 	rsvpDeadlineCustom: string | null
 	status: EventStatus
+	nominationPublished: boolean
 	/** Hraje se doma? `null` = nedá se říct (trénink, chybějící místo nebo domácí hala). Za domácí zápas cesťák nevzniká. */
 	isHome: boolean | null
 	/** Akce už začala — odpověď se nedá měnit a platí docházka. */
@@ -654,6 +657,7 @@ export interface EventParticipant {
 	/** `false` = na soupisce sezóny není, ale u akce záznam má. */
 	onRoster: boolean
 	nomination: Nomination
+	nominationPosition: NominationPosition | null
 	rsvp: Rsvp
 	rsvpNote: string | null
 	rsvpAt: string | null

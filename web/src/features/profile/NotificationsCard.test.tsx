@@ -40,6 +40,7 @@ const settings = {
 	subscriptionCount: 1,
 	preferences: {
 		eventReminder: true,
+		eventChanged: true,
 		offenceBatch: false,
 	},
 }

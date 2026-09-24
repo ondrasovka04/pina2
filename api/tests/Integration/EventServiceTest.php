@@ -8,7 +8,10 @@ use Pina\Auth\Identity;
 use Pina\Auth\Role;
 use Pina\Auth\TeamScope;
 use Pina\Http\ApiException;
+use Pina\Notification\PushDelivery;
+use Pina\Notification\PushGateway;
 use Pina\Service\EventService;
+use Pina\Service\NotificationService;
 
 /**
  * Docházka se nezapisuje, jen opravuje — většina testů proto hlídá, že se
@@ -282,6 +285,39 @@ final class EventServiceTest extends DatabaseTestCase
         ));
     }
 
+    public function testEventEditAndCancellationNotifyOnlyAfterMeaningfulChange(): void
+    {
+        $eventId = $this->makeEvent(2 * self::DAY);
+        $player  = $this->identity($this->playerId, Role::Player);
+        $admin   = $this->identity($this->adminId, Role::Admin);
+        $this->service->saveRsvp($player, $eventId, [
+            'rsvp' => 'yes', 'note' => null, 'transport' => 'none', 'carSeats' => null,
+        ]);
+        $gateway = new class () implements PushGateway {
+            public function deliver(array $subscription, array $message): PushDelivery
+            {
+                return PushDelivery::delivered();
+            }
+        };
+        $service = new EventService(
+            $this->db,
+            new TeamScope($this->db),
+            notifications: new NotificationService($this->db, $gateway, ''),
+        );
+
+        $service->update($admin, $eventId, ['title' => 'Nový název']);
+        self::assertSame(1, (int) $this->db->value('SELECT COUNT(*) FROM notification'));
+        self::assertSame($this->playerId, (int) $this->db->value('SELECT user_id FROM notification'));
+
+        $service->update($admin, $eventId, ['title' => 'Nový název']);
+        self::assertSame(1, (int) $this->db->value('SELECT COUNT(*) FROM notification'));
+
+        $service->cancel($admin, $eventId);
+        self::assertSame(2, (int) $this->db->value('SELECT COUNT(*) FROM notification'));
+        $service->cancel($admin, $eventId);
+        self::assertSame(2, (int) $this->db->value('SELECT COUNT(*) FROM notification'));
+    }
+
     public function testWhoDoesNotTakeACarKeepsNoFreeSeats(): void
     {
         $eventId = $this->makeEvent(2 * self::DAY, type: 'match');
@@ -473,7 +509,6 @@ final class EventServiceTest extends DatabaseTestCase
 
     /**
      * Kalendář plánuje ten, kdo chodí na tréninky — tedy i pínař, ne jen admin.
-     * Nominace zůstává adminovi, ta je o sestavě, ne o provozu.
      */
     public function testTreasurerPlansTheCalendar(): void
     {
@@ -519,14 +554,13 @@ final class EventServiceTest extends DatabaseTestCase
         }
     }
 
-    public function testNominationStaysWithAdmin(): void
+    public function testPlayerCannotPublishNomination(): void
     {
         $eventId = $this->makeEvent(2 * self::HOUR, 'match');
 
-        $this->expectStatus(403, fn () => $this->service->saveNominations(
-            $this->identity($this->treasurerId, Role::Treasurer),
+        $this->expectStatus(403, fn () => $this->service->publishNominations(
+            $this->identity($this->playerId, Role::Player),
             $eventId,
-            [['membershipId' => $this->playerMembership, 'nomination' => 'substitute']],
         ));
     }
 
@@ -689,17 +723,48 @@ final class EventServiceTest extends DatabaseTestCase
 
     // ---------------------------------------------------------------- nominace
 
-    public function testEverybodyOnTheRosterRidesByDefault(): void
+    public function testNominationIsHiddenUntilPublished(): void
     {
-        // Běžnější stav než prázdná nominace: admin jen vypíchne náhradníky.
         $match  = $this->makeEvent(2 * self::DAY, type: 'match');
-        $detail = $this->service->detail($this->identity($this->playerId, Role::Player), $match);
+        $player = $this->identity($this->playerId, Role::Player);
+        $admin  = $this->identity($this->adminId, Role::Admin);
 
-        self::assertSame(
-            ['nominated', 'nominated', 'nominated'],
-            array_column($detail['participants'], 'nomination'),
-        );
-        self::assertSame('nominated', $this->me($detail)['nomination']);
+        $this->service->saveNominations($admin, $match, [
+            ['membershipId' => $this->playerMembership, 'nomination' => 'substitute', 'position' => 'N'],
+        ]);
+
+        $draft = $this->service->detail($admin, $match);
+        self::assertFalse($draft['event']['nominationPublished']);
+        self::assertSame('substitute', $this->participant($draft, $this->playerMembership)['nomination']);
+        self::assertSame('N', $this->participant($draft, $this->playerMembership)['nominationPosition']);
+
+        $hidden = $this->service->detail($player, $match);
+        self::assertFalse($hidden['event']['nominationPublished']);
+        self::assertSame(['none', 'none', 'none'], array_column($hidden['participants'], 'nomination'));
+        self::assertSame('none', $this->me($hidden)['nomination']);
+        self::assertNull($this->me($hidden)['nominationPosition']);
+        self::assertSame([null, null, null], array_column($hidden['participants'], 'nominationPosition'));
+        $calendarEvent = $this->service->calendar($player, $this->seasonId, null, null)[0];
+        self::assertNotNull($calendarEvent['me']);
+        self::assertSame('none', $calendarEvent['me']['nomination']);
+        self::assertNull($calendarEvent['me']['nominationPosition']);
+
+        $this->service->publishNominations($admin, $match);
+        $published = $this->service->detail($player, $match);
+        self::assertTrue($published['event']['nominationPublished']);
+        self::assertSame('substitute', $this->participant($published, $this->playerMembership)['nomination']);
+        self::assertSame('N', $this->participant($published, $this->playerMembership)['nominationPosition']);
+        self::assertSame('N', $this->me($published)['nominationPosition']);
+        self::assertSame('nominated', $this->participant($published, $this->adminMembership)['nomination']);
+
+        $this->service->saveNominations($admin, $match, [
+            ['membershipId' => $this->playerMembership, 'nomination' => 'nominated'],
+        ]);
+        $hiddenAgain = $this->service->detail($player, $match);
+        self::assertFalse($hiddenAgain['event']['nominationPublished']);
+        self::assertSame(['none', 'none', 'none'], array_column($hiddenAgain['participants'], 'nomination'));
+        self::assertNull($this->participant($hiddenAgain, $this->playerMembership)['nominationPosition']);
+        self::assertSame('N', $this->participant($this->service->detail($admin, $match), $this->playerMembership)['nominationPosition']);
     }
 
     public function testMarkingSubstituteLeavesTheRestRiding(): void
@@ -710,6 +775,7 @@ final class EventServiceTest extends DatabaseTestCase
             ['membershipId' => $this->playerMembership, 'nomination' => 'substitute'],
         ]);
 
+        $this->service->publishNominations($this->identity($this->adminId, Role::Admin), $match);
         $detail = $this->service->detail($this->identity($this->playerId, Role::Player), $match);
 
         self::assertSame('substitute', $this->participant($detail, $this->playerMembership)['nomination']);
@@ -763,14 +829,57 @@ final class EventServiceTest extends DatabaseTestCase
         self::assertSame('substitute', $this->participant($third, $this->treasurerMembership)['nomination']);
     }
 
-    public function testTreasurerCannotBuildTheNomination(): void
+    public function testTreasurerCanBuildAndPublishTheNomination(): void
     {
         $match = $this->makeEvent(2 * self::DAY, type: 'match');
 
-        $this->expectStatus(403, fn () => $this->service->saveNominations(
+        $this->service->saveNominations(
             $this->identity($this->treasurerId, Role::Treasurer),
             $match,
-            [['membershipId' => $this->playerMembership, 'nomination' => 'nominated']],
+            [['membershipId' => $this->playerMembership, 'nomination' => 'substitute']],
+        );
+        $published = $this->service->publishNominations($this->identity($this->treasurerId, Role::Treasurer), $match);
+        self::assertTrue($published['event']['nominationPublished']);
+        self::assertSame('substitute', $this->participant($published, $this->playerMembership)['nomination']);
+    }
+
+    public function testTreasurerCanChangeOnlyPositionAndClearIt(): void
+    {
+        $match     = $this->makeEvent(2 * self::DAY, type: 'match');
+        $treasurer = $this->identity($this->treasurerId, Role::Treasurer);
+
+        $draft = $this->service->saveNominations($treasurer, $match, [
+            ['membershipId' => $this->playerMembership, 'nomination' => 'nominated', 'position' => 'S'],
+        ]);
+        self::assertSame('S', $this->participant($draft, $this->playerMembership)['nominationPosition']);
+
+        $this->service->saveNominations($treasurer, $match, [
+            ['membershipId' => $this->playerMembership, 'nomination' => 'substitute'],
+        ]);
+        $published = $this->service->publishNominations($treasurer, $match);
+        self::assertSame('S', $this->participant($published, $this->playerMembership)['nominationPosition']);
+
+        $cleared = $this->service->saveNominations($treasurer, $match, [
+            ['membershipId' => $this->playerMembership, 'nomination' => 'substitute', 'position' => null],
+        ]);
+        self::assertNull($this->participant($cleared, $this->playerMembership)['nominationPosition']);
+        self::assertFalse($cleared['event']['nominationPublished']);
+    }
+
+    public function testInvalidPositionAndPlayerEditAreRejected(): void
+    {
+        $match = $this->makeEvent(2 * self::DAY, type: 'match');
+        $item  = ['membershipId' => $this->playerMembership, 'nomination' => 'nominated', 'position' => 'X'];
+
+        $this->expectStatus(400, fn () => $this->service->saveNominations(
+            $this->identity($this->adminId, Role::Admin),
+            $match,
+            [$item],
+        ));
+        $this->expectStatus(403, fn () => $this->service->saveNominations(
+            $this->identity($this->playerId, Role::Player),
+            $match,
+            [$item],
         ));
     }
 

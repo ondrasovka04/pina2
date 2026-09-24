@@ -136,6 +136,38 @@ final class CalendarFeedServiceTest extends DatabaseTestCase
         self::assertStringNotContainsString('DTSTAMP:20260901T100000Z', $after['body']);
     }
 
+    public function testCancelledEventDisappearsFromFeedAndReturnsWhenRestored(): void
+    {
+        $this->db->run(
+            "INSERT INTO event (season_id, type, title, starts_at)
+             VALUES (?, 'training', 'Pondělní trénink', '2026-10-19 19:00:00')",
+            [$this->seasonId],
+        );
+        $eventId  = $this->db->lastInsertId();
+        $issued   = $this->service->issue($this->identity(), $this->seasonId);
+        $original = $this->service->document($issued['token'], null);
+        self::assertStringContainsString("UID:pina-event-$eventId@pinaprosek.eu", $original['body']);
+
+        $this->db->run("UPDATE membership SET role = 'treasurer' WHERE id = ?", [$this->membershipId]);
+        $treasurer = new Identity($this->userId, 'hrac@prosek.cz', 'Hráč', false, [$this->teamId => Role::Treasurer]);
+        $events    = new EventService($this->db, new TeamScope($this->db));
+        $events->cancel($treasurer, $eventId);
+
+        $this->allowNextFetch($issued['id']);
+        $cancelled = $this->service->document($issued['token'], $original['etag']);
+        self::assertFalse($cancelled['notModified']);
+        self::assertNotSame($original['etag'], $cancelled['etag']);
+        self::assertStringNotContainsString("UID:pina-event-$eventId@pinaprosek.eu", $cancelled['body']);
+        self::assertStringNotContainsString('Pondělní trénink', $cancelled['body']);
+
+        $events->restore($treasurer, $eventId);
+        $this->allowNextFetch($issued['id']);
+        $restored = $this->service->document($issued['token'], $cancelled['etag']);
+        self::assertFalse($restored['notModified']);
+        self::assertStringContainsString("UID:pina-event-$eventId@pinaprosek.eu", $restored['body']);
+        self::assertStringContainsString('SEQUENCE:2', $restored['body']);
+    }
+
     public function testPublicControllerReturnsCalendarAndThen304(): void
     {
         $issued     = $this->service->issue($this->identity(), $this->seasonId);

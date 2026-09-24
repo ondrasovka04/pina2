@@ -34,6 +34,7 @@ final class NotificationServiceTest extends DatabaseTestCase
 
         self::assertSame([
             'eventReminder' => true,
+            'eventChanged'  => true,
             'offenceBatch'  => false,
         ], $settings['preferences']);
         self::assertTrue($settings['available']);
@@ -129,6 +130,31 @@ final class NotificationServiceTest extends DatabaseTestCase
         self::assertSame(0, $this->notifications->enqueueEventReminders($this->time('today 08:00')));
     }
 
+    public function testEventChangeTargetsOnlyActivePlayersWhoAreComingAndIsDeduplicated(): void
+    {
+        $eventId            = $this->makeTomorrowEvent();
+        $seasonId           = (int) $this->db->value('SELECT season_id FROM event WHERE id = ?', [$eventId]);
+        $teamId             = (int) $this->db->value('SELECT team_id FROM season WHERE id = ?', [$seasonId]);
+        $yesMembership      = (int) $this->db->value('SELECT id FROM membership WHERE user_id = ?', [$this->userId]);
+        $noUser             = $this->makeUser('nejde@example.test');
+        $noMembership       = $this->makeMembership($noUser, $teamId, 'player');
+        $inactiveUser       = $this->makeUser('odesel@example.test');
+        $inactiveMembership = $this->makeMembership($inactiveUser, $teamId, 'player');
+        $this->makeRoster($seasonId, [$noMembership, $inactiveMembership]);
+        $this->db->run("UPDATE membership SET status = 'left' WHERE id = ?", [$inactiveMembership]);
+        foreach ([[$yesMembership, 'yes'], [$noMembership, 'no'], [$inactiveMembership, 'yes']] as [$membershipId, $rsvp]) {
+            $this->db->run('INSERT INTO event_participant (event_id, membership_id, rsvp) VALUES (?, ?, ?)', [
+                $eventId, $membershipId, $rsvp,
+            ]);
+        }
+
+        self::assertSame(1, $this->notifications->enqueueEventChange($eventId, 2, $noUser, false));
+        self::assertSame(0, $this->notifications->enqueueEventChange($eventId, 2, $noUser, false));
+        self::assertSame(1, (int) $this->db->value('SELECT COUNT(*) FROM notification'));
+        self::assertSame($this->userId, (int) $this->db->value('SELECT user_id FROM notification'));
+        self::assertSame(0, $this->notifications->enqueueEventChange($eventId, 3, $this->userId, true));
+    }
+
     public function testDisablingCategoryRemovesPendingDeliveryImmediately(): void
     {
         $this->makeTomorrowEvent();
@@ -137,6 +163,7 @@ final class NotificationServiceTest extends DatabaseTestCase
 
         $this->notifications->savePreferences($this->identity, [
             'eventReminder' => false,
+            'eventChanged'  => true,
             'offenceBatch'  => false,
         ]);
 
@@ -201,6 +228,7 @@ final class NotificationServiceTest extends DatabaseTestCase
 
         $this->notifications->savePreferences($this->identity, [
             'eventReminder' => true,
+            'eventChanged'  => true,
             'offenceBatch'  => true,
         ]);
         self::assertSame(1, $this->notifications->enqueueOffenceBatch($batchId));

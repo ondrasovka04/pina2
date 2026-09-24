@@ -22,6 +22,7 @@ function event(overrides: Partial<TeamEvent> = {}): TeamEvent {
 		rsvpDeadlineAt: null,
 		rsvpDeadlineCustom: null,
 		status: 'planned',
+		nominationPublished: false,
 		isHome: null,
 		overridden: false,
 		started: false,

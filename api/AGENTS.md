@@ -210,11 +210,13 @@ v `tests/Integration/DatabaseTestCase.php` a neobchází se.
   žádné není, radši se nenavrhne nic, než aby se strhla částka z té druhé položky.
   Pozdní příchod se odvodit nedá — čas příchodu nikdo nezapisuje.
 - **Nominace má jen dva stavy: jede, nebo náhradník.** Kdo je na soupisce, na
-  zápas jede, dokud ho admin neoznačí za náhradníka — `none` ve sloupci se čte
-  jako „jede", ne jako „nejede". Třetí stav by jen nutil admina odklikat celý
-  tým. `saveNominations` proto mění **jen poslané hráče**, nepřepisuje zbytek:
-  klient posílá jedno jméno po kliknutí. U tréninku je nominace vždycky `none` —
-  nominovat na trénink byla vyhodnocená jako zbytečná byrokracie.
+  zápas jede, dokud ho admin nebo pínař neoznačí za náhradníka — `none` ve sloupci
+  se čte jako „jede", ne jako „nejede". Třetí stav by nutil odklikat celý tým.
+  `saveNominations` mění **jen poslané hráče** a po změně skryje nominaci hráčům;
+  admin nebo pínař ji potom zveřejní samostatným tlačítkem. U tréninku je
+  nominace vždycky `none` — nominovat na trénink je zbytečná byrokracie.
+  Post hráče je nepovinný (`S`, `U`, `B`, `N`, `L`); mění ho stejná role a platí
+  pro něj stejné skrytí do zveřejnění.
 - **Doprava se opravuje zpětně stejně jako docházka.** Odpověď je po začátku akce
   zamčená, takže kdo zapomněl říct, že jede autem, by se k cesťáku nedostal —
   `saveAttendance` proto bere u venkovního zápasu i `transport`. Chybějící pole

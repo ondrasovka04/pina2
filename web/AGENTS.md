@@ -236,9 +236,9 @@ npm run typecheck && npm run lint && npm test && npm run format
   v `api/src/Controller/` — TypeScript tenhle rozdíl sám nezachytí a projeví se
   až za běhu.
 - **Role potřebná pro akci se liší podle endpointu.** Pínař má peníze **a provoz**:
-  zápisy, sazebník, akce, série, místa, soupisku sezóny a souhrn účasti. Admin má
-  lidi a role, zakládání a uzavírání sezón, přelom pololetí, nastavení družstva
-  a nominace. Berte roli z `Service` třídy na backendu, ne odhadem — jinak
+  zápisy, sazebník, akce, série, místa, soupisku sezóny, nominace a souhrn účasti.
+  Admin má lidi a role, zakládání a uzavírání sezón, přelom pololetí a nastavení
+  družstva. Berte roli z `Service` třídy na backendu, ne odhadem — jinak
   uživateli ukážete formulář, který skončí 403.
 - **Přihlášení musí zahodit cache dotazů.** Klíče nenesou uživatele
   (`['seasons', 10, 'balances']`), takže po přepnutí účtu by `staleTime` 30 s

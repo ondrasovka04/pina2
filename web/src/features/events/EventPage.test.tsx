@@ -9,21 +9,23 @@ import type { EventDetail, EventParticipant, Role, TeamEvent } from '@/lib/types
 
 // Admin u zápasu je nejhustší varianta: vedle vlastní odpovědi se vykreslí
 // i nominace, takže se pozná, jestli si karty navzájem nelezou do zelí.
+let canManage = true
 const teamValue = {
 	seasonId: 10,
 	isSeasonClosed: false,
-	can: (_required: Role) => true,
+	can: (_required: Role) => canManage,
 }
 
 vi.mock('@/app/team', () => ({ useTeam: () => teamValue }))
 
 const get = vi.fn()
 const put = vi.fn()
+const post = vi.fn()
 
 vi.mock('@/lib/api', async (importOriginal) => {
 	const actual = await importOriginal<typeof import('@/lib/api')>()
 
-	return { ...actual, api: { ...actual.api, get, put } }
+	return { ...actual, api: { ...actual.api, get, put, post } }
 })
 
 const { EventPage } = await import('@/features/events/EventPage')
@@ -47,6 +49,7 @@ function detail(overrides: Partial<TeamEvent> = {}, participantOverrides: Partia
 			rsvpDeadlineAt: null,
 			rsvpDeadlineCustom: null,
 			status: 'planned',
+			nominationPublished: false,
 			isHome: false,
 			started: false,
 			overridden: false,
@@ -59,6 +62,7 @@ function detail(overrides: Partial<TeamEvent> = {}, participantOverrides: Partia
 				rsvpAt: null,
 				rsvpLate: false,
 				nomination: 'none',
+				nominationPosition: null,
 				transport: 'none',
 				carSeats: null,
 				attendance: null,
@@ -74,6 +78,7 @@ function detail(overrides: Partial<TeamEvent> = {}, participantOverrides: Partia
 				jerseyNumber: 7,
 				onRoster: true,
 				nomination: 'none',
+				nominationPosition: null,
 				rsvp: 'yes',
 				rsvpNote: null,
 				rsvpAt: null,
@@ -110,7 +115,49 @@ describe('EventPage', () => {
 	beforeEach(() => {
 		get.mockReset()
 		put.mockReset()
+		post.mockReset()
+		canManage = true
 		get.mockResolvedValue(detail())
+	})
+
+	it('hráči skryje rozpracovanou nominaci i štítky, po zveřejnění ji ukáže', async () => {
+		canManage = false
+		get.mockResolvedValue(detail({}, { nomination: 'none', nominationPosition: null }))
+		const view = renderPage()
+		await screen.findByText('Nominace zatím není zveřejněná.')
+		expect(screen.queryByRole('heading', { name: 'Nominace' })).toBeNull()
+		expect(screen.queryByText('Bez nominace')).toBeNull()
+		expect(screen.queryByText('Post N')).toBeNull()
+		view.unmount()
+
+		get.mockResolvedValue(detail({ nominationPublished: true }, { nomination: 'substitute', nominationPosition: 'N' }))
+		renderPage()
+		expect(await screen.findByText('Náhradník')).toBeInTheDocument()
+		expect(screen.getByText('Post N')).toBeInTheDocument()
+	})
+
+	it('pínař může na řádku nominace vybrat post bez změny stavu účasti', async () => {
+		const user = userEvent.setup()
+		put.mockResolvedValue(detail({}, { nomination: 'nominated', nominationPosition: 'S' }))
+		get.mockResolvedValue(detail({}, { nomination: 'nominated' }))
+		renderPage()
+
+		await user.selectOptions(await screen.findByRole('combobox', { name: 'Post hráče Ondra' }), 'S')
+		await waitFor(() =>
+			expect(put).toHaveBeenCalledWith('/events/10/nominations', {
+				items: [{ membershipId: 2, nomination: 'nominated', position: 'S' }],
+			}),
+		)
+		expect(screen.getByRole('combobox', { name: 'Post hráče Ondra' })).toHaveValue('S')
+	})
+
+	it('pínař zveřejní rozpracovanou nominaci tlačítkem', async () => {
+		const user = userEvent.setup()
+		post.mockResolvedValue(detail({ nominationPublished: true }, { nomination: 'substitute' }))
+		renderPage()
+		await user.click(await screen.findByRole('button', { name: 'Zveřejnit nominaci' }))
+		expect(post).toHaveBeenCalledWith('/events/10/nominations/publish', {})
+		expect(await screen.findByText(/Nominace je zveřejněná/)).toBeInTheDocument()
 	})
 
 	it.each([

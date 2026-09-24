@@ -18,10 +18,11 @@ use Throwable;
 final class NotificationService
 {
     public const EVENT_REMINDER = 'event_reminder';
+    public const EVENT_CHANGED  = 'event_changed';
     public const OFFENCE_BATCH  = 'offence_batch';
 
     /**
-     * Kategorie oznámení. Nová bez samostatného souhlasu majitele nesmí vzniknout.
+     * Kategorie oznámení. Změny akcí schválil majitel 24. 9. 2026.
      *
      * Zrušené kategorie, které se nesmí vrátit bez nového rozhodnutí majitele:
      *
@@ -42,6 +43,7 @@ final class NotificationService
      */
     private const PREFERENCES = [
         'eventReminder' => ['type' => self::EVENT_REMINDER, 'default' => true],
+        'eventChanged'  => ['type' => self::EVENT_CHANGED, 'default' => true],
         'offenceBatch'  => ['type' => self::OFFENCE_BATCH, 'default' => false],
     ];
 
@@ -210,6 +212,37 @@ final class NotificationService
                 'V píně máš nový zápis.',
                 '/zapisy',
                 'batch:' . $batchId,
+            ) ? 1 : 0;
+        }
+
+        return $created;
+    }
+
+    /** Upozorní aktivní členy, kteří na změněnou akci potvrdili účast. */
+    public function enqueueEventChange(int $eventId, int $revision, int $actorUserId, bool $cancelled): int
+    {
+        $rows = $this->db->all(
+            "SELECT DISTINCT m.user_id
+               FROM event_participant ep
+               JOIN membership m ON m.id = ep.membership_id AND m.status = 'active'
+               JOIN roster_entry re ON re.membership_id = m.id AND re.active = 1
+               JOIN event e ON e.id = ep.event_id AND e.season_id = re.season_id
+               JOIN season s ON s.id = e.season_id AND s.team_id = m.team_id
+              WHERE ep.event_id = ? AND ep.rsvp = 'yes' AND m.user_id <> ?",
+            [$eventId, $actorUserId],
+        );
+
+        $created = 0;
+        foreach ($rows as $row) {
+            $created += $this->enqueue(
+                (int) $row['user_id'],
+                self::EVENT_CHANGED,
+                $cancelled ? 'Akce byla zrušena' : 'Akce se změnila',
+                $cancelled
+                    ? 'Akce, na kterou jdeš, byla zrušena.'
+                    : 'Akce, na kterou jdeš, má nové podrobnosti. Podívej se na změnu.',
+                '/akce/' . $eventId,
+                'event:' . $eventId . ':revision:' . $revision,
             ) ? 1 : 0;
         }
 

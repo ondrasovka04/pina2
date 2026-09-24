@@ -185,13 +185,13 @@ final class CalendarFeedService
     private function calendarEvents(int $seasonId): array
     {
         $rows = $this->db->all(
-            'SELECT e.id, e.title, e.starts_at, e.ends_at, e.meet_at, e.opponent,
+            "SELECT e.id, e.title, e.starts_at, e.ends_at, e.meet_at, e.opponent,
                     e.status, e.updated_at, e.calendar_revision,
                     l.name AS location_name, l.address AS location_address
                FROM event e
                LEFT JOIN location l ON l.id = e.location_id
-              WHERE e.season_id = ?
-              ORDER BY e.starts_at, e.id',
+              WHERE e.season_id = ? AND e.status <> 'cancelled'
+              ORDER BY e.starts_at, e.id",
             [$seasonId],
         );
 

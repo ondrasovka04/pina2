@@ -33,6 +33,7 @@ import {
 	useEvent,
 	useSaveAttendance,
 	useSaveNominations,
+	usePublishNominations,
 	useSaveRsvp,
 } from '@/lib/queries'
 import type {
@@ -41,6 +42,7 @@ import type {
 	LinkedEvent,
 	MyParticipation,
 	Nomination,
+	NominationPosition,
 	Rsvp,
 	TeamEvent,
 	Transport,
@@ -75,7 +77,6 @@ export function EventPage() {
 
 	const { event, participants, canSeeAttendance, travelFollowerEvents } = query.data
 	const isTreasurer = can('treasurer')
-	const isAdmin = can('admin')
 	const writable = !isSeasonClosed
 	const deadline = deadlineState(event)
 
@@ -115,6 +116,8 @@ export function EventPage() {
 				started={event.started}
 				canSeeAttendance={canSeeAttendance}
 				isMatch={event.type === 'match'}
+				nominationVisible={event.nominationPublished || isTreasurer}
+				nominationPublished={event.nominationPublished}
 				deadline={deadline}
 			/>
 
@@ -142,12 +145,13 @@ export function EventPage() {
 				/>
 			) : null}
 
-			{isAdmin && event.type === 'match' ? (
+			{isTreasurer && event.type === 'match' ? (
 				<NominationSection
 					key={`nominace-${event.id}`}
 					eventId={eventId}
 					participants={participants}
 					writable={writable}
+					published={event.nominationPublished}
 				/>
 			) : null}
 		</div>
@@ -595,10 +599,20 @@ interface ParticipantListProps {
 	started: boolean
 	canSeeAttendance: boolean
 	isMatch: boolean
+	nominationVisible: boolean
+	nominationPublished: boolean
 	deadline: DeadlineState
 }
 
-function ParticipantList({ participants, started, canSeeAttendance, isMatch, deadline }: ParticipantListProps) {
+function ParticipantList({
+	participants,
+	started,
+	canSeeAttendance,
+	isMatch,
+	nominationVisible,
+	nominationPublished,
+	deadline,
+}: ParticipantListProps) {
 	const sorted = sortParticipants(participants)
 	const onRosterList = sorted.filter((participant) => participant.onRoster)
 	const offRosterList = sorted.filter((participant) => !participant.onRoster)
@@ -617,11 +631,13 @@ function ParticipantList({ participants, started, canSeeAttendance, isMatch, dea
 			 * Nominaci sestavuje admin, ale číst ji má celý tým — bez tohohle řádku
 			 * by hráč poznal jen to, že u nikoho není štítek, a nevěděl proč.
 			 */}
-			{isMatch ? (
+			{isMatch && nominationVisible ? (
 				<p className="text-ink-muted mt-1 text-sm">
 					Nominace: jede {onRosterList.length - substitutes} ze soupisky
 					{substitutes === 0 ? '' : `, ${substitutes} jako náhradník`}.
 				</p>
+			) : isMatch && !nominationPublished ? (
+				<p className="text-ink-muted mt-1 text-sm">Nominace zatím není zveřejněná.</p>
 			) : null}
 
 			<div className="mt-2 flex flex-wrap gap-1.5">
@@ -640,7 +656,7 @@ function ParticipantList({ participants, started, canSeeAttendance, isMatch, dea
 							participant={participant}
 							started={started}
 							canSeeAttendance={canSeeAttendance}
-							isMatch={isMatch}
+							isMatch={isMatch && nominationVisible}
 							deadline={deadline}
 						/>
 					))}
@@ -657,7 +673,7 @@ function ParticipantList({ participants, started, canSeeAttendance, isMatch, dea
 								participant={participant}
 								started={started}
 								canSeeAttendance={canSeeAttendance}
-								isMatch={isMatch}
+								isMatch={isMatch && nominationVisible}
 								deadline={deadline}
 							/>
 						))}
@@ -721,6 +737,11 @@ function ParticipantRow({
 			{isMatch && participant.nomination !== 'nominated' ? (
 				<span className="border-line text-ink-muted shrink-0 rounded-full border px-2 py-0.5 text-xs">
 					{nominationLabels[participant.nomination]}
+				</span>
+			) : null}
+			{isMatch && participant.nominationPosition !== null ? (
+				<span className="border-line text-ink-muted shrink-0 rounded-full border px-2 py-0.5 text-xs">
+					Post {participant.nominationPosition}
 				</span>
 			) : null}
 
@@ -948,15 +969,18 @@ const nominationOptions: Array<{ value: Nomination; label: string }> = [
 	{ value: 'nominated', label: 'Jede' },
 	{ value: 'substitute', label: 'Náhradník' },
 ]
+const nominationPositions: NominationPosition[] = ['S', 'U', 'B', 'N', 'L']
 
 interface NominationSectionProps {
 	eventId: number
 	participants: EventParticipant[]
 	writable: boolean
+	published: boolean
 }
 
-function NominationSection({ eventId, participants, writable }: NominationSectionProps) {
+function NominationSection({ eventId, participants, writable, published }: NominationSectionProps) {
 	const saveNominations = useSaveNominations(eventId)
+	const publishNominations = usePublishNominations(eventId)
 	const [error, setError] = useState<string | null>(null)
 	const [pending, setPending] = useState<number | null>(null)
 
@@ -972,12 +996,38 @@ function NominationSection({ eventId, participants, writable }: NominationSectio
 		})
 	}
 
+	function setPosition(participant: EventParticipant, position: NominationPosition | null) {
+		setError(null)
+		setPending(participant.membershipId)
+		saveNominations.mutate([{ membershipId: participant.membershipId, nomination: participant.nomination, position }], {
+			onError: (cause) => setError(cause instanceof ApiError ? cause.message : 'Post se nepodařilo uložit.'),
+			onSettled: () => setPending(null),
+		})
+	}
+
 	return (
 		<Card className="px-4 py-3">
 			<h2 className="font-semibold">Nominace</h2>
 			<p className="text-ink-faint mt-1 text-sm">
-				Jede celá soupiska, stačí vypíchnout náhradníky. Změna se ukládá hned a vidí ji celé družstvo.
+				{published
+					? 'Nominace je zveřejněná. Další změna ji skryje, dokud ji znovu nezveřejníš.'
+					: 'Nominace je rozpracovaná a vidí ji jen admini a pínaři. Jede celá soupiska, stačí označit náhradníky.'}
 			</p>
+			{!published ? (
+				<Button
+					className="mt-3"
+					disabled={!writable || saveNominations.isPending || publishNominations.isPending}
+					onClick={() => {
+						setError(null)
+						publishNominations.mutate(undefined, {
+							onError: (cause) =>
+								setError(cause instanceof ApiError ? cause.message : 'Nominaci se nepodařilo zveřejnit.'),
+						})
+					}}
+				>
+					Zveřejnit nominaci
+				</Button>
+			) : null}
 
 			<div className="mt-2 flex flex-col gap-2">
 				{sortParticipants(participants).map((participant) => (
@@ -993,6 +1043,26 @@ function NominationSection({ eventId, participants, writable }: NominationSectio
 							size="sm"
 						/>
 						<p className="min-w-0 flex-1 truncate text-sm font-medium">{participant.name}</p>
+
+						<select
+							aria-label={`Post hráče ${participant.name}`}
+							value={participant.nominationPosition ?? ''}
+							disabled={!writable || pending !== null || saveNominations.isPending}
+							onChange={(event_) =>
+								setPosition(
+									participant,
+									nominationPositions.find((position) => position === event_.target.value) ?? null,
+								)
+							}
+							className="border-line bg-surface-2 text-ink min-h-11 rounded-xl border px-2 text-sm"
+						>
+							<option value="">Post –</option>
+							{nominationPositions.map((position) => (
+								<option key={position} value={position}>
+									{position}
+								</option>
+							))}
+						</select>
 
 						<div className="border-line bg-surface-2 flex rounded-xl border p-1">
 							{nominationOptions.map((option) => (

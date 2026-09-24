@@ -170,6 +170,7 @@ CREATE TABLE event (
   created_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at           DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
   calendar_revision    INT UNSIGNED NOT NULL DEFAULT 0 COMMENT 'poradi zmen pro odber kalendare',
+  nomination_published_at DATETIME NULL COMMENT 'nominace zapasu je viditelna hracum az po zverejneni',
   PRIMARY KEY (id),
   KEY ix_event_season_date (season_id, starts_at),
   KEY ix_event_series (series_id),
@@ -192,6 +193,7 @@ CREATE TABLE event_participant (
 
   -- nominace se pouziva jen u zapasu, u treninku zustava 'none'
   nomination    ENUM('none','nominated','substitute') NOT NULL DEFAULT 'none',
+  nomination_position ENUM('S','U','B','N','L') NULL COMMENT 'post hrace v nominaci zapasu',
 
   rsvp          ENUM('unknown','yes','no') NOT NULL DEFAULT 'unknown',
   rsvp_note     VARCHAR(255) NULL,

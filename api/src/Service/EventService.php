@@ -33,7 +33,8 @@ use Pina\Support\RsvpDeadline;
  *     rsvpNote:string|null,
  *     rsvpAt:string|null,
  *     rsvpLate:bool,
- *     nomination:string,
+     *     nomination:string,
+ *     nominationPosition:string|null,
  *     transport:string,
  *     carSeats:int|null,
  *     attendance:string|null
@@ -56,6 +57,7 @@ use Pina\Support\RsvpDeadline;
  *     rsvpDeadlineAt:string|null,
  *     rsvpDeadlineCustom:string|null,
  *     status:string,
+ *     nominationPublished:bool,
  *     isHome:bool|null,
  *     overridden:bool,
  *     started:bool,
@@ -70,7 +72,8 @@ use Pina\Support\RsvpDeadline;
  *     avatarUrl:string|null,
  *     jerseyNumber:int|null,
  *     onRoster:bool,
- *     nomination:string,
+     *     nomination:string,
+ *     nominationPosition:string|null,
  *     rsvp:string,
  *     rsvpNote:string|null,
  *     rsvpAt:string|null,
@@ -125,6 +128,8 @@ final class EventService
 
     public const NOMINATIONS = ['none', 'nominated', 'substitute'];
 
+    public const NOMINATION_POSITIONS = ['S', 'U', 'B', 'N', 'L'];
+
     /** Beru auto, nebo neberu. Víc stavů nemá následek, takže se nenabízejí. */
     public const TRANSPORT_VALUES = ['none', 'driver'];
 
@@ -140,6 +145,7 @@ final class EventService
         private readonly Database $db,
         private readonly TeamScope $scope,
         ?AttendanceModule $attendance = null,
+        private readonly ?NotificationService $notifications = null,
     ) {
         $this->attendance = $attendance ?? new AttendanceModule($db);
     }
@@ -175,7 +181,9 @@ final class EventService
 
         $rosterCount = $this->rosterCount($seasonId);
 
-        return array_map(fn (array $row): array => $this->mapEvent($row, $rosterCount), $rows);
+        $canSeeDraft = $this->managesTeam($identity, $teamId);
+
+        return array_map(fn (array $row): array => $this->mapEvent($row, $rosterCount, $canSeeDraft), $rows);
     }
 
     /**
@@ -201,14 +209,15 @@ final class EventService
 
         $seasonId    = (int) $row['season_id'];
         $rosterCount = $this->rosterCount($seasonId);
-        $event       = $this->mapEvent($row, $rosterCount);
+        $canSeeDraft = $this->managesTeam($identity, $teamId);
+        $event       = $this->mapEvent($row, $rosterCount, $canSeeDraft);
 
-        $canSeeAttendance = $this->managesTeam($identity, $teamId) || $this->attendanceVisibleToPlayers($teamId);
+        $canSeeAttendance = $canSeeDraft || $this->attendanceVisibleToPlayers($teamId);
         $myMembershipId   = $event['me']['membershipId'] ?? null;
 
         return [
             'event'                => $event,
-            'participants'         => $this->participants($eventId, $seasonId, $teamId, $canSeeAttendance, $myMembershipId),
+            'participants'         => $this->participants($eventId, $seasonId, $teamId, $canSeeAttendance, $canSeeDraft || $event['nominationPublished'], $myMembershipId),
             'canSeeAttendance'     => $canSeeAttendance,
             'travelFollowerEvents' => $this->travelFollowerEvents($eventId),
         ];
@@ -348,14 +357,51 @@ final class EventService
             ? null
             : $this->distanceFor($teamId, $type, $locationId, $distanceKm);
 
-        $this->db->run(
-            'UPDATE event
+        $noticeFields = [
+            'type'             => $type,
+            'title'            => $title,
+            'starts_at'        => $startsAt,
+            'ends_at'          => $endsAt,
+            'meet_at'          => $meetAt,
+            'location_id'      => $locationId,
+            'opponent'         => $opponent,
+            'note'             => $note,
+            'rsvp_deadline_at' => $deadline,
+            'status'           => $status,
+        ];
+        $changedForPlayers = false;
+        foreach ($noticeFields as $field => $value) {
+            if ((string) ($current[$field] ?? '') !== (string) ($value ?? '')) {
+                $changedForPlayers = true;
+                break;
+            }
+        }
+
+        $this->db->transaction(function () use (
+            $type,
+            $title,
+            $startsAt,
+            $endsAt,
+            $meetAt,
+            $locationId,
+            $opponent,
+            $note,
+            $resolvedDistanceKm,
+            $travelLinkEventId,
+            $deadline,
+            $status,
+            $eventId,
+            $changedForPlayers,
+            $identity,
+        ): void {
+            $this->db->run(
+                'UPDATE event
                 SET type = ?, title = ?, starts_at = ?, ends_at = ?, meet_at = ?, location_id = ?,
                     opponent = ?, note = ?, distance_km = ?, travel_link_event_id = ?, rsvp_deadline_at = ?,
                     status = ?, overridden = CASE WHEN series_id IS NULL THEN 0 ELSE 1 END,
                     calendar_revision = calendar_revision + 1
               WHERE id = ?',
-            [
+                [
                 $type,
                 $title,
                 $startsAt,
@@ -370,7 +416,13 @@ final class EventService
                 $status,
                 $eventId,
             ],
-        );
+            );
+
+            if ($changedForPlayers && $this->notifications !== null) {
+                $revision = (int) $this->db->value('SELECT calendar_revision FROM event WHERE id = ?', [$eventId]);
+                $this->notifications->enqueueEventChange($eventId, $revision, $identity->userId, $status === 'cancelled');
+            }
+        });
 
         return $this->eventPayload($identity, $eventId);
     }
@@ -386,7 +438,16 @@ final class EventService
         $this->attendance->assertEnabled($teamId);
         $this->assertOpenSeason($eventId);
 
-        $this->db->run("UPDATE event SET status = 'cancelled', calendar_revision = calendar_revision + 1 WHERE id = ?", [$eventId]);
+        $this->db->transaction(function () use ($eventId, $identity): void {
+            $updated = $this->db->run(
+                "UPDATE event SET status = 'cancelled', calendar_revision = calendar_revision + 1 WHERE id = ? AND status <> 'cancelled'",
+                [$eventId],
+            );
+            if ($updated->rowCount() > 0 && $this->notifications !== null) {
+                $revision = (int) $this->db->value('SELECT calendar_revision FROM event WHERE id = ?', [$eventId]);
+                $this->notifications->enqueueEventChange($eventId, $revision, $identity->userId, true);
+            }
+        });
 
         return $this->eventPayload($identity, $eventId);
     }
@@ -400,7 +461,16 @@ final class EventService
         $this->attendance->assertEnabled($teamId);
         $this->assertOpenSeason($eventId);
 
-        $this->db->run("UPDATE event SET status = 'planned', calendar_revision = calendar_revision + 1 WHERE id = ?", [$eventId]);
+        $this->db->transaction(function () use ($eventId, $identity): void {
+            $updated = $this->db->run(
+                "UPDATE event SET status = 'planned', calendar_revision = calendar_revision + 1 WHERE id = ? AND status = 'cancelled'",
+                [$eventId],
+            );
+            if ($updated->rowCount() > 0 && $this->notifications !== null) {
+                $revision = (int) $this->db->value('SELECT calendar_revision FROM event WHERE id = ?', [$eventId]);
+                $this->notifications->enqueueEventChange($eventId, $revision, $identity->userId, false);
+            }
+        });
 
         return $this->eventPayload($identity, $eventId);
     }
@@ -651,7 +721,7 @@ final class EventService
         }
 
         return $this->db->transaction(
-            fn (): array => $this->rewriteSeries($series, $input, $scope, $from, $to, $dates),
+            fn (): array => $this->rewriteSeries($series, $input, $scope, $from, $to, $dates, $identity->userId),
         );
     }
 
@@ -678,6 +748,7 @@ final class EventService
         string $from,
         string $to,
         array $dates,
+        int $actorUserId,
     ): array {
         $seasonId = (int) $series['season_id'];
         $oldId    = (int) $series['id'];
@@ -688,7 +759,8 @@ final class EventService
         $since = $scope === 'all' ? null : $from;
 
         $existing = $this->db->all(
-            'SELECT id, DATE(starts_at) AS day FROM event
+            'SELECT id, DATE(starts_at) AS day, type, title, starts_at, ends_at, meet_at, location_id
+               FROM event
               WHERE series_id = ? AND (? IS NULL OR DATE(starts_at) >= ?) AND overridden = 0',
             [$oldId, $since, $since],
         );
@@ -701,7 +773,7 @@ final class EventService
 
         $byDay = [];
         foreach ($existing as $row) {
-            $byDay[(string) $row['day']] = (int) $row['id'];
+            $byDay[(string) $row['day']] = $row;
         }
 
         if ($scope === 'following') {
@@ -741,6 +813,8 @@ final class EventService
             $startsAt = $date . ' ' . $input['startTime'] . ':00';
 
             if (isset($byDay[$date])) {
+                $oldEvent = $byDay[$date];
+                $eventId  = (int) $oldEvent['id'];
                 $this->db->run(
                     'UPDATE event
                         SET series_id = ?, type = ?, title = ?, starts_at = ?,
@@ -759,9 +833,30 @@ final class EventService
                         $startsAt,
                         $input['meetBeforeMin'],
                         $input['locationId'],
-                        $byDay[$date],
+                        $eventId,
                     ],
                 );
+
+                if ($this->notifications !== null) {
+                    $newEvent = $this->db->first(
+                        'SELECT type, title, starts_at, ends_at, meet_at, location_id, calendar_revision FROM event WHERE id = ?',
+                        [$eventId],
+                    );
+                    if ($newEvent === null) {
+                        throw ApiException::notFound();
+                    }
+                    foreach (['type', 'title', 'starts_at', 'ends_at', 'meet_at', 'location_id'] as $field) {
+                        if ((string) ($oldEvent[$field] ?? '') !== (string) ($newEvent[$field] ?? '')) {
+                            $this->notifications->enqueueEventChange(
+                                $eventId,
+                                (int) $newEvent['calendar_revision'],
+                                $actorUserId,
+                                false,
+                            );
+                            break;
+                        }
+                    }
+                }
 
                 unset($byDay[$date]);
                 $updated++;
@@ -775,8 +870,8 @@ final class EventService
 
         // Co v novém pravidle nezbylo, se maže i s odpověďmi. Peníze přežijí:
         // vazba prohřešku na akci je ON DELETE SET NULL, zápis zůstane.
-        foreach ($byDay as $eventId) {
-            $this->db->run('DELETE FROM event WHERE id = ?', [$eventId]);
+        foreach ($byDay as $oldEvent) {
+            $this->db->run('DELETE FROM event WHERE id = ?', [(int) $oldEvent['id']]);
         }
 
         return [
@@ -1066,12 +1161,12 @@ final class EventService
      * Nominace na zápas. U tréninku nedává smysl — nominovat na trénink bylo
      * vyhodnoceno jako zbytečná byrokracie.
      *
-     * @param  list<array{membershipId:int,nomination:string}> $items
+     * @param  list<array{membershipId:int,nomination:string,position?:string|null}> $items
      * @return EventDetail
      */
     public function saveNominations(Identity $identity, int $eventId, array $items): array
     {
-        $teamId = $this->scope->event($identity, $eventId, Role::Admin);
+        $teamId = $this->scope->event($identity, $eventId, Role::Treasurer);
         $this->attendance->assertEnabled($teamId);
         $this->assertOpenSeason($eventId);
 
@@ -1085,9 +1180,16 @@ final class EventService
             );
         }
 
+        if ($items === []) {
+            throw ApiException::validation('Vyberte alespoň jednoho hráče.', ['field' => 'items']);
+        }
+
         foreach ($items as $item) {
             if (!in_array($item['nomination'], self::NOMINATIONS, true)) {
                 throw ApiException::validation('Neznámý stav nominace.', ['field' => 'nomination']);
+            }
+            if (isset($item['position']) && !in_array($item['position'], self::NOMINATION_POSITIONS, true)) {
+                throw ApiException::validation('Neznámý post hráče.', ['field' => 'position']);
             }
         }
 
@@ -1103,10 +1205,35 @@ final class EventService
                      ON DUPLICATE KEY UPDATE nomination = VALUES(nomination)',
                     [$eventId, $item['membershipId'], $item['nomination']],
                 );
+                if (array_key_exists('position', $item)) {
+                    $this->db->run(
+                        'UPDATE event_participant SET nomination_position = ? WHERE event_id = ? AND membership_id = ?',
+                        [$item['position'], $eventId, $item['membershipId']],
+                    );
+                }
             }
+
+            $this->db->run('UPDATE event SET nomination_published_at = NULL WHERE id = ?', [$eventId]);
 
             return count($items);
         });
+
+        return $this->detail($identity, $eventId);
+    }
+
+    /** @return EventDetail */
+    public function publishNominations(Identity $identity, int $eventId): array
+    {
+        $teamId = $this->scope->event($identity, $eventId, Role::Treasurer);
+        $this->attendance->assertEnabled($teamId);
+        $this->assertOpenSeason($eventId);
+
+        $event = $this->db->first('SELECT type, status FROM event WHERE id = ?', [$eventId]);
+        if ($event === null || $event['type'] !== 'match' || $event['status'] === 'cancelled') {
+            throw ApiException::conflict('NOT_PUBLISHABLE', 'Zveřejnit lze jen nezrušený zápas.');
+        }
+
+        $this->db->run('UPDATE event SET nomination_published_at = NOW() WHERE id = ?', [$eventId]);
 
         return $this->detail($identity, $eventId);
     }
@@ -1193,7 +1320,7 @@ final class EventService
                        e.opponent, e.note, e.distance_km, e.travel_link_event_id, tl.title AS travel_link_title,
                        e.rsvp_deadline_at AS rsvp_deadline_custom,
                        $deadlineExpression AS rsvp_deadline_at,
-                       e.status, e.location_id,
+                       e.status, e.location_id, e.nomination_published_at, es.team_id,
                        e.overridden,
                        (e.starts_at <= NOW()) AS started,
                        ts.home_location_id,
@@ -1205,6 +1332,7 @@ final class EventService
                          WHERE p.event_id = e.id AND p.rsvp = 'no') AS no_count,
                        mine.id AS my_membership_id,
                        mp.rsvp AS my_rsvp, mp.rsvp_note AS my_rsvp_note, mp.nomination AS my_nomination,
+                       mp.nomination_position AS my_nomination_position,
                        mp.rsvp_at AS my_rsvp_at, mp.rsvp_late AS my_rsvp_late,
                        mp.transport AS my_transport, mp.car_seats AS my_car_seats,
                        mp.attendance AS my_attendance
@@ -1224,14 +1352,15 @@ final class EventService
      * @param  array<string,mixed> $row
      * @return EventPayload
      */
-    private function mapEvent(array $row, int $rosterCount): array
+    private function mapEvent(array $row, int $rosterCount, bool $canSeeDraft): array
     {
         $yes = (int) $row['yes_count'];
         $no  = (int) $row['no_count'];
 
-        $started   = (bool) $row['started'];
-        $cancelled = (string) $row['status'] === 'cancelled';
-        $isHome    = $this->resolveHome($row);
+        $started             = (bool) $row['started'];
+        $cancelled           = (string) $row['status'] === 'cancelled';
+        $nominationPublished = $row['type'] === 'match' && $row['nomination_published_at'] !== null;
+        $isHome              = $this->resolveHome($row);
 
         // Domácí halu lze nastavit až po vyplnění vzdálenosti u zápasu. Hodnota
         // zůstane uložená, ale ven se nevydává, jinak by appka tvrdila cestu
@@ -1259,8 +1388,9 @@ final class EventService
             'rsvpDeadlineCustom' => $row['rsvp_deadline_custom'] === null
                 ? null
                 : (string) $row['rsvp_deadline_custom'],
-            'status' => (string) $row['status'],
-            'isHome' => $isHome,
+            'status'              => (string) $row['status'],
+            'nominationPublished' => $nominationPublished,
+            'isHome'              => $isHome,
             // Ručně upravený termín hromadná změna série přeskočí.
             'overridden'  => (bool) $row['overridden'],
             'started'     => $started,
@@ -1277,10 +1407,15 @@ final class EventService
                 'rsvpNote'     => $row['my_rsvp_note'] === null ? null : (string) $row['my_rsvp_note'],
                 'rsvpAt'       => $row['my_rsvp_at'] === null ? null : (string) $row['my_rsvp_at'],
                 'rsvpLate'     => (bool) ($row['my_rsvp_late'] ?? false),
-                'nomination'   => $this->resolveNomination((string) $row['type'], $row['my_nomination']),
-                'transport'    => $row['my_transport'] === null ? 'none' : (string) $row['my_transport'],
-                'carSeats'     => $row['my_car_seats'] === null ? null : (int) $row['my_car_seats'],
-                'attendance'   => $this->resolveAttendance(
+                'nomination'   => $canSeeDraft || $nominationPublished
+                    ? $this->resolveNomination((string) $row['type'], $row['my_nomination'])
+                    : 'none',
+                'nominationPosition' => ($canSeeDraft || $nominationPublished) && $row['type'] === 'match'
+                    ? $row['my_nomination_position']
+                    : null,
+                'transport'  => $row['my_transport'] === null ? 'none' : (string) $row['my_transport'],
+                'carSeats'   => $row['my_car_seats'] === null ? null : (int) $row['my_car_seats'],
+                'attendance' => $this->resolveAttendance(
                     $started,
                     $cancelled,
                     $row['my_attendance'],
@@ -1338,6 +1473,7 @@ final class EventService
         int $seasonId,
         int $teamId,
         bool $canSeeAttendance,
+        bool $canSeeNomination,
         ?int $myMembershipId,
     ): array {
         $event = $this->db->first('SELECT starts_at, status, type FROM event WHERE id = ?', [$eventId]);
@@ -1353,7 +1489,7 @@ final class EventService
         $rows = $this->db->all(
             'SELECT m.id AS membership_id, m.user_id, m.jersey_number, u.display_name, u.avatar_url,
                     r.id IS NOT NULL AS on_roster,
-                    p.nomination, p.rsvp, p.rsvp_note, p.rsvp_at, p.rsvp_late,
+                    p.nomination, p.nomination_position, p.rsvp, p.rsvp_note, p.rsvp_at, p.rsvp_late,
                     p.transport, p.car_seats, p.attendance
                FROM membership m
                JOIN `user` u ON u.id = m.user_id
@@ -1368,6 +1504,7 @@ final class EventService
             $started,
             $cancelled,
             $canSeeAttendance,
+            $canSeeNomination,
             $myMembershipId,
             $type,
         ): array {
@@ -1379,21 +1516,24 @@ final class EventService
                 : null;
 
             return [
-                'membershipId' => $membershipId,
-                'userId'       => (int) $row['user_id'],
-                'name'         => (string) $row['display_name'],
-                'avatarUrl'    => $row['avatar_url'] === null ? null : (string) $row['avatar_url'],
-                'jerseyNumber' => $row['jersey_number'] === null ? null : (int) $row['jersey_number'],
-                'onRoster'     => (bool) $row['on_roster'],
-                'nomination'   => $this->resolveNomination($type, $row['nomination']),
-                'rsvp'         => $row['rsvp'] === null ? 'unknown' : (string) $row['rsvp'],
-                'rsvpNote'     => $row['rsvp_note'] === null ? null : (string) $row['rsvp_note'],
-                'rsvpAt'       => $row['rsvp_at'] === null ? null : (string) $row['rsvp_at'],
-                'rsvpLate'     => (bool) ($row['rsvp_late'] ?? false),
-                'transport'    => $row['transport'] === null ? 'none' : (string) $row['transport'],
-                'carSeats'     => $row['car_seats'] === null ? null : (int) $row['car_seats'],
-                'attendance'   => $attendance,
-                'corrected'    => $row['attendance'] !== null,
+                'membershipId'       => $membershipId,
+                'userId'             => (int) $row['user_id'],
+                'name'               => (string) $row['display_name'],
+                'avatarUrl'          => $row['avatar_url'] === null ? null : (string) $row['avatar_url'],
+                'jerseyNumber'       => $row['jersey_number'] === null ? null : (int) $row['jersey_number'],
+                'onRoster'           => (bool) $row['on_roster'],
+                'nomination'         => $canSeeNomination ? $this->resolveNomination($type, $row['nomination']) : 'none',
+                'nominationPosition' => $canSeeNomination && $type === 'match'
+                    ? $row['nomination_position']
+                    : null,
+                'rsvp'       => $row['rsvp'] === null ? 'unknown' : (string) $row['rsvp'],
+                'rsvpNote'   => $row['rsvp_note'] === null ? null : (string) $row['rsvp_note'],
+                'rsvpAt'     => $row['rsvp_at'] === null ? null : (string) $row['rsvp_at'],
+                'rsvpLate'   => (bool) ($row['rsvp_late'] ?? false),
+                'transport'  => $row['transport'] === null ? 'none' : (string) $row['transport'],
+                'carSeats'   => $row['car_seats'] === null ? null : (int) $row['car_seats'],
+                'attendance' => $attendance,
+                'corrected'  => $row['attendance'] !== null,
             ];
         }, $rows);
     }
@@ -1474,7 +1614,7 @@ final class EventService
             throw ApiException::notFound();
         }
 
-        return $this->mapEvent($row, $this->rosterCount($seasonId));
+        return $this->mapEvent($row, $this->rosterCount($seasonId), $this->managesTeam($identity, (int) $row['team_id']));
     }
 
     /**

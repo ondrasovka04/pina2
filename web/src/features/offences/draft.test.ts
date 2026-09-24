@@ -150,6 +150,7 @@ function participant(id: number, attendance: Attendance | null, rsvp: Rsvp, onRo
 		jerseyNumber: null,
 		onRoster,
 		nomination: 'none',
+		nominationPosition: null,
 		rsvp,
 		rsvpNote: null,
 		rsvpAt: null,

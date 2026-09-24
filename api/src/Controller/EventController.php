@@ -187,6 +187,7 @@ final class EventController
 
     public function saveNominations(Request $request): Response
     {
+        /** @var list<array{membershipId:int,nomination:string,position?:string|null}> $items */
         $items = [];
 
         foreach ($request->array('items') as $raw) {
@@ -194,13 +195,26 @@ final class EventController
                 throw ApiException::validation('Každá položka nominace musí mít stav.', ['field' => 'items']);
             }
 
-            $items[] = [
+            if (array_key_exists('position', $raw) && $raw['position'] !== null && !is_string($raw['position'])) {
+                throw ApiException::validation('Post musí být S, U, B, N, L nebo prázdný.', ['field' => 'position']);
+            }
+
+            $item = [
                 'membershipId' => $this->membershipId($raw),
                 'nomination'   => (string) $raw['nomination'],
             ];
+            if (array_key_exists('position', $raw)) {
+                $item['position'] = $raw['position'] === null ? null : (string) $raw['position'];
+            }
+            $items[] = $item;
         }
 
         return Response::ok($this->events->saveNominations($request->identity(), $request->routeId('id'), $items));
+    }
+
+    public function publishNominations(Request $request): Response
+    {
+        return Response::ok($this->events->publishNominations($request->identity(), $request->routeId('id')));
     }
 
     public function summary(Request $request): Response
