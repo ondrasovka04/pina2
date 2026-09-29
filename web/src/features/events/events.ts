@@ -370,3 +370,18 @@ export function sortParticipants(participants: EventParticipant[]): EventPartici
 		return a.name.localeCompare(b.name, 'cs')
 	})
 }
+
+/**
+ * „S - Kopac" na řádek — pro zkopírování sestavy jinam (chat, sešit u sítě).
+ * Jen kdo jede (náhradníci ne), post jen tam, kde je nastavený.
+ */
+export function nominationList(participants: EventParticipant[]): string {
+	return sortParticipants(participants)
+		.filter((participant) => participant.nomination === 'nominated')
+		.map((participant) =>
+			participant.nominationPosition === null
+				? participant.name
+				: `${participant.nominationPosition} - ${participant.name}`,
+		)
+		.join('\n')
+}

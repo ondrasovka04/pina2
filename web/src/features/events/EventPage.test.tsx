@@ -164,6 +164,28 @@ describe('EventPage', () => {
 		expect(await screen.findByText(/Nominace je zveřejněná/)).toBeInTheDocument()
 	})
 
+	it('zkopíruje sestavu jen s nominovanými a jejich postem', async () => {
+		const user = userEvent.setup()
+		const writeText = vi.fn().mockResolvedValue(undefined)
+		Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+
+		get.mockResolvedValue(detail({}, { nomination: 'nominated', nominationPosition: 'S' }))
+		renderPage()
+
+		await user.click(await screen.findByRole('button', { name: 'Kopírovat sestavu' }))
+
+		expect(writeText).toHaveBeenCalledWith('S - Ondra')
+		expect(await screen.findByRole('button', { name: 'Zkopírováno' })).toBeInTheDocument()
+	})
+
+	it('bez nominovaného hráče tlačítko na kopírování neukáže', async () => {
+		get.mockResolvedValue(detail({}, { nomination: 'none' }))
+		renderPage()
+
+		await screen.findByRole('heading', { name: 'Nominace' })
+		expect(screen.queryByRole('button', { name: 'Kopírovat sestavu' })).toBeNull()
+	})
+
 	it.each([
 		{ started: false, index: 0 },
 		{ started: false, index: 1 },

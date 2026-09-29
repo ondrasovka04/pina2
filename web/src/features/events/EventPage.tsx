@@ -17,6 +17,7 @@ import {
 	formatEventTime,
 	formatTime,
 	navigationUrl,
+	nominationList,
 	rsvpLabels,
 	sortParticipants,
 } from '@/features/events/events'
@@ -974,11 +975,25 @@ function NominationSection({ eventId, participants, writable, published }: Nomin
 	const publishNominations = usePublishNominations(eventId)
 	const [error, setError] = useState<string | null>(null)
 	const [pending, setPending] = useState<number | null>(null)
+	const [copied, setCopied] = useState(false)
+
+	const list = nominationList(participants)
+
+	async function copyList() {
+		try {
+			await navigator.clipboard.writeText(list)
+			setCopied(true)
+		} catch {
+			// Bez HTTPS nebo bez svolení schránka nefunguje — sestava zůstává vidět v kartách nahoře.
+			setCopied(false)
+		}
+	}
 
 	// Ukládá se každé kliknutí zvlášť; tlačítko „uložit" jen svádí na to odejít
 	// s nominací, o které si člověk myslí, že je hotová.
 	function setNomination(membershipId: number, nomination: Nomination) {
 		setError(null)
+		setCopied(false)
 		setPending(membershipId)
 
 		saveNominations.mutate([{ membershipId, nomination }], {
@@ -989,6 +1004,7 @@ function NominationSection({ eventId, participants, writable, published }: Nomin
 
 	function setPosition(participant: EventParticipant, position: NominationPosition | null) {
 		setError(null)
+		setCopied(false)
 		setPending(participant.membershipId)
 		saveNominations.mutate([{ membershipId: participant.membershipId, nomination: participant.nomination, position }], {
 			onError: (cause) => setError(cause instanceof ApiError ? cause.message : 'Post se nepodařilo uložit.'),
@@ -1004,21 +1020,28 @@ function NominationSection({ eventId, participants, writable, published }: Nomin
 					? 'Nominace je zveřejněná. Další změna ji skryje, dokud ji znovu nezveřejníš.'
 					: 'Nominace je rozpracovaná a vidí ji jen admini a pínaři. Jede celá soupiska, stačí označit náhradníky.'}
 			</p>
-			{!published ? (
-				<Button
-					className="mt-3"
-					disabled={!writable || saveNominations.isPending || publishNominations.isPending}
-					onClick={() => {
-						setError(null)
-						publishNominations.mutate(undefined, {
-							onError: (cause) =>
-								setError(cause instanceof ApiError ? cause.message : 'Nominaci se nepodařilo zveřejnit.'),
-						})
-					}}
-				>
-					Zveřejnit nominaci
-				</Button>
-			) : null}
+			<div className="mt-3 flex flex-wrap gap-2">
+				{!published ? (
+					<Button
+						disabled={!writable || saveNominations.isPending || publishNominations.isPending}
+						onClick={() => {
+							setError(null)
+							publishNominations.mutate(undefined, {
+								onError: (cause) =>
+									setError(cause instanceof ApiError ? cause.message : 'Nominaci se nepodařilo zveřejnit.'),
+							})
+						}}
+					>
+						Zveřejnit nominaci
+					</Button>
+				) : null}
+
+				{list === '' ? null : (
+					<Button variant="ghost" onClick={() => void copyList()}>
+						{copied ? 'Zkopírováno' : 'Kopírovat sestavu'}
+					</Button>
+				)}
+			</div>
 
 			<div className="mt-2 flex flex-col gap-2">
 				{sortParticipants(participants).map((participant) => (

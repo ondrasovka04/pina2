@@ -16,6 +16,7 @@ import {
 	linkableMatches,
 	navigationUrl,
 	nextEvent,
+	nominationList,
 	parseRrule,
 	rsvpSummary,
 	shiftMinutes,
@@ -394,6 +395,24 @@ describe('sortParticipants', () => {
 		sortParticipants(participants)
 
 		expect(participants).toEqual(original)
+	})
+})
+
+describe('nominationList', () => {
+	it('vypíše jen nominované, s postem, je-li nastavený, v pořadí soupisky', () => {
+		const participants = [
+			participant({ membershipId: 1, name: 'Kopáč', nomination: 'nominated', nominationPosition: 'S' }),
+			participant({ membershipId: 2, name: 'Ivan', nomination: 'nominated', nominationPosition: null }),
+			participant({ membershipId: 3, name: 'Náhradník', nomination: 'substitute', nominationPosition: 'U' }),
+			participant({ membershipId: 4, name: 'Doma', nomination: 'none' }),
+		]
+
+		// Stejné pořadí jako v samotném seznamu (sortParticipants) — abecedně: Ivan před Kopáčem.
+		expect(nominationList(participants)).toBe('Ivan\nS - Kopáč')
+	})
+
+	it('prázdná nominace dá prázdný řetězec', () => {
+		expect(nominationList([])).toBe('')
 	})
 })
 
