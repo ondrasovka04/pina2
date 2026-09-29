@@ -174,7 +174,7 @@ describe('EventPage', () => {
 
 		await user.click(await screen.findByRole('button', { name: 'Kopírovat sestavu' }))
 
-		expect(writeText).toHaveBeenCalledWith('S - Ondra')
+		expect(writeText).toHaveBeenCalledWith('S – Ondra')
 		expect(await screen.findByRole('button', { name: 'Zkopírováno' })).toBeInTheDocument()
 	})
 

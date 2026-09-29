@@ -399,7 +399,7 @@ describe('sortParticipants', () => {
 })
 
 describe('nominationList', () => {
-	it('vypíše jen nominované, s postem, je-li nastavený, v pořadí soupisky', () => {
+	it('vypíše jen nominované, s postem, je-li nastavený', () => {
 		const participants = [
 			participant({ membershipId: 1, name: 'Kopáč', nomination: 'nominated', nominationPosition: 'S' }),
 			participant({ membershipId: 2, name: 'Ivan', nomination: 'nominated', nominationPosition: null }),
@@ -407,8 +407,23 @@ describe('nominationList', () => {
 			participant({ membershipId: 4, name: 'Doma', nomination: 'none' }),
 		]
 
-		// Stejné pořadí jako v samotném seznamu (sortParticipants) — abecedně: Ivan před Kopáčem.
-		expect(nominationList(participants)).toBe('Ivan\nS - Kopáč')
+		// Post má přednost před abecedou, kdo ho nemá, jde na konec.
+		expect(nominationList(participants)).toBe('S – Kopáč\nIvan')
+	})
+
+	it('seřadí podle postu (S, U, B, N, L), kdo ho nemá, je poslední', () => {
+		const participants = [
+			participant({ membershipId: 1, name: 'Nahrávač', nomination: 'nominated', nominationPosition: 'N' }),
+			participant({ membershipId: 2, name: 'Bezpostu', nomination: 'nominated', nominationPosition: null }),
+			participant({ membershipId: 3, name: 'Smečař', nomination: 'nominated', nominationPosition: 'S' }),
+			participant({ membershipId: 4, name: 'Libero', nomination: 'nominated', nominationPosition: 'L' }),
+			participant({ membershipId: 5, name: 'Univerzál', nomination: 'nominated', nominationPosition: 'U' }),
+			participant({ membershipId: 6, name: 'Blokař', nomination: 'nominated', nominationPosition: 'B' }),
+		]
+
+		expect(nominationList(participants)).toBe(
+			['S – Smečař', 'U – Univerzál', 'B – Blokař', 'N – Nahrávač', 'L – Libero', 'Bezpostu'].join('\n'),
+		)
 	})
 
 	it('prázdná nominace dá prázdný řetězec', () => {

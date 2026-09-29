@@ -1,4 +1,4 @@
-import type { EventParticipant, EventType, Rsvp, TeamEvent, TeamSettings } from '@/lib/types'
+import type { EventParticipant, EventType, NominationPosition, Rsvp, TeamEvent, TeamSettings } from '@/lib/types'
 
 /**
  * Doménová logika kalendáře. Drží se mimo komponenty, aby šla testovat bez
@@ -371,17 +371,26 @@ export function sortParticipants(participants: EventParticipant[]): EventPartici
 	})
 }
 
+/** Pořadí postů v sestavě — stejné jako ve výběru u nominace. */
+const nominationPositionOrder: NominationPosition[] = ['S', 'U', 'B', 'N', 'L']
+
 /**
- * „S - Kopac" na řádek — pro zkopírování sestavy jinam (chat, sešit u sítě).
- * Jen kdo jede (náhradníci ne), post jen tam, kde je nastavený.
+ * „S – Kopáč" na řádek — pro zkopírování sestavy jinam (chat, sešit u sítě).
+ * Jen kdo jede (náhradníci ne). Seřazeno podle postu, kdo ho nemá, je na konci;
+ * v rámci stejného postu (i bez něj) se drží abecední pořadí ze soupisky.
  */
 export function nominationList(participants: EventParticipant[]): string {
 	return sortParticipants(participants)
 		.filter((participant) => participant.nomination === 'nominated')
+		.toSorted((a, b) => positionRank(a.nominationPosition) - positionRank(b.nominationPosition))
 		.map((participant) =>
 			participant.nominationPosition === null
 				? participant.name
-				: `${participant.nominationPosition} - ${participant.name}`,
+				: `${participant.nominationPosition} – ${participant.name}`,
 		)
 		.join('\n')
+}
+
+function positionRank(position: NominationPosition | null): number {
+	return position === null ? nominationPositionOrder.length : nominationPositionOrder.indexOf(position)
 }
