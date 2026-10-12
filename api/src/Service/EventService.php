@@ -1048,6 +1048,25 @@ final class EventService
         // Řidič bez volných míst je platný údaj, spolujezdec s auty ne.
         $carSeats = $transport === 'driver' ? $input['carSeats'] : null;
 
+        // Pozdě je jen to, že hráč řekl „jdu" / „nejdu" po termínu. Dopsání poznámky
+        // nebo úprava dopravy při stejné odpovědi je upřesnění, ne nové vyjádření:
+        // čas odpovědi i příznak zůstávají, jinak by si hráč doplněním „přijedu
+        // později" vysloužil prohřešek za pozdní zápis.
+        $existing = $this->db->first(
+            'SELECT rsvp FROM event_participant WHERE event_id = ? AND membership_id = ?',
+            [$eventId, $membershipId],
+        );
+
+        if ($existing !== null && $existing['rsvp'] === $input['rsvp']) {
+            $this->db->run(
+                'UPDATE event_participant SET rsvp_note = ?, transport = ?, car_seats = ?
+                  WHERE event_id = ? AND membership_id = ?',
+                [$input['note'], $transport, $carSeats, $eventId, $membershipId],
+            );
+
+            return $this->detail($identity, $eventId);
+        }
+
         $this->db->run(
             'INSERT INTO event_participant
                  (event_id, membership_id, rsvp, rsvp_note, rsvp_at, rsvp_late, transport, car_seats)

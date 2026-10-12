@@ -229,6 +229,51 @@ final class EventServiceTest extends DatabaseTestCase
         ));
     }
 
+    public function testEditingOnlyTheNoteKeepsTimeAndLateFlag(): void
+    {
+        $eventId = $this->makeEvent(2 * self::HOUR);
+        $this->db->run('UPDATE event SET rsvp_deadline_at = DATE_ADD(NOW(), INTERVAL 1 HOUR) WHERE id = ?', [$eventId]);
+
+        $this->service->saveRsvp($this->identity($this->playerId, Role::Player), $eventId, [
+            'rsvp' => 'yes', 'note' => null, 'transport' => 'none', 'carSeats' => null,
+        ]);
+        $this->db->run(
+            'UPDATE event_participant SET rsvp_at = DATE_SUB(NOW(), INTERVAL 1 DAY) WHERE event_id = ? AND membership_id = ?',
+            [$eventId, $this->playerMembership],
+        );
+        $before = $this->db->value(
+            'SELECT rsvp_at FROM event_participant WHERE event_id = ? AND membership_id = ?',
+            [$eventId, $this->playerMembership],
+        );
+
+        // Termín mezitím uplynul; dopsat poznámku se ale smí bez následků.
+        $this->db->run('UPDATE event SET rsvp_deadline_at = DATE_SUB(NOW(), INTERVAL 1 HOUR) WHERE id = ?', [$eventId]);
+        $detail = $this->service->saveRsvp($this->identity($this->playerId, Role::Player), $eventId, [
+            'rsvp' => 'yes', 'note' => 'dorazím o chvíli později', 'transport' => 'none', 'carSeats' => null,
+        ]);
+
+        self::assertFalse($this->me($detail)['rsvpLate']);
+        self::assertSame('dorazím o chvíli později', $this->me($detail)['rsvpNote']);
+        self::assertSame($before, $this->db->value(
+            'SELECT rsvp_at FROM event_participant WHERE event_id = ? AND membership_id = ?',
+            [$eventId, $this->playerMembership],
+        ));
+
+        // Doprava ani počet míst pozdní příznak nemění, jen odpověď jdu / nejdu.
+        $this->db->run('UPDATE event SET type = ? WHERE id = ?', ['match', $eventId]);
+        $driver = $this->service->saveRsvp($this->identity($this->playerId, Role::Player), $eventId, [
+            'rsvp' => 'yes', 'note' => null, 'transport' => 'driver', 'carSeats' => 3,
+        ]);
+        self::assertFalse($this->me($driver)['rsvpLate']);
+        self::assertSame(3, $this->me($driver)['carSeats']);
+
+        // Změna samotné odpovědi se po termínu dál počítá jako pozdní.
+        $changed = $this->service->saveRsvp($this->identity($this->playerId, Role::Player), $eventId, [
+            'rsvp' => 'no', 'note' => 'dorazím o chvíli později', 'transport' => 'none', 'carSeats' => null,
+        ]);
+        self::assertTrue($this->me($changed)['rsvpLate']);
+    }
+
     public function testAnswerBecomesAttendanceAfterTheEventStarts(): void
     {
         // Zápas, ne trénink — jen u něj se drží i domluva na odvozu.
