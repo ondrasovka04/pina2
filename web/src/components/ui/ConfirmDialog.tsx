@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { useEffect, useId, useRef } from 'react'
 
 import { Button } from '@/components/ui/Button'
+import { cn } from '@/lib/cn'
 
 interface ConfirmDialogProps {
 	open: boolean
@@ -14,6 +15,8 @@ interface ConfirmDialogProps {
 	/** Potvrzovací tlačítko červeně — pro nevratné akce. */
 	danger?: boolean
 	confirmDisabled?: boolean
+	/** Širší varianta pro obsah s formulářovým polem — výchozí šířka je na samotné potvrzení příliš úzká. */
+	wide?: boolean
 	children?: ReactNode
 	onConfirm: () => void
 	onCancel: () => void
@@ -28,6 +31,7 @@ export function ConfirmDialog({
 	cancelLabel = 'Zrušit',
 	danger = false,
 	confirmDisabled = false,
+	wide = false,
 	children,
 	onConfirm,
 	onCancel,
@@ -68,7 +72,10 @@ export function ConfirmDialog({
 				}
 			}}
 			// m-auto: Tailwind Preflight sráží okraje, bez toho by dialog byl v rohu.
-			className="border-line bg-surface-1 text-ink m-auto max-w-96 rounded-2xl border p-5 shadow-xl backdrop:bg-black/50"
+			className={cn(
+				'border-line bg-surface-1 text-ink m-auto w-[min(28rem,calc(100vw-2rem))] rounded-2xl border p-5 shadow-xl backdrop:bg-black/50',
+				!wide && 'max-w-96',
+			)}
 		>
 			<h2 id={titleId} className="text-lg font-semibold">
 				{title}

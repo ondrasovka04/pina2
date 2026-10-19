@@ -998,6 +998,12 @@ final class EventService
             throw ApiException::validation('Neznámý způsob dopravy.', ['field' => 'transport']);
         }
 
+        // Omluva bez důvodu je jen odmítnutí. Starší odpovědi „nepřijdu" bez důvodu
+        // zůstávají platné; pravidlo se uplatní, až se taková odpověď znovu ukládá.
+        if ($input['rsvp'] === 'no' && trim((string) $input['note']) === '') {
+            throw ApiException::validation('U odpovědi „nepřijdu" uveď důvod.', ['field' => 'note']);
+        }
+
         $deadlineExpression = RsvpDeadline::sqlExpression();
         $event              = $this->db->first(
             "SELECT e.starts_at, e.status, e.type, e.location_id, e.travel_link_event_id, ts.home_location_id,

@@ -339,10 +339,14 @@ function NextEventCard({ event, seasonId, disabled }: { event: TeamEvent; season
 
 	const canRespond = canAnswer(event) && !disabled
 	const currentRsvp = event.me?.rsvp ?? 'unknown'
-	const { requestSave, confirmation } = useRsvpConfirmation(event, (rsvp: Rsvp) => void respond(rsvp))
+	const { requestSave, confirmation } = useRsvpConfirmation(
+		event,
+		(rsvp: Rsvp, reason) => void respond(rsvp, reason),
+		(rsvp) => ({ rsvp, note: event.me?.rsvpNote ?? null }),
+	)
 	const mapUrl = event.location === null ? null : navigationUrl(event.location)
 
-	async function respond(rsvp: Rsvp) {
+	async function respond(rsvp: Rsvp, reason?: string) {
 		if (event.me === null || !canRespond || saveRsvp.isPending) {
 			return
 		}
@@ -353,7 +357,7 @@ function NextEventCard({ event, seasonId, disabled }: { event: TeamEvent; season
 		try {
 			await saveRsvp.mutateAsync({
 				rsvp,
-				note: event.me.rsvpNote,
+				note: reason ?? event.me.rsvpNote,
 				transport: event.me.transport,
 				carSeats: event.me.carSeats,
 			})

@@ -57,7 +57,11 @@ export function CalendarRsvpRow({ event, seasonId, children }: CalendarRsvpRowPr
 		return () => window.clearTimeout(timeout)
 	}, [saved])
 
-	const { requestSave, confirmation } = useRsvpConfirmation(event, (rsvp: 'yes' | 'no') => void respond(rsvp))
+	const { requestSave, confirmation } = useRsvpConfirmation(
+		event,
+		(rsvp: 'yes' | 'no', reason) => void respond(rsvp, reason),
+		(rsvp) => ({ rsvp, note: event.me?.rsvpNote ?? null }),
+	)
 
 	function claimRow(element: HTMLDivElement) {
 		if (openRow === null || openRow.current?.element === element) {
@@ -85,7 +89,7 @@ export function CalendarRsvpRow({ event, seasonId, children }: CalendarRsvpRowPr
 		})
 	}
 
-	async function respond(rsvp: 'yes' | 'no') {
+	async function respond(rsvp: 'yes' | 'no', reason?: string) {
 		if (event.me === null || saving.current) {
 			return
 		}
@@ -96,7 +100,7 @@ export function CalendarRsvpRow({ event, seasonId, children }: CalendarRsvpRowPr
 		try {
 			await saveRsvp.mutateAsync({
 				rsvp,
-				note: event.me.rsvpNote,
+				note: reason ?? event.me.rsvpNote,
 				transport: event.me.transport,
 				carSeats: event.me.carSeats,
 			})

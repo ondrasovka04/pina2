@@ -407,7 +407,10 @@ function MyAnswerCard({ event, me, eventId, seasonId, writable }: MyAnswerCardPr
 	const editable = canAnswer(event) && writable
 	const deadline = deadlineState(event)
 
-	const { requestSave, confirmation } = useRsvpConfirmation(event, commit)
+	const { requestSave, confirmation } = useRsvpConfirmation(event, commit, (next: RsvpDraft) => ({
+		rsvp: next.rsvp,
+		note: next.note,
+	}))
 
 	function save(next: RsvpDraft) {
 		if (!editable || saveRsvp.isPending) {
@@ -424,10 +427,11 @@ function MyAnswerCard({ event, me, eventId, seasonId, writable }: MyAnswerCardPr
 		requestSave(next)
 	}
 
-	function commit(next: RsvpDraft) {
+	function commit(chosen: RsvpDraft, reason?: string) {
 		if (!editable || saveRsvp.isPending) {
 			return
 		}
+		const next = reason === undefined ? chosen : { ...chosen, note: reason }
 		setDraft(next)
 		setError(null)
 		saveRsvp.mutate(
@@ -499,7 +503,7 @@ function MyAnswerCard({ event, me, eventId, seasonId, writable }: MyAnswerCardPr
 						save(draft)
 					}}
 					rows={2}
-					placeholder="Nepovinné"
+					placeholder={draft.rsvp === 'no' ? 'Napiš smysluplný a dostatečný důvod omluvy' : 'Nepovinné'}
 					className="border-line bg-surface-2 text-ink placeholder:text-ink-faint rounded-xl border px-3 py-2.5 text-base"
 				/>
 			</label>

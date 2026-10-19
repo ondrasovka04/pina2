@@ -260,15 +260,18 @@ describe('CalendarPage — rychlá odpověď v seznamu', () => {
 		}
 		const choice = screen.getByRole('button', { name: nearest ? 'Nepřijdu' : 'Nejdu' })
 		await user.click(choice)
-		const modal = screen.getByRole('dialog', { name: 'Změnit účast po termínu?' })
+		const modal = screen.getByRole('dialog', { name: 'Proč nepřijdeš?' })
 		expect(within(modal).getByText(/příplatek/)).toBeInTheDocument()
 		expect(put).not.toHaveBeenCalled()
 		await user.click(within(modal).getByRole('button', { name: 'Zrušit' }))
 		expect(put).not.toHaveBeenCalled()
 		await user.click(choice)
-		await user.click(within(modal).getByRole('button', { name: 'Ano, uložit změnu' }))
+		const reopened = screen.getByRole('dialog', { name: 'Proč nepřijdeš?' })
+		expect(within(reopened).getByRole('button', { name: 'Uložit: nepřijdu' })).toBeDisabled()
+		await user.type(within(reopened).getByRole('textbox', { name: 'Důvod omluvy' }), 'Škola')
+		await user.click(within(reopened).getByRole('button', { name: 'Uložit: nepřijdu' }))
 		await waitFor(() => expect(put).toHaveBeenCalledTimes(1))
-		expect(put).toHaveBeenCalledWith(`/events/${late.id}/rsvp`, expect.objectContaining({ rsvp: 'no' }))
+		expect(put).toHaveBeenCalledWith(`/events/${late.id}/rsvp`, expect.objectContaining({ rsvp: 'no', note: 'Škola' }))
 	})
 
 	it('opakované klepnutí na stejnou účast po termínu nic neodesílá', async () => {
@@ -384,6 +387,11 @@ describe('CalendarPage — rychlá odpověď v seznamu', () => {
 		const { button, row } = scrollingRow()
 		await user.click(button)
 		await user.click(screen.getByRole('button', { name: rsvp === 'yes' ? 'Jdu' : 'Nejdu' }))
+		if (rsvp === 'no') {
+			// Poznámka u akce slouží jako předvyplněný důvod, hráč ho jen potvrdí.
+			expect(screen.getByRole('textbox', { name: 'Důvod omluvy' })).toHaveValue('Přijedu rovnou do haly')
+			await user.click(screen.getByRole('button', { name: 'Uložit: nepřijdu' }))
+		}
 		expect(put).toHaveBeenCalledWith('/events/2/rsvp', {
 			rsvp,
 			note: 'Přijedu rovnou do haly',

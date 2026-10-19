@@ -219,7 +219,7 @@ final class EventServiceTest extends DatabaseTestCase
 
         $this->db->run('UPDATE event SET rsvp_deadline_at = DATE_SUB(NOW(), INTERVAL 1 HOUR) WHERE id = ?', [$eventId]);
         $second = $this->service->saveRsvp($this->identity($this->playerId, Role::Player), $eventId, [
-            'rsvp' => 'no', 'note' => null, 'transport' => 'none', 'carSeats' => null,
+            'rsvp' => 'no', 'note' => 'Škola', 'transport' => 'none', 'carSeats' => null,
         ]);
 
         self::assertTrue($this->me($second)['rsvpLate']);
@@ -227,6 +227,32 @@ final class EventServiceTest extends DatabaseTestCase
             'SELECT rsvp_late FROM event_participant WHERE event_id = ? AND membership_id = ?',
             [$eventId, $this->playerMembership],
         ));
+    }
+
+    public function testDecliningRequiresAReason(): void
+    {
+        $eventId = $this->makeEvent(2 * self::HOUR);
+        $player  = $this->identity($this->playerId, Role::Player);
+
+        foreach ([null, '', '   '] as $note) {
+            $this->expectStatus(400, fn () => $this->service->saveRsvp($player, $eventId, [
+                'rsvp' => 'no', 'note' => $note, 'transport' => 'none', 'carSeats' => null,
+            ]));
+        }
+
+        // Souhlas důvod nepotřebuje a se zdůvodněním „ne" projde.
+        $this->service->saveRsvp($player, $eventId, [
+            'rsvp' => 'yes', 'note' => null, 'transport' => 'none', 'carSeats' => null,
+        ]);
+        $declined = $this->service->saveRsvp($player, $eventId, [
+            'rsvp' => 'no', 'note' => 'Zkouška ve škole', 'transport' => 'none', 'carSeats' => null,
+        ]);
+        self::assertSame('no', $this->me($declined)['rsvp']);
+
+        // Důvod nejde dodatečně smazat, ani když odpověď zůstává stejná.
+        $this->expectStatus(400, fn () => $this->service->saveRsvp($player, $eventId, [
+            'rsvp' => 'no', 'note' => null, 'transport' => 'none', 'carSeats' => null,
+        ]));
     }
 
     public function testEditingOnlyTheNoteKeepsTimeAndLateFlag(): void
@@ -402,7 +428,7 @@ final class EventServiceTest extends DatabaseTestCase
 
         // Přepnutí na „nepřijdu" musí odvoz zrušit, ne spadnout na validaci.
         $this->service->saveRsvp($player, $eventId, [
-            'rsvp' => 'no', 'note' => null, 'transport' => 'driver', 'carSeats' => 3,
+            'rsvp' => 'no', 'note' => 'Nemoc', 'transport' => 'driver', 'carSeats' => 3,
         ]);
 
         $detail = $this->service->detail($player, $eventId);

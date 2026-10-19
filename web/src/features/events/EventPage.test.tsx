@@ -217,15 +217,42 @@ describe('EventPage', () => {
 		await screen.findByRole('heading', { name: 'Moje odpověď' })
 		await user.type(screen.getByRole('textbox', { name: 'Poznámka' }), 'Nestíhám')
 		await user.click(screen.getByRole('button', { name: 'Nepřijdu' }))
-		const modal = screen.getByRole('dialog', { name: 'Změnit účast po termínu?' })
+		const modal = screen.getByRole('dialog', { name: 'Proč nepřijdeš?' })
+		expect(within(modal).getByText(/příplatek/)).toBeInTheDocument()
 		expect(put).not.toHaveBeenCalled()
 		await user.click(within(modal).getByRole('button', { name: 'Zrušit' }))
 		expect(put).not.toHaveBeenCalled()
 		expect(screen.getByRole('button', { name: 'Přijdu' })).toHaveAttribute('aria-pressed', 'true')
 		await user.click(screen.getByRole('button', { name: 'Nepřijdu' }))
-		await user.click(within(modal).getByRole('button', { name: 'Ano, uložit změnu' }))
+		await user.click(
+			within(screen.getByRole('dialog', { name: 'Proč nepřijdeš?' })).getByRole('button', { name: 'Uložit: nepřijdu' }),
+		)
 		await waitFor(() => expect(put).toHaveBeenCalledTimes(1))
 		expect(put).toHaveBeenCalledWith('/events/10/rsvp', expect.objectContaining({ rsvp: 'no', note: 'Nestíhám' }))
+	})
+
+	it('„nepřijdu“ se bez důvodu neodešle a důvod se uloží jako poznámka', async () => {
+		const user = userEvent.setup()
+		put.mockResolvedValue(detail({ me: { ...detail().event.me!, rsvp: 'no', rsvpNote: 'Škola' } }))
+		renderPage()
+		await screen.findByRole('heading', { name: 'Moje odpověď' })
+
+		await user.click(screen.getByRole('button', { name: 'Nepřijdu' }))
+		const confirm = screen.getByRole('button', { name: 'Uložit: nepřijdu' })
+		expect(screen.getByRole('textbox', { name: 'Důvod omluvy' })).toHaveAttribute(
+			'placeholder',
+			expect.stringMatching(/smysluplný/),
+		)
+		expect(confirm).toBeDisabled()
+
+		await user.type(screen.getByRole('textbox', { name: 'Důvod omluvy' }), '   ')
+		expect(confirm).toBeDisabled()
+
+		await user.type(screen.getByRole('textbox', { name: 'Důvod omluvy' }), ' Škola ')
+		await user.click(confirm)
+
+		await waitFor(() => expect(put).toHaveBeenCalledTimes(1))
+		expect(put).toHaveBeenCalledWith('/events/10/rsvp', expect.objectContaining({ rsvp: 'no', note: 'Škola' }))
 	})
 
 	it('po termínu varuje i před uložením samotné poznámky', async () => {
@@ -306,6 +333,8 @@ describe('EventPage', () => {
 		await screen.findByRole('heading', { name: 'Moje odpověď' })
 
 		await user.click(screen.getByRole('button', { name: /Nepřijdu/ }))
+		await user.type(screen.getByRole('textbox', { name: 'Důvod omluvy' }), 'Škola')
+		await user.click(screen.getByRole('button', { name: 'Uložit: nepřijdu' }))
 
 		await waitFor(() => expect(put).toHaveBeenCalled())
 
