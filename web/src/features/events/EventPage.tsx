@@ -732,7 +732,7 @@ function ParticipantRow({
 			<div className="min-w-0 flex-1">
 				<p className="truncate text-sm font-medium">{participant.name}</p>
 				{participant.rsvpNote === null ? null : (
-					<p className="text-ink-faint truncate text-xs">{participant.rsvpNote}</p>
+					<p className="text-ink-faint line-clamp-3 text-xs wrap-break-word">{participant.rsvpNote}</p>
 				)}
 			</div>
 			{showNominationPosition && participant.nominationPosition !== null ? (
