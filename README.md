@@ -1,5 +1,11 @@
 # Pína 2.0
 
+**EN:** Production web app for volleyball teams that handles the team fund, fines,
+payments, attendance and match nominations. It's built with React 19, TypeScript,
+TanStack Query and Tailwind as an installable PWA with Web Push and calendar feeds,
+backed by a PHP 8 REST API with JWT auth and MySQL. Live at
+**https://pinaprosek.eu**. The app is in Czech, as is the rest of this documentation.
+
 Webová aplikace pro týmovou kasu, prohřešky, platby, docházku a nominace
 volejbalových družstev. Běží na **https://pinaprosek.eu**.
 
@@ -54,8 +60,8 @@ databázové zálohy a osobní údaje nepatří do gitu.
 
 ## Nasazení
 
-Aplikace je v provozu na hostingu Czechia / Zoner. Aktualizuje se přes FTP,
-SSH není k dispozici. Cesty jsou vůči kořenu `/www/sites/8/site92718`:
+Aplikace běží na sdíleném webhostingu. Aktualizuje se přes FTP,
+SSH není k dispozici. Cesty jsou vůči kořenu hostingového účtu:
 
 | Obsah | Cíl |
 |---|---|
@@ -71,10 +77,9 @@ Změny databáze provádějte dočasným PHP skriptem chráněným heslem: nahra
 spusťte přes HTTPS pomocí `curl`, ověřte výsledek a skript ihned smažte.
 Připojení k databázi načítejte z existující konfigurace aplikace.
 
-Při aktualizaci zachovejte `.env` a `data/app/storage/`. Hosting zálohuje databázi
-do `/data/sqlbackup/` na FTP. Ověřeno 17. 9. 2026: `pinaprosek.gz`, `.gz.1`
-a `.gz.2` obsahují tři denní verze. Obrázky v `storage/images/` databázová záloha
-neobsahuje; jejich zálohování hostingem zatím nebylo ověřeno.
+Při aktualizaci zachovejte `.env` a `data/app/storage/`. Databázi denně zálohuje
+hosting. Obrázky v `storage/images/` databázová záloha neobsahuje; jejich zálohování
+hostingem zatím nebylo ověřeno.
 Adresář musí být zapisovatelný pro PHP; obrázky vyžadují GD s JPEG a WebP.
 
 Oznámení obsluhuje úloha hostingu každých 15 minut:

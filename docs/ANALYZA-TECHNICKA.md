@@ -22,7 +22,7 @@ brána nejsou v aktuálním rozsahu.
 | Klient | Expo SDK 50, React Native 0.73, 16 obrazovek, ~5 200 řádků JS | funguje, ale neudržovaný |
 | Distribuce | Android APK/AAB (Play Console) + webový build na hostingu | **Play Console účet zrušen** → Android verze je mrtvá |
 | API | PHP, ~45 samostatných skriptů, `mysqli`, prepared statements | běží na `https://pinaprosek.eu/api/` |
-| Databáze | MySQL na Czechia/Zoner (`pinaprosek.dbaserver.net`) | běží, přístup zachován |
+| Databáze | MySQL na Czechia/Zoner | běží, přístup zachován |
 | Hosting | Czechia (Zoner) — Apache, PHP, MySQL, FTP, SSL | běží, ověřeno 14. 8. 2026 |
 
 Databázové schéma: `Uzivatel`, `Tym`, `Sezona`, `UzivatelTym`, `UzivatelSezona`,
@@ -139,7 +139,7 @@ a omezoval UI. PWA pokryje "aplikace na mobilu" bez Play Console a bez 25 USD po
 
 | Volba | Proč |
 |---|---|
-| **PHP 8.5.9** | Jediné, co hosting nabízí — ale v aktuální verzi (přepnuto z 8.2, security support do 11/2029). Property hooks, asymetrická viditelnost, enums, readonly, typed properties, `pipe` operátor — dá se v tom psát čistě. |
+| **PHP 8.5** | Jediné, co hosting nabízí — ale v aktuální verzi (přepnuto z 8.2, security support do 11/2029). Property hooks, asymetrická viditelnost, enums, readonly, typed properties, `pipe` operátor — dá se v tom psát čistě. |
 | **Vlastní mikro-framework** (~400 řádků) | Slim/Laravel by šly, ale na sdíleném FTP hostingu bez SSH je menší závislostní strom výhoda. Router + DI kontejner + middleware pipeline se napíše na jeden zátah. |
 | **PDO** místo `mysqli` | Prepared statements, named parametry, výjimky místo návratových kódů |
 | **firebase/php-jwt** | Podpis a ověření access tokenů |
@@ -1032,12 +1032,12 @@ obrazovky) a průběžně screenshotovat proti reálnému UI.
 
 ### 10.1 Ověřené parametry hostingu (phpinfo, 16. 8. 2026)
 
-Server: Debian, Apache + **PHP-FPM/FastCGI**, HTTP/2, účet `site92718`.
-**Verze přepnuta na PHP 8.5.9** (z výchozí 8.2.33) — ověřeno, že stará aplikace
+Server: Apache + **PHP-FPM/FastCGI**, HTTP/2.
+**Verze přepnuta na PHP 8.5** (z výchozí 8.2) — ověřeno, že stará aplikace
 na ní bez problémů běží. Security support 8.5 běží do 11/2029; 8.2 by vypršela
 už 12/2026.
 
-**Dostupné a potvrzené na 8.5.9:**
+**Dostupné a potvrzené na 8.5:**
 
 | Co | Význam pro návrh |
 |---|---|
@@ -1046,27 +1046,27 @@ už 12/2026.
 | `openssl`, `gmp`, `bcmath` | JWT podpis i VAPID pro Web Push |
 | `curl` (HTTP/2, TLS 1.3) | volání bankovního API (F6), geokódování |
 | `intl`, `mbstring`, `iconv` | české řazení, formátování, diakritika |
-| `redis` | rate limiting a fronta notifikací — **ověřit, zda server skutečně běží** |
+| `redis` | nepoužíváme — rate limiting i fronta notifikací jsou v databázi |
 | `gd`, `zip`, `fileinfo` | avatary, exporty |
 | `opcache` (`validate_timestamps=On`, `revalidate_freq=2`) | po FTP deployi se změny projeví do 2 s, netřeba invalidovat |
 | `date.timezone = Europe/Prague` | správně |
 | `post_max_size` / `upload_max_filesize` = 64 MB | dostatečné |
 
-**Co na 8.5 oproti 8.2 zmizelo** (a proč to nevadí): `memcached` → nahrazuje `redis`;
+**Co na 8.5 oproti 8.2 zmizelo** (a proč to nevadí): `memcached` → nepoužíváme;
 `imagick` → na zmenšování avatarů stačí `gd`; `mailparse`, `mcrypt`, `imap`, `zstd`,
 `lz4`, `msgpack`, `xmlrpc`, `maxminddb` → nepoužíváme.
 
 **Omezení, která formují návrh:**
 
 1. **`disable_functions`** blokuje `exec`, `shell_exec`, `proc_open`, `system`, `popen`, `dl`.
-   → **`mysqldump` z PHP volat nelze.** Databázi zálohuje hosting do
-   `/data/sqlbackup/` (ověřeno 17. 9. 2026, viz 10.2). Vlastní PHP dumper není implementovaný.
+   → **`mysqldump` z PHP volat nelze.** Databázi zálohuje hosting (viz 10.2).
+   Vlastní PHP dumper není implementovaný.
 2. **`max_execution_time = 30 s`, `max_input_time = 30 s`, `memory_limit = 128 M`.**
    → migrace 6 116 řádků, generování událostí ze série i záloha musí být **dávkované**
    a odolné vůči přerušení (kurzor / offset, idempotentní kroky). Žádná operace
    nesmí spoléhat na jeden dlouhý běh.
-3. **`open_basedir = /www/sites/8/site92718`**, přičemž web root je
-   `/www/sites/8/site92718/public_html`.
+3. **`open_basedir`** zahrnuje kořen hostingového účtu, web root je jeho podsložka
+   `public_html`.
    → **složka nad web rootem je pro PHP přístupná** — `.env`, `vendor/` i `storage/`
    leží mimo web v `data/app/`; přístup přes FTP je ověřený nasazením.
 4. **`log_errors = Off`, `error_log` nenastaven** → chyby se nikam nezapisují.
@@ -1106,20 +1106,8 @@ pomocí `curl`, ověření výsledku a okamžité smazání skriptu. Trvalý ve�
 endpoint neexistuje. Úklid rezerv schématu zajišťuje `api/tools/CleanupUnusedSchema.php`;
 nejdřív se nasadí nové API, potom se po záloze DB spustí migrace.
 
-**Zálohy — ověřeno 17. 9. 2026:** administrace hostingu potvrzuje pravidelné
-zálohování databáze `pinaprosek`. Na FTP v `/data/sqlbackup/` jsou tři denní verze:
-
-| Soubor | Datum poslední změny na FTP | Velikost |
-|---|---|---|
-| `pinaprosek.gz` | 17. 9. 2026 | 124 932 B |
-| `pinaprosek.gz.1` | 16. 9. 2026 | 122 788 B |
-| `pinaprosek.gz.2` | 15. 9. 2026 | 114 184 B |
-
-Nejnovější gzip byl načten pouze do paměti a bez chyby rozbalen: SQL má 1 013 761 B,
-35 tabulek, obsahuje tabulky i data současné aplikace a značku dokončení dumpu.
-Obnova do testovací DB nebyla provedena. Tři dostupné verze potvrzují denní zálohy,
-nikoli smluvní retenci nebo případné další kopie mimo FTP. Soubory `pina.gz*` ze
-9. 6. 2025 patří jiné databázi a nejsou aktuální zálohou `pinaprosek`.
+**Zálohy:** hosting databázi zálohuje denně a uchovává několik posledních verzí.
+Obnova do testovací DB zatím nebyla provedena.
 
 Vlastní zálohovací úloha v aplikaci není; původní návrh PHP dumperu a 30denní retence
 nebyl realizovaný. Zálohování souborů, zejména `storage/images/`, zůstává neověřené
