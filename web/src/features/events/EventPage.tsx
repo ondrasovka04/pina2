@@ -863,7 +863,9 @@ function AttendanceSection({
 			<h2 className="font-semibold">Docházka</h2>
 			<p className="text-ink-faint mt-1 text-sm">
 				Docházka se odvozuje z odpovědí sama — stačí zapsat jen výjimky.
-				{rides ? ' Kdo zapomněl říct, že jede autem, se dá doplnit i teď; cesťák pak vznikne sám.' : ''}
+				{rides
+					? ' Zlaté „Řidič" znamená, že jel autem — cesťák mu pak vznikne v Platbách přes „Doplnit z odehraných zápasů".'
+					: ''}
 			</p>
 
 			{linkedTo === null ? null : (
@@ -881,68 +883,84 @@ function AttendanceSection({
 					const busy = pendingMembershipId === participant.membershipId
 
 					return (
+						// Na mobilu jméno na vlastním řádku a ovládání pod ním — vedle tří
+						// přepínačů a řidiče by ze jména zbylo pár písmen.
 						<div
 							key={participant.membershipId}
-							className="border-line/50 flex flex-wrap items-center gap-2 border-b py-2 last:border-b-0"
+							className="border-line/50 flex flex-col gap-2 border-b py-2 last:border-b-0 sm:flex-row sm:items-center"
 						>
-							<Avatar
-								name={participant.name}
-								src={participant.avatarUrl}
-								jerseyNumber={participant.jerseyNumber}
-								preview
-								size="sm"
-							/>
-							<div className="min-w-0 flex-1">
-								<p className="truncate text-sm font-medium">{participant.name}</p>
-								{participant.corrected ? <span className="text-ink-faint text-xs">ručně opraveno</span> : null}
-								{deadline !== 'none' && participant.rsvpLate ? <LateBadge label="pozdě" /> : null}
-								{!participant.rsvpLate && participant.rsvp === 'unknown' && deadline === 'passed' ? (
-									<LateBadge label="po termínu" muted />
-								) : null}
+							<div className="flex min-w-0 items-center gap-2 sm:flex-1">
+								<Avatar
+									name={participant.name}
+									src={participant.avatarUrl}
+									jerseyNumber={participant.jerseyNumber}
+									preview
+									size="sm"
+								/>
+								<div className="min-w-0 flex-1">
+									<p className="truncate text-sm font-medium">{participant.name}</p>
+									{participant.corrected ? <span className="text-ink-faint text-xs">ručně opraveno</span> : null}
+									{deadline !== 'none' && participant.rsvpLate ? <LateBadge label="pozdě" /> : null}
+									{!participant.rsvpLate && participant.rsvp === 'unknown' && deadline === 'passed' ? (
+										<LateBadge label="po termínu" muted />
+									) : null}
+								</div>
 							</div>
 
-							<div className="border-line bg-surface-2 flex rounded-xl border p-1">
-								{attendanceOptions.map((option) => (
-									<button
-										key={option.value}
-										type="button"
+							<div className="flex flex-wrap items-center gap-2">
+								<div className="border-line bg-surface-2 flex flex-1 rounded-xl border p-1 sm:flex-none">
+									{attendanceOptions.map((option) => (
+										<button
+											key={option.value}
+											type="button"
+											disabled={!writable || busy}
+											aria-pressed={participant.attendance === option.value}
+											onClick={() => change(participant.membershipId, option.value)}
+											className={cn(
+												'flex-1 rounded-lg px-2 text-sm transition-colors disabled:opacity-40',
+												participant.attendance === option.value
+													? 'bg-brand-600 font-medium text-white'
+													: 'text-ink-muted',
+											)}
+										>
+											{option.label}
+										</button>
+									))}
+								</div>
+
+								{/* Přepínač, ne otázka: zlatý = zapsaný řidič, z toho při načtení vznikne cesťák. */}
+								{rides && participant.attendance !== 'absent' && participant.attendance !== 'injured' ? (
+									<Button
+										size="sm"
+										variant={participant.transport === 'driver' ? 'accent' : 'ghost'}
 										disabled={!writable || busy}
-										aria-pressed={participant.attendance === option.value}
-										onClick={() => change(participant.membershipId, option.value)}
+										aria-pressed={participant.transport === 'driver'}
+										onClick={() => changeRide(participant, participant.transport !== 'driver')}
 										className={cn(
-											'flex-1 rounded-lg px-2 text-sm transition-colors disabled:opacity-40',
-											participant.attendance === option.value
-												? 'bg-brand-600 font-medium text-white'
-												: 'text-ink-muted',
+											participant.transport === 'driver' ? 'border-accent' : 'border-line text-ink-muted',
+											'border-2',
 										)}
 									>
-										{option.label}
-									</button>
-								))}
+										{participant.transport === 'driver' ? (
+											<CheckIcon className="size-4" />
+										) : (
+											<CarIcon className="size-4" />
+										)}
+										Řidič
+									</Button>
+								) : null}
+
+								{participant.corrected ? (
+									<Button
+										size="sm"
+										variant="ghost"
+										disabled={!writable || busy}
+										onClick={() => change(participant.membershipId, null)}
+									>
+										Zrušit opravu
+									</Button>
+								) : null}
 							</div>
-
-							{rides && participant.attendance !== 'absent' && participant.attendance !== 'injured' ? (
-								<Button
-									size="sm"
-									variant={participant.transport === 'driver' ? 'accent' : 'ghost'}
-									disabled={!writable || busy}
-									aria-pressed={participant.transport === 'driver'}
-									onClick={() => changeRide(participant, participant.transport !== 'driver')}
-								>
-									{participant.transport === 'driver' ? 'Jel autem' : 'Jel autem?'}
-								</Button>
-							) : null}
-
-							{participant.corrected ? (
-								<Button
-									size="sm"
-									variant="ghost"
-									disabled={!writable || busy}
-									onClick={() => change(participant.membershipId, null)}
-								>
-									Zrušit opravu
-								</Button>
-							) : null}
 						</div>
 					)
 				})}

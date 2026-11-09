@@ -120,6 +120,25 @@ describe('EventPage', () => {
 		get.mockResolvedValue(detail())
 	})
 
+	it.each([
+		{ transport: 'none' as const, next: 'driver' },
+		{ transport: 'driver' as const, next: 'none' },
+	])('přepínač Řidič přepne dopravu z $transport a docházku nechá být', async ({ transport, next }) => {
+		const user = userEvent.setup()
+		get.mockResolvedValue(detail({ started: true }, { transport, attendance: 'present' }))
+		put.mockResolvedValue(detail({ started: true }, { transport: next as 'none' | 'driver', attendance: 'present' }))
+		renderPage()
+
+		const toggle = await screen.findByRole('button', { name: 'Řidič' })
+		expect(toggle).toHaveAttribute('aria-pressed', String(transport === 'driver'))
+		await user.click(toggle)
+
+		await waitFor(() => expect(put).toHaveBeenCalledTimes(1))
+		expect(put).toHaveBeenCalledWith('/events/10/attendance', {
+			items: [{ membershipId: 2, attendance: null, transport: next }],
+		})
+	})
+
 	it('hráči ukáže post až po zveřejnění nominace, štítek náhradníka neukáže', async () => {
 		canManage = false
 		get.mockResolvedValue(detail({}, { nomination: 'substitute', nominationPosition: 'N' }))
