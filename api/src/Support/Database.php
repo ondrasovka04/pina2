@@ -27,10 +27,15 @@ final class Database
             Config::get('DB_NAME'),
         );
 
+        // Emulované prepared statements: MySQL na hostingu má malou cache definic
+        // tabulek a serverový statement, který sahá na víc tabulek (DELETE akce
+        // s kaskádami, push odběr), zneplatňoval — po třech marných pokusech
+        // vracel chybu 1615 a akce se nedala smazat vůbec. Hodnoty dál escapuje
+        // PDO podle charsetu z DSN; čísla váže `run()` jako čísla, kvůli LIMIT ?.
         $pdo = new PDO($dsn, Config::get('DB_USER'), Config::get('DB_PASSWORD'), [
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_EMULATE_PREPARES   => false,
+            PDO::ATTR_EMULATE_PREPARES   => true,
             PDO::ATTR_STRINGIFY_FETCHES  => false,
         ]);
 
@@ -64,7 +69,23 @@ final class Database
     public function run(string $sql, array $params = []): PDOStatement
     {
         $statement = $this->pdo()->prepare($sql);
-        $statement->execute($params);
+
+        // Emulace by bez typu poslala číslo v uvozovkách a `LIMIT '500'` je
+        // syntaktická chyba.
+        $position = 0;
+
+        foreach ($params as $key => $value) {
+            $parameter = is_int($key) ? ++$position : (str_starts_with($key, ':') ? $key : ":$key");
+
+            match (true) {
+                $value === null => $statement->bindValue($parameter, null, PDO::PARAM_NULL),
+                is_bool($value) => $statement->bindValue($parameter, (int) $value, PDO::PARAM_INT),
+                is_int($value)  => $statement->bindValue($parameter, $value, PDO::PARAM_INT),
+                default         => $statement->bindValue($parameter, $value),
+            };
+        }
+
+        $statement->execute();
 
         return $statement;
     }
