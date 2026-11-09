@@ -58,6 +58,13 @@ use Pina\Support\RsvpDeadline;
  *     joinedAt:string,
  *     hasPassword:bool
  * }
+ * @phpstan-type TeamContact array{
+ *     membershipId:int,
+ *     name:string,
+ *     avatarUrl:string|null,
+ *     jerseyNumber:int|null,
+ *     phone:string|null
+ * }
  */
 final class TeamService
 {
@@ -413,6 +420,35 @@ final class TeamService
             'joinedAt'         => (string) $row['joined_at'],
             // Kdo heslo nemá, ještě se nikdy nepřihlásil — admin mu vyrobí aktivační odkaz.
             'hasPassword' => (bool) $row['has_password'],
+        ], $rows);
+    }
+
+    /**
+     * Telefony aktivních spoluhráčů — bez nich se nedomluví odvozy. Čte každý
+     * aktivní člen družstva; bývalí členové ani cizí družstvo nic nedostanou
+     * (hlídá `TeamScope`). E-maily ani platební údaje sem nepatří.
+     *
+     * @return list<TeamContact>
+     */
+    public function contacts(Identity $identity, int $teamId): array
+    {
+        $this->scope->team($identity, $teamId, Role::Player);
+
+        $rows = $this->db->all(
+            "SELECT m.id, m.jersey_number, u.display_name, u.avatar_url, u.phone
+               FROM membership m
+               JOIN `user` u ON u.id = m.user_id
+              WHERE m.team_id = ? AND m.status = 'active'
+              ORDER BY u.display_name",
+            [$teamId],
+        );
+
+        return array_map(static fn (array $row): array => [
+            'membershipId' => (int) $row['id'],
+            'name'         => (string) $row['display_name'],
+            'avatarUrl'    => $row['avatar_url'] === null ? null : (string) $row['avatar_url'],
+            'jerseyNumber' => $row['jersey_number'] === null ? null : (int) $row['jersey_number'],
+            'phone'        => $row['phone'] === null ? null : (string) $row['phone'],
         ], $rows);
     }
 

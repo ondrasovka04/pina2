@@ -103,6 +103,48 @@ final class TeamServiceTest extends DatabaseTestCase
         }
     }
 
+    public function testEveryActiveMemberSeesTeammatesPhones(): void
+    {
+        $this->db->run('UPDATE `user` SET phone = ? WHERE id = ?', ['+420777123456', $this->admin->userId]);
+        $leftId = $this->makeUser('odesel@prosek.cz');
+        $this->makeMembership($leftId, $this->prosekTeam, 'player');
+        $this->db->run("UPDATE membership SET status = 'left' WHERE user_id = ?", [$leftId]);
+
+        $contacts = $this->service->contacts($this->player, $this->prosekTeam);
+
+        // Bývalý člen v kontaktech není, hráč bez čísla ano — jen bez telefonu.
+        self::assertCount(2, $contacts);
+        $phones = array_column($contacts, 'phone', 'membershipId');
+        self::assertContains('+420777123456', $phones);
+        self::assertNull($phones[$this->playerMembership]);
+        self::assertSame(
+            ['membershipId', 'name', 'avatarUrl', 'jerseyNumber', 'phone'],
+            array_keys($contacts[0]),
+            'Kontakty nesmí vynést e-mail ani platební údaje.',
+        );
+    }
+
+    public function testContactsAreClosedToFormerMembersAndOtherTeams(): void
+    {
+        $this->db->run('UPDATE `user` SET phone = ? WHERE id = ?', ['+420777123456', $this->admin->userId]);
+
+        foreach ([
+            fn () => $this->service->contacts($this->player, $this->benatkyTeam),
+            function () {
+                $this->db->run("UPDATE membership SET status = 'left' WHERE id = ?", [$this->playerMembership]);
+
+                return $this->service->contacts($this->player, $this->prosekTeam);
+            },
+        ] as $operation) {
+            try {
+                $operation();
+                self::fail('Kontakty smí číst jen aktivní člen téhož družstva.');
+            } catch (ApiException $error) {
+                self::assertSame(404, $error->status);
+            }
+        }
+    }
+
     public function testMyTeamsListsOnlyOwnMemberships(): void
     {
         // Jeden člověk v dvou týmech → dvě membership, v každém jiná role.

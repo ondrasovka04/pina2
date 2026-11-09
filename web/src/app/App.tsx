@@ -36,6 +36,7 @@ import { OffenceTypesPage } from '@/features/offences/OffenceTypesPage'
 import { ProfilePage } from '@/features/profile/ProfilePage'
 import { NewSeasonWizard } from '@/features/seasons/NewSeasonWizard'
 import { SeasonsPage } from '@/features/seasons/SeasonsPage'
+import { ContactsPage } from '@/features/team/ContactsPage'
 import { TeamPage } from '@/features/team/TeamPage'
 import { ApiError } from '@/lib/api'
 
@@ -85,6 +86,7 @@ const router = createBrowserRouter(
 					<Route path="zapisy" element={<BatchesPage />} />
 					<Route path="sazebnik" element={<OffenceTypesPage />} />
 					<Route path="druzstvo" element={<TeamPage />} />
+					<Route path="kontakty" element={<ContactsPage />} />
 					<Route path="sprava" element={<PlatformPage />} />
 					<Route path="sezony" element={<SeasonsPage />} />
 					<Route path="sezony/nova" element={<NewSeasonWizard />} />

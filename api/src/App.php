@@ -149,6 +149,7 @@ final class App
         $router->get('/api/v1/teams/{team}', $teamCtrl->show(...));
         $router->patch('/api/v1/teams/{team}', $teamCtrl->update(...));
         $router->get('/api/v1/teams/{team}/members', $teamCtrl->members(...));
+        $router->get('/api/v1/teams/{team}/contacts', $teamCtrl->contacts(...));
         $router->get('/api/v1/teams/{team}/audit-log', $auditCtrl->index(...));
         $router->post('/api/v1/teams/{team}/members', $teamCtrl->invite(...));
         $router->get('/api/v1/teams/{team}/invitations', $teamCtrl->invitations(...));

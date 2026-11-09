@@ -97,8 +97,18 @@ export interface RosterEntry {
 }
 
 /** Člen družstva napříč sezónami — zdroj, ze kterého se soupiska sestavuje. */
+/** Telefon spoluhráče — vidí ho každý aktivní člen družstva (`TeamService::contacts`). */
+export interface TeamContact {
+	membershipId: number
+	name: string
+	avatarUrl: string | null
+	jerseyNumber: number | null
+	/** `null` = hráč číslo v profilu nevyplnil. */
+	phone: string | null
+}
+
 export interface TeamMember {
-	/** Kontakt vidí jen admin daného družstva; ostatním server vrací null. */
+	/** Adminský seznam: telefon jen pro admina, ostatním null. Spoluhráči ho mají v `TeamContact`. */
 	phone: string | null
 	id: number
 	userId: number

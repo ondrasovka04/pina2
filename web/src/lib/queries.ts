@@ -35,6 +35,7 @@ import type {
 	Season,
 	TeamDetail,
 	TeamEvent,
+	TeamContact,
 	TeamInvitation,
 	TeamMember,
 	TeamSettings,
@@ -64,6 +65,7 @@ export const queryKeys = {
 		['seasons', seasonId, 'records', membershipId ?? 'all'] as const,
 	batch: (batchId: number) => ['batches', batchId] as const,
 	members: (teamId: number) => ['teams', teamId, 'members'] as const,
+	contacts: (teamId: number) => ['teams', teamId, 'contacts'] as const,
 	invitations: (teamId: number) => ['teams', teamId, 'invitations'] as const,
 	auditLog: (teamId: number) => ['teams', teamId, 'audit-log'] as const,
 	events: (seasonId: number) => ['seasons', seasonId, 'events'] as const,
@@ -315,6 +317,16 @@ export function useTeamMembers(teamId: number | null) {
 		queryKey: queryKeys.members(teamId ?? 0),
 		queryFn: async ({ signal }) =>
 			(await api.get<{ members: TeamMember[] }>(`/teams/${teamId}/members`, signal)).members,
+		enabled: teamId !== null,
+		staleTime: 60_000,
+	})
+}
+
+export function useTeamContacts(teamId: number | null) {
+	return useQuery({
+		queryKey: queryKeys.contacts(teamId ?? 0),
+		queryFn: async ({ signal }) =>
+			(await api.get<{ contacts: TeamContact[] }>(`/teams/${teamId}/contacts`, signal)).contacts,
 		enabled: teamId !== null,
 		staleTime: 60_000,
 	})

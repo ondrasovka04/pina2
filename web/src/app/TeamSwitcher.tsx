@@ -53,25 +53,9 @@ export function TeamSwitcher() {
 		return null
 	}
 
-	// Panel se otevírá i s jediným družstvem a sezónou — pínař i admin musí mít
-	// kudy na sezóny, série a místa, i když není co přepínat.
+	// Panel se otevírá vždycky, i s jediným družstvem a sezónou: každý v něm má
+	// Kontakty, pínař a admin navíc sezóny, série a místa.
 	const canManage = can('treasurer')
-	const switchable = teams.length > 1 || seasons.length > 1 || canManage || platformAdmin
-
-	if (!switchable) {
-		// `flex-1` tu musí být stejně jako u přepínatelné varianty: bez něj se
-		// hlavička smrskne na šířku textu a navigace se k ní přilepí zleva
-		// místo toho, aby zůstala u pravého okraje.
-		return (
-			<div className="min-w-0 flex-1">
-				<p className="truncate font-semibold">{team.name}</p>
-				<p className="text-ink-faint truncate text-xs">
-					{team.clubName}
-					{season === null ? null : ` · ${season.name}`}
-				</p>
-			</div>
-		)
-	}
 
 	return (
 		<div ref={containerRef} className="relative min-w-0 flex-1">
@@ -135,69 +119,75 @@ export function TeamSwitcher() {
 						</Section>
 					) : null}
 
-					{canManage || platformAdmin ? (
-						<div className="border-line/60 flex flex-col border-t p-2">
-							{/* Členové a role jsou správa účtů, ta zůstává adminovi. */}
-							{can('admin') ? (
+					<div className="border-line/60 flex flex-col border-t p-2">
+						{/* Telefony spoluhráčů vidí každý aktivní člen — kvůli odvozům. */}
+						<Link
+							to="/kontakty"
+							onClick={() => setOpen(false)}
+							className="hover:bg-surface-2 text-ink flex min-h-11 items-center justify-center rounded-lg px-2 text-sm font-medium"
+						>
+							Kontakty
+						</Link>
+						{/* Členové a role jsou správa účtů, ta zůstává adminovi. */}
+						{can('admin') ? (
+							<Link
+								to="/druzstvo"
+								onClick={() => setOpen(false)}
+								className="hover:bg-surface-2 text-ink-muted flex min-h-11 items-center justify-center rounded-lg px-2 text-sm"
+							>
+								Spravovat družstva
+							</Link>
+						) : null}
+						{/*
+						 * Jen pínař a admin. Správce platformy, který je v tomhle družstvu
+						 * hráč, tady mít odkazy nesmí — obrazovky by ho odmítly a příznak
+						 * správce platformy není univerzální klíč, jen provozní role.
+						 */}
+						{canManage ? (
+							<>
 								<Link
-									to="/druzstvo"
+									to="/sezony"
 									onClick={() => setOpen(false)}
 									className="hover:bg-surface-2 text-ink-muted flex min-h-11 items-center justify-center rounded-lg px-2 text-sm"
 								>
-									Spravovat družstva
+									Sezóny a soupiska
 								</Link>
-							) : null}
-							{/*
-							 * Jen pínař a admin. Správce platformy, který je v tomhle družstvu
-							 * hráč, tady mít odkazy nesmí — obrazovky by ho odmítly a příznak
-							 * správce platformy není univerzální klíč, jen provozní role.
-							 */}
-							{canManage ? (
-								<>
-									<Link
-										to="/sezony"
-										onClick={() => setOpen(false)}
-										className="hover:bg-surface-2 text-ink-muted flex min-h-11 items-center justify-center rounded-lg px-2 text-sm"
-									>
-										Sezóny a soupiska
-									</Link>
-									{/* Provoz akcí; družstvo, které docházku vede jinde, tyhle obrazovky nemá. */}
-									{usesAttendance ? (
-										<>
-											<Link
-												to="/serie"
-												onClick={() => setOpen(false)}
-												className="hover:bg-surface-2 text-ink-muted flex min-h-11 items-center justify-center rounded-lg px-2 text-sm"
-											>
-												Opakované akce
-											</Link>
-											<Link
-												to="/mista"
-												onClick={() => setOpen(false)}
-												className="hover:bg-surface-2 text-ink-muted flex min-h-11 items-center justify-center rounded-lg px-2 text-sm"
-											>
-												Spravovat místa
-											</Link>
-										</>
-									) : null}
-								</>
-							) : null}
-							{platformAdmin ? (
-								<Link
-									to="/sprava"
-									onClick={() => {
-										setOpen(false)
-										if (isSupporting) {
-											stopSupport()
-										}
-									}}
-									className="hover:bg-surface-2 text-ink-faint border-line/60 mt-1 flex min-h-11 items-center justify-center rounded-lg border-t px-2 pt-1 text-sm"
-								>
-									Správa platformy
-								</Link>
-							) : null}
-						</div>
-					) : null}
+								{/* Provoz akcí; družstvo, které docházku vede jinde, tyhle obrazovky nemá. */}
+								{usesAttendance ? (
+									<>
+										<Link
+											to="/serie"
+											onClick={() => setOpen(false)}
+											className="hover:bg-surface-2 text-ink-muted flex min-h-11 items-center justify-center rounded-lg px-2 text-sm"
+										>
+											Opakované akce
+										</Link>
+										<Link
+											to="/mista"
+											onClick={() => setOpen(false)}
+											className="hover:bg-surface-2 text-ink-muted flex min-h-11 items-center justify-center rounded-lg px-2 text-sm"
+										>
+											Spravovat místa
+										</Link>
+									</>
+								) : null}
+							</>
+						) : null}
+						{platformAdmin ? (
+							<Link
+								to="/sprava"
+								onClick={() => {
+									setOpen(false)
+									if (isSupporting) {
+										stopSupport()
+									}
+								}}
+								className="hover:bg-surface-2 text-ink-faint border-line/60 mt-1 flex min-h-11 items-center justify-center rounded-lg border-t px-2 pt-1 text-sm"
+							>
+								Správa platformy
+							</Link>
+						) : null}
+					</div>
 				</div>
 			) : null}
 		</div>

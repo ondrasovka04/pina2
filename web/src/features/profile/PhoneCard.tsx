@@ -35,7 +35,10 @@ export function PhoneCard() {
 
 	return (
 		<Card>
-			<CardHeader title="Telefon" subtitle="Číslo uvidí admini vašich družstev, aby se s vámi mohli spojit." />
+			<CardHeader
+				title="Telefon"
+				subtitle="Číslo uvidí spoluhráči ve vašich družstvech v Kontaktech — hodí se třeba při domlouvání odvozů."
+			/>
 			<form onSubmit={(event) => void submit(event)} className="flex min-w-0 flex-col gap-3 p-4">
 				<Field
 					label="Telefonní číslo (nepovinné)"

@@ -72,6 +72,13 @@ final class TeamController
         ]);
     }
 
+    public function contacts(Request $request): Response
+    {
+        return Response::ok([
+            'contacts' => $this->teams->contacts($request->identity(), $request->routeId('team')),
+        ]);
+    }
+
     public function invite(Request $request): Response
     {
         $email = mb_strtolower($request->string('email'));

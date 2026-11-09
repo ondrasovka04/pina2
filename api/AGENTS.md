@@ -383,10 +383,16 @@ Hosting nemá SSH. `api/src`, `api/vendor` a `.env` se nahrávají **nad web roo
 Composer se pouští lokálně a `vendor/` se nahrává hotové.
 
 - **Telefon si vyplňuje hráč v profilu.** `user.phone` je nepovinný kontakt ve
-  tvaru `+420` a devíti číslic. Čte jej vlastník v `/me` a skutečný aktivní admin
-  daného družstva v seznamu členů. Hráč, pínař ani samotný provozní správce
-  cizí číslo nedostane; správce je uvidí až v ověřeném režimu podpory daného
-  družstva. Telefon nepatří do auditu.
+  tvaru `+420` a devíti číslic. **Spoluhráči ho vidí** — tým výslovně chtěl,
+  aby se dalo domluvit, kdo koho nabere autem (majitel 9. 11. 2026). Čte se přes
+  `TeamService::contacts` (`GET /teams/{team}/contacts`), a to **každý aktivní
+  člen družstva**, ale jen čísla **aktivních** členů téhož družstva; bývalý
+  člen ani cizí družstvo nedostanou nic (404 z `TeamScope`). Kontakty nesou jen
+  jméno, avatar, dres a číslo — e-mail ani variabilní symbol do nich nepatří.
+  Adminský seznam členů (`members`) dál ukazuje telefon jen skutečnému aktivnímu
+  adminovi, protože vrací i bývalé členy. Samotný provozní správce cizí číslo
+  nedostane; uvidí ho až v ověřeném režimu podpory daného družstva. Telefon
+  nepatří do auditu.
 
 ### Úklid nepoužívaného schématu
 

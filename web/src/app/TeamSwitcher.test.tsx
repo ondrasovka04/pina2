@@ -46,11 +46,12 @@ describe('TeamSwitcher — kudy se kdo dostane ke správě', () => {
 		teamValue.usesAttendance = true
 	})
 
-	it('hráč nemá co přepínat ani spravovat, panel se vůbec neotevírá', async () => {
+	it('hráč bez čeho přepínat se pořád dostane ke kontaktům, ke správě ne', async () => {
 		await openPanel('player')
 
-		expect(screen.queryByRole('button')).toBeNull()
+		expect(screen.getByRole('link', { name: 'Kontakty' })).toHaveAttribute('href', '/kontakty')
 		expect(screen.queryByText('Sezóny a soupiska')).toBeNull()
+		expect(screen.queryByText('Spravovat družstva')).toBeNull()
 	})
 
 	it('pínař se dostane na sezóny, série i místa', async () => {
